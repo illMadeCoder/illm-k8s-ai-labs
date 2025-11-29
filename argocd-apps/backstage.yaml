@@ -13,6 +13,7 @@ spec:
       chart: backstage
       targetRevision: 2.6.3
       helm:
+        releaseName: backstage
         valueFiles:
           - $values/bootstrap/backstage/values.yaml
     - repoURL: https://github.com/illMadeCoder/illm-k8s-lab.git

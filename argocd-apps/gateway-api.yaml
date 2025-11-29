@@ -13,6 +13,7 @@ spec:
       chart: gateway-helm
       targetRevision: v1.2.4
       helm:
+        releaseName: eg
         valueFiles:
           - $values/bootstrap/gateway-api/values.yaml
     - repoURL: https://github.com/illMadeCoder/illm-k8s-lab.git
@@ -27,3 +28,5 @@ spec:
       selfHeal: true
     syncOptions:
       - CreateNamespace=true
+      - RespectIgnoreDifferences=true
+      - ServerSideApply=true
