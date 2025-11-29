@@ -1,0 +1,38 @@
+---
+# Example: TLS certificate for ArgoCD
+# This uses the self-signed issuer for local testing
+# In production, you'd use letsencrypt-prod with a real domain
+
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: argocd-server-tls
+  namespace: argocd
+spec:
+  # Secret name where the certificate will be stored
+  secretName: argocd-server-tls
+
+  # Certificate issuer
+  issuerRef:
+    name: selfsigned-issuer
+    kind: ClusterIssuer
+
+  # DNS names for the certificate
+  dnsNames:
+    - argocd.local
+    - argocd-server.argocd.svc
+    - argocd-server.argocd.svc.cluster.local
+    - localhost
+
+  # IP addresses (for local testing)
+  ipAddresses:
+    - 127.0.0.1
+
+  # Certificate lifetime
+  duration: 2160h # 90 days
+  renewBefore: 360h # 15 days before expiry
+
+  # Private key configuration
+  privateKey:
+    algorithm: RSA
+    size: 2048

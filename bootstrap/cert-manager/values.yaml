@@ -1,0 +1,46 @@
+# cert-manager Helm values for lab environment
+# Manages TLS certificates automatically
+
+# Install CRDs with the chart
+installCRDs: true
+
+# Global configuration
+global:
+  leaderElection:
+    namespace: cert-manager
+
+# cert-manager resources
+resources:
+  requests:
+    cpu: 10m
+    memory: 32Mi
+  limits:
+    cpu: 100m
+    memory: 128Mi
+
+# Webhook resources
+webhook:
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      cpu: 50m
+      memory: 64Mi
+
+# CA Injector resources
+cainjector:
+  resources:
+    requests:
+      cpu: 10m
+      memory: 32Mi
+    limits:
+      cpu: 100m
+      memory: 128Mi
+
+# Prometheus monitoring
+prometheus:
+  enabled: true
+  servicemonitor:
+    enabled: true
+    prometheusInstance: default

@@ -7,21 +7,23 @@ usage() {
   echo "Usage: $0 [component...]"
   echo ""
   echo "Components:"
-  echo "  argocd       Install ArgoCD"
-  echo "  vault        Install HashiCorp Vault"
-  echo "  gateway-api  Install Gateway API with Envoy Gateway"
-  echo "  backstage    Install Backstage developer portal"
+  echo "  argocd        Install ArgoCD"
+  echo "  vault         Install HashiCorp Vault"
+  echo "  gateway-api   Install Gateway API with Envoy Gateway"
+  echo "  backstage     Install Backstage developer portal"
   echo "  observability Install Prometheus & Grafana"
-  echo "  all          Install everything (default)"
+  echo "  cert-manager  Install cert-manager for TLS"
+  echo "  all           Install everything (default)"
   echo ""
   echo "Examples:"
   echo "  $0                  # Install all"
-  echo "  $0 argocd            # Install only ArgoCD"
-  echo "  $0 vault             # Install only Vault"
-  echo "  $0 gateway-api       # Install only Gateway API"
-  echo "  $0 backstage         # Install only Backstage"
-  echo "  $0 observability     # Install only Prometheus & Grafana"
-  echo "  $0 argocd vault      # Install multiple components"
+  echo "  $0 argocd             # Install only ArgoCD"
+  echo "  $0 vault              # Install only Vault"
+  echo "  $0 gateway-api        # Install only Gateway API"
+  echo "  $0 backstage          # Install only Backstage"
+  echo "  $0 observability      # Install only Prometheus & Grafana"
+  echo "  $0 cert-manager       # Install only cert-manager"
+  echo "  $0 argocd vault       # Install multiple components"
 }
 
 install_argocd() {
@@ -76,10 +78,17 @@ install_observability() {
   "$SCRIPT_DIR/observability/install.sh"
 }
 
+install_cert_manager() {
+  echo "========================================"
+  echo "Installing cert-manager..."
+  echo "========================================"
+  "$SCRIPT_DIR/cert-manager/install.sh"
+}
+
 # Parse arguments
 COMPONENTS=("$@")
 if [ ${#COMPONENTS[@]} -eq 0 ] || [[ " ${COMPONENTS[*]} " =~ " all " ]]; then
-  COMPONENTS=("argocd" "vault" "gateway-api" "backstage" "observability")
+  COMPONENTS=("argocd" "vault" "gateway-api" "backstage" "observability" "cert-manager")
 fi
 
 # Install requested components
@@ -99,6 +108,9 @@ for component in "${COMPONENTS[@]}"; do
       ;;
     observability)
       install_observability
+      ;;
+    cert-manager)
+      install_cert_manager
       ;;
     all)
       # Handled above
