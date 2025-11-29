@@ -7,19 +7,21 @@ usage() {
   echo "Usage: $0 [component...]"
   echo ""
   echo "Components:"
-  echo "  argocd      Install ArgoCD"
-  echo "  vault       Install HashiCorp Vault"
-  echo "  gateway-api Install Gateway API with Envoy Gateway"
-  echo "  backstage   Install Backstage developer portal"
-  echo "  all         Install everything (default)"
+  echo "  argocd       Install ArgoCD"
+  echo "  vault        Install HashiCorp Vault"
+  echo "  gateway-api  Install Gateway API with Envoy Gateway"
+  echo "  backstage    Install Backstage developer portal"
+  echo "  observability Install Prometheus & Grafana"
+  echo "  all          Install everything (default)"
   echo ""
   echo "Examples:"
   echo "  $0                  # Install all"
-  echo "  $0 argocd           # Install only ArgoCD"
-  echo "  $0 vault            # Install only Vault"
-  echo "  $0 gateway-api      # Install only Gateway API"
-  echo "  $0 backstage        # Install only Backstage"
-  echo "  $0 argocd vault     # Install both"
+  echo "  $0 argocd            # Install only ArgoCD"
+  echo "  $0 vault             # Install only Vault"
+  echo "  $0 gateway-api       # Install only Gateway API"
+  echo "  $0 backstage         # Install only Backstage"
+  echo "  $0 observability     # Install only Prometheus & Grafana"
+  echo "  $0 argocd vault      # Install multiple components"
 }
 
 install_argocd() {
@@ -67,10 +69,17 @@ install_backstage() {
   "$SCRIPT_DIR/backstage/install.sh"
 }
 
+install_observability() {
+  echo "========================================"
+  echo "Installing Observability Stack..."
+  echo "========================================"
+  "$SCRIPT_DIR/observability/install.sh"
+}
+
 # Parse arguments
 COMPONENTS=("$@")
 if [ ${#COMPONENTS[@]} -eq 0 ] || [[ " ${COMPONENTS[*]} " =~ " all " ]]; then
-  COMPONENTS=("argocd" "vault" "gateway-api" "backstage")
+  COMPONENTS=("argocd" "vault" "gateway-api" "backstage" "observability")
 fi
 
 # Install requested components
@@ -87,6 +96,9 @@ for component in "${COMPONENTS[@]}"; do
       ;;
     backstage)
       install_backstage
+      ;;
+    observability)
+      install_observability
       ;;
     all)
       # Handled above

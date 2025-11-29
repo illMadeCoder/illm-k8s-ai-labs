@@ -1,0 +1,99 @@
+# kube-prometheus-stack Helm values for lab environment
+# Installs Prometheus, Grafana, and related monitoring components
+
+# Prometheus configuration
+prometheus:
+  prometheusSpec:
+    # Retention period for metrics
+    retention: 7d
+
+    # Storage (using emptyDir for lab, enable PVC for persistence)
+    storageSpec: {}
+
+    # Resources for lab environment
+    resources:
+      requests:
+        cpu: 200m
+        memory: 400Mi
+      limits:
+        cpu: 500m
+        memory: 1Gi
+
+    # Service monitors - automatically discover metrics endpoints
+    serviceMonitorSelectorNilUsesHelmValues: false
+    podMonitorSelectorNilUsesHelmValues: false
+
+# Grafana configuration
+grafana:
+  enabled: true
+
+  adminPassword: admin
+
+  # Service configuration for easy access
+  service:
+    type: NodePort
+    nodePort: 30300
+
+  # Pre-configured dashboards
+  defaultDashboardsEnabled: true
+
+  # Resources
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+
+# AlertManager configuration (optional for lab)
+alertmanager:
+  enabled: true
+  alertmanagerSpec:
+    resources:
+      requests:
+        cpu: 50m
+        memory: 64Mi
+      limits:
+        cpu: 100m
+        memory: 128Mi
+
+# Prometheus Operator
+prometheusOperator:
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+
+# Node exporter - collects host-level metrics
+nodeExporter:
+  enabled: true
+
+# Kube-state-metrics - exports cluster-level metrics
+kube-state-metrics:
+  enabled: true
+
+# Default service monitors (monitors k8s components)
+kubeApiServer:
+  enabled: true
+
+kubelet:
+  enabled: true
+
+kubeControllerManager:
+  enabled: true
+
+kubeScheduler:
+  enabled: true
+
+kubeProxy:
+  enabled: true
+
+kubeEtcd:
+  enabled: false  # Not accessible in minikube by default
+
+coreDns:
+  enabled: true
