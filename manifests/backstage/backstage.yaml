@@ -29,6 +29,13 @@ spec:
               periodSeconds: 10
               failureThreshold: 30
               timeoutSeconds: 5
+            extraVolumes:
+              - name: catalog
+                configMap:
+                  name: backstage-catalog
+            extraVolumeMounts:
+              - name: catalog
+                mountPath: /etc/backstage
             extraEnvVars:
               - name: APP_CONFIG_app_baseUrl
                 value: "http://localhost:7007"
@@ -68,8 +75,10 @@ spec:
                 rules:
                   - allow: [Component, System, API, Resource, Location, Template]
                 locations:
-                  - type: url
-                    target: https://raw.githubusercontent.com/illMadeCoder/illm-k8s-lab/main/backstage-catalog.yaml
+                  - type: file
+                    target: /etc/backstage/catalog.yaml
+                    rules:
+                      - allow: [System, Component, API, Resource, Location, Template]
               auth:
                 environment: development
                 providers:
