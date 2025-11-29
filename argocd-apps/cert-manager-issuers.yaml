@@ -1,9 +1,8 @@
 ---
-# App of Apps pattern - this Application manages other Applications
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: app-of-apps
+  name: cert-manager-issuers
   namespace: argocd
   finalizers:
     - resources-finalizer.argocd.argoproj.io
@@ -12,13 +11,15 @@ spec:
   source:
     repoURL: https://github.com/illMadeCoder/illm-k8s-lab.git
     targetRevision: HEAD
-    path: argocd-apps
+    path: bootstrap/cert-manager
     directory:
-      exclude: 'app-of-apps.yaml'
+      include: 'issuers.yaml'
   destination:
     server: https://kubernetes.default.svc
-    namespace: argocd
+    namespace: cert-manager
   syncPolicy:
     automated:
       prune: true
       selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

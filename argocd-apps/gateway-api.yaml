@@ -1,0 +1,29 @@
+---
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: gateway-api
+  namespace: argocd
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  sources:
+    - repoURL: oci://docker.io/envoyproxy/gateway-helm
+      chart: gateway-helm
+      targetRevision: v1.2.4
+      helm:
+        valueFiles:
+          - $values/bootstrap/gateway-api/values.yaml
+    - repoURL: https://github.com/illMadeCoder/illm-k8s-lab.git
+      targetRevision: HEAD
+      ref: values
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: envoy-gateway-system
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
