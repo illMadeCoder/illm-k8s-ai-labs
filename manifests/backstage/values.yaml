@@ -59,6 +59,9 @@ backstage:
         entityFilename: catalog-info.yaml
       rules:
         - allow: [Component, System, API, Resource, Location, Template]
+      locations:
+        - type: url
+          target: https://raw.githubusercontent.com/illMadeCoder/illm-k8s-lab/main/backstage-catalog.yaml
 
     # Authentication configuration for lab
     auth:
