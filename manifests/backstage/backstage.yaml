@@ -38,17 +38,17 @@ spec:
                 mountPath: /etc/backstage
             extraEnvVars:
               - name: APP_CONFIG_app_baseUrl
-                value: "http://backstage.local:32266"
+                value: "http://172.24.229.220:7007"
               - name: APP_CONFIG_backend_baseUrl
-                value: "http://backstage.local:32266"
+                value: "http://172.24.229.220:7007"
             appConfig:
               app:
                 title: "K8s Lab Backstage"
-                baseUrl: http://backstage.local:32266
+                baseUrl: http://172.24.229.220:7007
               organization:
                 name: "K8s Lab"
               backend:
-                baseUrl: http://backstage.local:32266
+                baseUrl: http://172.24.229.220:7007
                 listen:
                   port: 7007
                 reading:
@@ -66,7 +66,7 @@ spec:
                   object-src: ["'none'"]
                 cors:
                   origin:
-                    - http://backstage.local:32266
+                    - http://172.24.229.220:7007
                     - http://localhost:7007
                   methods: [GET, HEAD, PATCH, POST, PUT, DELETE]
                   credentials: true
