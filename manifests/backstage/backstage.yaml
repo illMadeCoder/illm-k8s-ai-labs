@@ -38,17 +38,17 @@ spec:
                 mountPath: /etc/backstage
             extraEnvVars:
               - name: APP_CONFIG_app_baseUrl
-                value: "http://192.168.49.2:30273"
+                value: "http://backstage.local:32266"
               - name: APP_CONFIG_backend_baseUrl
-                value: "http://192.168.49.2:30273"
+                value: "http://backstage.local:32266"
             appConfig:
               app:
                 title: "K8s Lab Backstage"
-                baseUrl: http://192.168.49.2:30273
+                baseUrl: http://backstage.local:32266
               organization:
                 name: "K8s Lab"
               backend:
-                baseUrl: http://192.168.49.2:30273
+                baseUrl: http://backstage.local:32266
                 listen:
                   port: 7007
                 reading:
@@ -58,7 +58,7 @@ spec:
                   connect-src: ["'self'", "http:", "https:"]
                 cors:
                   origin:
-                    - http://192.168.49.2:30273
+                    - http://backstage.local:32266
                     - http://localhost:7007
                   methods: [GET, HEAD, PATCH, POST, PUT, DELETE]
                   credentials: true
@@ -75,12 +75,12 @@ spec:
                 import:
                   entityFilename: catalog-info.yaml
                 rules:
-                  - allow: [Component, System, API, Resource, Location, Template]
+                  - allow: [Component, System, API, Resource, Location, Template, User, Group]
                 locations:
                   - type: file
                     target: /etc/backstage/catalog.yaml
                     rules:
-                      - allow: [System, Component, API, Resource, Location, Template]
+                      - allow: [System, Component, API, Resource, Location, Template, User, Group]
               auth:
                 environment: development
                 providers:

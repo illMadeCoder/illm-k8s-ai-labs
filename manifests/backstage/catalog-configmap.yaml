@@ -6,6 +6,18 @@ metadata:
 data:
   catalog.yaml: |
     ---
+    # Backstage Service Catalog - Users
+    apiVersion: backstage.io/v1alpha1
+    kind: User
+    metadata:
+      name: guest
+    spec:
+      profile:
+        displayName: Guest User
+        email: guest@k8s-lab.local
+      memberOf: []
+
+    ---
     # Backstage Service Catalog - Auto-discovered Services
     apiVersion: backstage.io/v1alpha1
     kind: System
@@ -13,7 +25,7 @@ data:
       name: k8s-lab
       title: Kubernetes Lab Cluster
     spec:
-      owner: user:admin
+      owner: user:guest
       description: All services running on the lab Kubernetes cluster
 
     ---
@@ -29,7 +41,7 @@ data:
       type: service
       lifecycle: production
       system: k8s-lab
-      owner: user:admin
+      owner: user:guest
       description: Demo application running on the cluster
       links:
         - url: http://192.168.49.2:30001
@@ -49,7 +61,7 @@ data:
       type: service
       lifecycle: production
       system: k8s-lab
-      owner: user:admin
+      owner: user:guest
       description: ArgoCD continuous deployment platform
       links:
         - url: https://192.168.49.2:30443
@@ -69,7 +81,7 @@ data:
       type: service
       lifecycle: production
       system: k8s-lab
-      owner: user:admin
+      owner: user:guest
       description: Grafana metrics visualization platform
       links:
         - url: http://192.168.49.2:30300
@@ -91,7 +103,7 @@ data:
       type: service
       lifecycle: production
       system: k8s-lab
-      owner: user:admin
+      owner: user:guest
       description: Prometheus metrics collection and storage
       links:
         - url: http://192.168.49.2:30090
@@ -111,7 +123,7 @@ data:
       type: service
       lifecycle: production
       system: k8s-lab
-      owner: user:admin
+      owner: user:guest
       description: Service discovery and development portal
       links:
         - url: http://192.168.49.2:30540
@@ -131,7 +143,7 @@ data:
       type: service
       lifecycle: production
       system: k8s-lab
-      owner: user:admin
+      owner: user:guest
       description: HashiCorp Vault for secrets management
       links:
         - url: http://192.168.49.2:30200
@@ -151,7 +163,7 @@ data:
       type: service
       lifecycle: production
       system: k8s-lab
-      owner: user:admin
+      owner: user:guest
       description: Modern ingress controller with Gateway API
       links:
         - url: http://192.168.49.2:8080
