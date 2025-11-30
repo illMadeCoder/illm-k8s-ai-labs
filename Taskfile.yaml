@@ -5,6 +5,9 @@ silent: true
 vars:
   ARGOCD_NAMESPACE: argocd
   ARGOCD_VALUES: manifests/argocd/values.yaml
+  ARGO_WF_NAMESPACE: argo-workflows
+  EXPERIMENTS_DIR: experiments
+  TERRAFORM_DIR: terraform
 
 tasks:
   default:
@@ -127,3 +130,139 @@ tasks:
       - kubectl delete namespace cert-manager --ignore-not-found
       - kubectl delete namespace argo-workflows --ignore-not-found
       - kubectl delete namespace locust --ignore-not-found
+
+  # =============================================================================
+  # Experiments
+  # =============================================================================
+  exp:list:
+    desc: List all available experiments
+    cmds:
+      - |
+        echo "Available Experiments:"
+        echo "======================"
+        for dir in {{.EXPERIMENTS_DIR}}/*/; do
+          if [ -f "${dir}experiment.yaml" ]; then
+            name=$(basename "$dir")
+            printf "  - %s\n" "$name"
+          fi
+        done
+
+  exp:validate:
+    desc: Validate an experiment (NAME=<experiment>)
+    cmds:
+      - |
+        if [ -z "{{.NAME}}" ]; then
+          echo "Usage: task exp:validate NAME=<experiment-name>"
+          exit 1
+        fi
+        CONFIG="{{.EXPERIMENTS_DIR}}/{{.NAME}}/experiment.yaml"
+        if [ ! -f "$CONFIG" ]; then
+          echo "ERROR: experiment.yaml not found at $CONFIG"
+          exit 1
+        fi
+        echo "Validating {{.NAME}}..."
+        python3 -c "import yaml; yaml.safe_load(open('$CONFIG'))" && echo "OK: Valid YAML"
+
+  exp:run:
+    desc: Run an experiment (NAME=<experiment> ENV=<environment>)
+    cmds:
+      - |
+        if [ -z "{{.NAME}}" ]; then
+          echo "Usage: task exp:run NAME=<experiment-name> [ENV=minikube]"
+          exit 1
+        fi
+        ENV={{.ENV | default "minikube"}}
+        echo "Starting experiment: {{.NAME}} on $ENV"
+        argo submit -n {{.ARGO_WF_NAMESPACE}} \
+          --from workflowtemplate/experiment-lifecycle \
+          -p experiment-name="{{.NAME}}" \
+          -p environment="$ENV" \
+          --labels app=experiment-framework,experiment={{.NAME}}
+        echo ""
+        echo "Watch with: task exp:watch"
+
+  exp:status:
+    desc: Show status of experiment workflows
+    cmds:
+      - kubectl get workflows -n {{.ARGO_WF_NAMESPACE}} -l app=experiment-framework
+
+  exp:watch:
+    desc: Watch the latest experiment workflow
+    cmds:
+      - argo watch -n {{.ARGO_WF_NAMESPACE}} @latest
+
+  exp:logs:
+    desc: Get logs from experiment (NAME=<experiment>)
+    cmds:
+      - |
+        if [ -z "{{.NAME}}" ]; then
+          argo logs -n {{.ARGO_WF_NAMESPACE}} @latest
+        else
+          WORKFLOW=$(kubectl get workflows -n {{.ARGO_WF_NAMESPACE}} \
+            -l experiment={{.NAME}} \
+            --sort-by=.metadata.creationTimestamp \
+            -o jsonpath='{.items[-1].metadata.name}')
+          argo logs -n {{.ARGO_WF_NAMESPACE}} "$WORKFLOW"
+        fi
+
+  exp:stop:
+    desc: Stop a running experiment (NAME=<experiment>)
+    cmds:
+      - |
+        if [ -z "{{.NAME}}" ]; then
+          echo "Usage: task exp:stop NAME=<experiment-name>"
+          exit 1
+        fi
+        WORKFLOW=$(kubectl get workflows -n {{.ARGO_WF_NAMESPACE}} \
+          -l experiment={{.NAME}} \
+          --field-selector=status.phase=Running \
+          -o jsonpath='{.items[0].metadata.name}')
+        if [ -n "$WORKFLOW" ]; then
+          argo stop -n {{.ARGO_WF_NAMESPACE}} "$WORKFLOW"
+        else
+          echo "No running workflow found for {{.NAME}}"
+        fi
+
+  exp:clean:
+    desc: Clean up experiment workflows
+    prompt: Delete all experiment workflows?
+    cmds:
+      - kubectl delete workflows -n {{.ARGO_WF_NAMESPACE}} -l app=experiment-framework
+
+  exp:templates:install:
+    desc: Install experiment WorkflowTemplates
+    cmds:
+      - kubectl apply -f {{.EXPERIMENTS_DIR}}/_templates/
+
+  # =============================================================================
+  # Terraform
+  # =============================================================================
+  tf:init:
+    desc: Initialize Terraform for an environment (ENV=<environment>)
+    cmds:
+      - |
+        ENV={{.ENV | default "minikube"}}
+        cd {{.TERRAFORM_DIR}}/environments/$ENV && terraform init
+
+  tf:plan:
+    desc: Plan Terraform changes (ENV=<environment>)
+    cmds:
+      - |
+        ENV={{.ENV | default "minikube"}}
+        cd {{.TERRAFORM_DIR}}/environments/$ENV && terraform plan
+
+  tf:apply:
+    desc: Apply Terraform changes (ENV=<environment>)
+    prompt: Apply Terraform changes?
+    cmds:
+      - |
+        ENV={{.ENV | default "minikube"}}
+        cd {{.TERRAFORM_DIR}}/environments/$ENV && terraform apply
+
+  tf:destroy:
+    desc: Destroy Terraform infrastructure (ENV=<environment>)
+    prompt: This will DESTROY infrastructure. Continue?
+    cmds:
+      - |
+        ENV={{.ENV | default "minikube"}}
+        cd {{.TERRAFORM_DIR}}/environments/$ENV && terraform destroy
