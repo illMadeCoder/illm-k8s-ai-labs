@@ -92,7 +92,8 @@ spec:
               auth:
                 environment: development
                 providers:
-                  guest: {}
+                  guest:
+                    dangerouslyAllowOutsideDevelopment: true
               permission:
                 enabled: false
           service:
