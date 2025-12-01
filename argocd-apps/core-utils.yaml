@@ -26,7 +26,7 @@ spec:
       path: argocd-apps/gateway-api
       directory:
         recurse: false
-        include: '*.yaml'
+        include: 'gateway-api.yaml'
 
     # Observability - Prometheus/Grafana
     - repoURL: https://github.com/illMadeCoder/illm-k8s-lab.git
@@ -34,7 +34,7 @@ spec:
       path: argocd-apps/observability
       directory:
         recurse: false
-        include: '*.yaml'
+        include: 'kube-prometheus-stack.yaml'
 
     # Observability - Loki (logs)
     - repoURL: https://github.com/illMadeCoder/illm-k8s-lab.git
@@ -42,7 +42,7 @@ spec:
       path: argocd-apps/loki
       directory:
         recurse: false
-        include: '*.yaml'
+        include: 'loki.yaml'
 
     # Observability - Promtail (log shipper)
     - repoURL: https://github.com/illMadeCoder/illm-k8s-lab.git
@@ -50,7 +50,7 @@ spec:
       path: argocd-apps/promtail
       directory:
         recurse: false
-        include: '*.yaml'
+        include: 'promtail.yaml'
 
     # Observability - OpenTelemetry
     - repoURL: https://github.com/illMadeCoder/illm-k8s-lab.git
@@ -58,7 +58,7 @@ spec:
       path: argocd-apps/otel-collector
       directory:
         recurse: false
-        include: '*.yaml'
+        include: 'otel-collector.yaml'
 
     # Artifact storage
     - repoURL: https://github.com/illMadeCoder/illm-k8s-lab.git
@@ -66,7 +66,7 @@ spec:
       path: argocd-apps/minio
       directory:
         recurse: false
-        include: '*.yaml'
+        include: 'minio.yaml'
 
     # Workflow engine
     - repoURL: https://github.com/illMadeCoder/illm-k8s-lab.git
@@ -74,7 +74,7 @@ spec:
       path: argocd-apps/argo-workflows
       directory:
         recurse: false
-        include: '*.yaml'
+        include: 'argo-workflows.yaml'
 
     # Load testing (k6)
     - repoURL: https://github.com/illMadeCoder/illm-k8s-lab.git
@@ -82,7 +82,7 @@ spec:
       path: argocd-apps/k6
       directory:
         recurse: false
-        include: '*.yaml'
+        include: 'k6-operator.yaml'
 
   destination:
     server: https://kubernetes.default.svc
