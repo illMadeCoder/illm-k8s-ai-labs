@@ -29,7 +29,9 @@ spec:
           mountPath: /locust
         env:
         - name: LOCUST_LOCUSTFILE
-          value: /locust/steady_load.py
+          value: /locust/baseline.py
+        - name: LOCUST_HOST
+          value: http://demo-app.demo.svc:80
         resources:
           requests:
             cpu: 200m
