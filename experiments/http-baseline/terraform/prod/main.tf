@@ -1,5 +1,5 @@
 # HTTP Baseline Experiment - Production Environment
-# Deploys to Azure AKS for production load testing
+# Deploys multiple AKS clusters for load testing
 
 terraform {
   required_version = ">= 1.0.0"
@@ -13,37 +13,61 @@ terraform {
   # }
 }
 
-module "aks" {
-  source = "../../../../terraform-modules/aks"
+# Clusters to create - names match argocd/*.yaml files
+variable "clusters" {
+  description = "Map of cluster configs"
+  type = map(object({
+    vm_size    = string
+    node_count = number
+    min_nodes  = number
+    max_nodes  = number
+  }))
+  default = {
+    target = {
+      vm_size    = "Standard_D4s_v3"
+      node_count = 3
+      min_nodes  = 2
+      max_nodes  = 10
+    }
+    loadgen = {
+      vm_size    = "Standard_D2s_v3"
+      node_count = 2
+      min_nodes  = 1
+      max_nodes  = 5
+    }
+  }
+}
 
-  cluster_name        = var.cluster_name
-  resource_group_name = var.resource_group_name
+module "clusters" {
+  source   = "../../../../terraform-modules/aks"
+  for_each = var.clusters
+
+  cluster_name        = "${var.experiment_name}-${each.key}"
+  resource_group_name = "${var.experiment_name}-${each.key}-rg"
   location            = var.location
   kubernetes_version  = var.kubernetes_version
 
-  # Node pool sizing for load testing
-  node_count          = var.node_count
-  vm_size             = var.vm_size
+  node_count          = each.value.node_count
+  vm_size             = each.value.vm_size
   enable_auto_scaling = true
-  min_nodes           = var.min_nodes
-  max_nodes           = var.max_nodes
+  min_nodes           = each.value.min_nodes
+  max_nodes           = each.value.max_nodes
 
-  # Monitoring
   enable_monitoring = true
-
-  # Container registry for custom images
-  create_acr = var.create_acr
+  create_acr        = false
 
   tags = {
     environment = "prod"
-    experiment  = "http-baseline"
+    experiment  = var.experiment_name
+    cluster     = each.key
     managed_by  = "terraform"
   }
 }
 
-# Output kubeconfig to file for ArgoCD bootstrap
-resource "local_file" "kubeconfig" {
-  content         = module.aks.kube_config
-  filename        = "${path.module}/kubeconfig"
+# Write kubeconfigs to files
+resource "local_file" "kubeconfigs" {
+  for_each        = var.clusters
+  content         = module.clusters[each.key].kube_config
+  filename        = "${path.module}/kubeconfig-${each.key}"
   file_permission = "0600"
 }

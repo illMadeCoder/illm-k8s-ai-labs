@@ -7,5 +7,6 @@
 
 # Sensitive files
 kubeconfig
+kubeconfig-*
 *.pem
 *.key

@@ -235,12 +235,11 @@ tasks:
   # Production Deployment (Azure AKS)
   # =============================================================================
   exp:deploy:prod:
-    desc: Deploy experiment to production AKS (NAME=<experiment> CLUSTER=<cluster>)
+    desc: Deploy experiment to production AKS (NAME=<experiment>)
     cmds:
       - |
         if [ -z "{{.NAME}}" ]; then
-          echo "Usage: task exp:deploy:prod NAME=<experiment-name> [CLUSTER=<cluster>]"
-          echo "  CLUSTER: specific cluster to deploy, or omit to deploy infra only"
+          echo "Usage: task exp:deploy:prod NAME=<experiment-name>"
           exit 1
         fi
         TF_DIR="{{.EXPERIMENTS_DIR}}/{{.NAME}}/terraform/prod"
@@ -252,28 +251,33 @@ tasks:
         fi
 
         # Deploy infrastructure
-        echo "Deploying production infrastructure for: {{.NAME}}"
+        echo "=== Deploying production infrastructure for: {{.NAME}} ==="
         cd "$TF_DIR" && terraform init && terraform apply -auto-approve
 
-        # If CLUSTER specified, deploy matching ArgoCD app
-        CLUSTER="{{.CLUSTER}}"
-        if [ -n "$CLUSTER" ]; then
+        # Get cluster names from terraform output
+        echo ""
+        echo "=== Deploying ArgoCD apps to clusters ==="
+        CLUSTERS=$(cd "$TF_DIR" && terraform output -json cluster_names | jq -r '.[]')
+
+        for CLUSTER in $CLUSTERS; do
           ARGOCD_FILE="$ARGOCD_DIR/${CLUSTER}.yaml"
+          KUBECONFIG_FILE="$TF_DIR/kubeconfig-${CLUSTER}"
+
           if [ ! -f "$ARGOCD_FILE" ]; then
-            echo "ERROR: ArgoCD file not found: $ARGOCD_FILE"
-            exit 1
+            echo "WARNING: No ArgoCD file for cluster '$CLUSTER' (expected $ARGOCD_FILE)"
+            continue
           fi
+
           echo ""
-          echo "Deploying ArgoCD app for cluster: $CLUSTER"
-          kubectl apply -f "$ARGOCD_FILE"
-        else
-          echo ""
-          echo "Infrastructure deployed. To deploy apps to a cluster:"
-          echo "  task exp:deploy:prod NAME={{.NAME}} CLUSTER=<cluster-name>"
-          echo ""
-          echo "Available clusters (ArgoCD files):"
-          ls -1 "$ARGOCD_DIR"/*.yaml 2>/dev/null | xargs -n1 basename | sed 's/.yaml$//'
-        fi
+          echo "--- Deploying to cluster: $CLUSTER ---"
+          echo "Using kubeconfig: $KUBECONFIG_FILE"
+
+          # Bootstrap ArgoCD + deploy app
+          KUBECONFIG="$KUBECONFIG_FILE" kubectl apply -f "$ARGOCD_FILE"
+        done
+
+        echo ""
+        echo "=== Deployment complete ==="
 
   exp:plan:prod:
     desc: Plan production deployment (NAME=<experiment>)
@@ -292,8 +296,8 @@ tasks:
         cd "$TF_DIR" && terraform init && terraform plan
 
   exp:undeploy:prod:
-    desc: Destroy production AKS cluster (NAME=<experiment>)
-    prompt: This will DESTROY the production AKS cluster. Continue?
+    desc: Destroy production AKS clusters (NAME=<experiment>)
+    prompt: This will DESTROY all production AKS clusters. Continue?
     cmds:
       - |
         if [ -z "{{.NAME}}" ]; then
@@ -305,11 +309,11 @@ tasks:
           echo "ERROR: terraform/prod directory not found at $TF_DIR"
           exit 1
         fi
-        echo "Destroying production infrastructure for: {{.NAME}}"
+        echo "Destroying all production infrastructure for: {{.NAME}}"
         cd "$TF_DIR" && terraform destroy -auto-approve
 
   exp:kubeconfig:prod:
-    desc: Get kubeconfig for production cluster (NAME=<experiment>)
+    desc: List kubeconfigs for production clusters (NAME=<experiment>)
     cmds:
       - |
         if [ -z "{{.NAME}}" ]; then
@@ -317,6 +321,7 @@ tasks:
           exit 1
         fi
         TF_DIR="{{.EXPERIMENTS_DIR}}/{{.NAME}}/terraform/prod"
-        cd "$TF_DIR" && eval "$(terraform output -raw kube_config_command)"
-        echo "Kubeconfig updated. Current context:"
-        kubectl config current-context
+        echo "Available kubeconfigs:"
+        ls -1 "$TF_DIR"/kubeconfig-* 2>/dev/null || echo "  No kubeconfigs found. Run exp:deploy:prod first."
+        echo ""
+        echo "Use with: KUBECONFIG=<path> kubectl ..."
