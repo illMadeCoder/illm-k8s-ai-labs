@@ -48,6 +48,9 @@ prometheusOperator:
     limits:
       cpu: 200m
       memory: 256Mi
+  # Disable TLS for operator (requires admission webhook secret otherwise)
+  tls:
+    enabled: false
   # Disable admission webhooks entirely for lab environment
   admissionWebhooks:
     enabled: false
