@@ -1,0 +1,31 @@
+# HTTP Baseline - Target Cluster
+# Deploys the application being load tested
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: http-baseline-target
+  namespace: argocd
+  labels:
+    experiment: http-baseline
+    cluster: target
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  sources:
+    - repoURL: https://github.com/illMadeCoder/illm-k8s-lab.git
+      targetRevision: HEAD
+      path: argocd-apps/demo-app
+      directory:
+        recurse: false
+        include: '*.yaml'
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: argocd
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

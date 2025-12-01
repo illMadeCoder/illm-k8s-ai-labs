@@ -1,0 +1,31 @@
+# HTTP Baseline - Loadgen Cluster
+# k6 is deployed via core-utils, this is a placeholder for
+# any loadgen-specific apps (custom dashboards, exporters, etc.)
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: http-baseline-loadgen
+  namespace: argocd
+  labels:
+    experiment: http-baseline
+    cluster: loadgen
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  sources:
+    # k6 scripts configmap (experiment-specific test scenarios)
+    - repoURL: https://github.com/illMadeCoder/illm-k8s-lab.git
+      targetRevision: HEAD
+      path: experiments/http-baseline/k6
+      directory:
+        recurse: false
+        include: '*.yaml'
+
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: k6
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
