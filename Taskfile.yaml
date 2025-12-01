@@ -153,12 +153,12 @@ tasks:
         sleep 5
         kubectl get applications -n argocd -l layer=core
 
-  exp:deploy:
-    desc: Deploy experiment's app-of-apps (NAME=<experiment>)
+  exp:deploy:minikube:
+    desc: Deploy experiment to minikube via ArgoCD (NAME=<experiment>)
     cmds:
       - |
         if [ -z "{{.NAME}}" ]; then
-          echo "Usage: task exp:deploy NAME=<experiment-name>"
+          echo "Usage: task exp:deploy:minikube NAME=<experiment-name>"
           exit 1
         fi
         APP_OF_APPS="{{.EXPERIMENTS_DIR}}/{{.NAME}}/argocd/app-of-apps.yaml"
@@ -172,12 +172,12 @@ tasks:
         sleep 5
         kubectl get applications -n argocd -l experiment={{.NAME}}
 
-  exp:undeploy:
-    desc: Remove experiment's app-of-apps (NAME=<experiment>)
+  exp:undeploy:minikube:
+    desc: Remove experiment from minikube (NAME=<experiment>)
     cmds:
       - |
         if [ -z "{{.NAME}}" ]; then
-          echo "Usage: task exp:undeploy NAME=<experiment-name>"
+          echo "Usage: task exp:undeploy:minikube NAME=<experiment-name>"
           exit 1
         fi
         echo "Removing app-of-apps for experiment: {{.NAME}}"
