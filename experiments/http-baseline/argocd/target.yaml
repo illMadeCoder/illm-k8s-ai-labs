@@ -18,11 +18,12 @@ spec:
       path: argocd-apps/demo-app
       directory:
         recurse: false
-        include: '*.yaml'
+        # Exclude demo-app.yaml (ArgoCD app definition) - deploy manifests directly
+        exclude: 'demo-app.yaml'
 
   destination:
     server: https://kubernetes.default.svc
-    namespace: argocd
+    namespace: demo
   syncPolicy:
     automated:
       prune: true
