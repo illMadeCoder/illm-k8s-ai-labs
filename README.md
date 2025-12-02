@@ -79,7 +79,15 @@ illm-k8s-lab/
 │   ├── k6/                # Load testing infrastructure
 │   └── observability/     # Prometheus, Grafana, Loki
 │
+├── custom-apps/           # Custom application source code
+│   ├── _template/         # Template for new custom apps
+│   └── <app-name>/
+│       ├── Dockerfile     # Container build definition
+│       ├── src/           # Application source code
+│       └── manifests/     # Kubernetes manifests
+│
 ├── experiments/           # Experiment definitions
+│   ├── _template/         # Template for new experiments
 │   └── <experiment-name>/
 │       ├── argocd/              # ArgoCD applications (one per cluster)
 │       │   ├── target.yaml      # Apps for "target" cluster
@@ -92,10 +100,13 @@ illm-k8s-lab/
 │       ├── workflow/            # Argo Workflow definitions
 │       │   └── experiment.yaml  # Main experiment workflow
 │       └── k6/                  # Load test scripts
-│           └── baseline.js
+│           └── test.js
 │
 ├── terraform-modules/     # Reusable Terraform modules
 │   └── aks/               # Azure Kubernetes Service
+│
+├── .github/workflows/     # CI/CD pipelines
+│   └── build-custom-apps.yaml  # Build and push custom app images
 │
 └── Taskfile.yaml          # Task runner commands
 ```
@@ -226,7 +237,110 @@ task exp:run USERS=10 DURATION=60s
 task exp:undeploy:minikube NAME=http-baseline
 ```
 
+## Custom Applications
+
+The `custom-apps/` directory is for deploying your own applications (not just popular images or Helm charts). Each custom app contains source code, a Dockerfile, and Kubernetes manifests.
+
+### Creating a Custom App
+
+1. **Copy the template:**
+   ```bash
+   cp -r custom-apps/_template custom-apps/my-app
+   ```
+
+2. **Update the files:**
+   - `Dockerfile` - Build instructions for your app
+   - `src/` - Your application source code
+   - `manifests/deployment.yaml` - Update image path: `ghcr.io/<owner>/illm-k8s-lab/my-app:latest`
+   - `manifests/service.yaml` - Update app name
+   - `manifests/httproute.yaml` - Update hostname
+
+3. **Create ArgoCD Application** in `argocd-apps/my-app/my-app.yaml`:
+   ```yaml
+   apiVersion: argoproj.io/v1alpha1
+   kind: Application
+   metadata:
+     name: my-app
+     namespace: argocd
+   spec:
+     project: default
+     source:
+       repoURL: https://github.com/<owner>/illm-k8s-lab.git
+       targetRevision: HEAD
+       path: custom-apps/my-app/manifests
+     destination:
+       server: https://kubernetes.default.svc
+       namespace: my-app
+     syncPolicy:
+       automated:
+         prune: true
+         selfHeal: true
+       syncOptions:
+         - CreateNamespace=true
+   ```
+
+4. **Push to trigger build:**
+   ```bash
+   git add custom-apps/my-app argocd-apps/my-app
+   git commit -m "Add my-app custom application"
+   git push
+   ```
+
+The GitHub Actions workflow automatically builds and pushes images to GHCR when changes are pushed to `custom-apps/<app-name>/`.
+
+### Custom App Structure
+
+```
+custom-apps/my-app/
+├── Dockerfile              # Multi-stage build (builder + runtime)
+├── src/
+│   └── main.go             # Application source code
+└── manifests/
+    ├── deployment.yaml     # Deployment with health probes
+    ├── service.yaml        # ClusterIP service
+    └── httproute.yaml      # Gateway API HTTPRoute (optional)
+```
+
 ## Creating a New Experiment
+
+### Using the Template
+
+1. **Copy the template:**
+   ```bash
+   cp -r experiments/_template experiments/my-experiment
+   ```
+
+2. **Replace placeholders** in all files:
+   | Placeholder | Description | Example |
+   |-------------|-------------|---------|
+   | `EXPERIMENT_NAME` | Experiment identifier | `latency-test` |
+   | `APP_NAME` | Application being tested | `hello-app` |
+   | `APP_NAMESPACE` | Namespace for the app | `hello-app` |
+   | `TARGET_SERVICE` | Service name to test | `hello-app` |
+
+3. **Customize the k6 test** in `k6/k6-scripts.yaml` for your test scenario
+
+4. **Test locally:**
+   ```bash
+   task exp:deploy:minikube NAME=my-experiment
+   kubectl create -f experiments/my-experiment/workflow/experiment.yaml
+   task exp:undeploy:minikube NAME=my-experiment
+   ```
+
+5. **Run full lifecycle:**
+   ```bash
+   task exp:run:full NAME=my-experiment
+   ```
+
+### Template Files
+
+| File | Purpose |
+|------|---------|
+| `argocd/target.yaml` | ArgoCD Application - deploys app + k6 scripts |
+| `k6/k6-scripts.yaml` | ConfigMap with k6 test script |
+| `workflow/experiment.yaml` | Argo Workflow - wait → load test → report |
+
+### Manual Setup (Without Template)
 
 1. **Create directory structure:**
    ```bash
