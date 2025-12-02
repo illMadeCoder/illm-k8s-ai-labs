@@ -1,0 +1,100 @@
+# Hello App Experiment Workflow
+# Deploys custom app, runs smoke test, reports results
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: hello-app-exp-
+  namespace: argo-workflows
+  labels:
+    experiment: hello-app
+spec:
+  entrypoint: run-experiment
+  arguments:
+    parameters:
+      - name: users
+        value: "5"
+      - name: duration
+        value: "30s"
+      - name: target-url
+        value: "http://hello-app.hello-app.svc:80"
+
+  templates:
+    - name: run-experiment
+      steps:
+        - - name: wait-for-app
+            template: wait-argocd-healthy
+
+        - - name: smoke-test
+            template: k6-test
+            arguments:
+              parameters:
+                - name: users
+                  value: "{{workflow.parameters.users}}"
+                - name: duration
+                  value: "{{workflow.parameters.duration}}"
+                - name: target-url
+                  value: "{{workflow.parameters.target-url}}"
+
+        - - name: complete
+            template: report-complete
+
+    # Wait for ArgoCD app to be healthy
+    - name: wait-argocd-healthy
+      container:
+        image: bitnami/kubectl:latest
+        command: [sh, -c]
+        args:
+          - |
+            echo "Waiting for hello-app to be ready..."
+            for i in $(seq 1 30); do
+              HEALTHY=$(kubectl get applications -n argocd -l experiment=hello-app -o json | \
+                jq -r '.items[] | select(.status.health.status == "Healthy" and .status.sync.status == "Synced") | .metadata.name')
+              if [ -n "$HEALTHY" ]; then
+                echo "Application healthy: $HEALTHY"
+                # Extra wait for pods
+                kubectl wait --for=condition=ready pod -l app=hello-app -n hello-app --timeout=60s
+                exit 0
+              fi
+              echo "Waiting... ($i/30)"
+              sleep 5
+            done
+            echo "Timeout waiting for application"
+            exit 1
+
+    # Run k6 smoke test
+    - name: k6-test
+      inputs:
+        parameters:
+          - name: users
+          - name: duration
+          - name: target-url
+      container:
+        image: grafana/k6:latest
+        command: [k6, run]
+        args:
+          - -e
+          - USERS={{inputs.parameters.users}}
+          - -e
+          - DURATION={{inputs.parameters.duration}}
+          - -e
+          - TARGET_URL={{inputs.parameters.target-url}}
+          - /scripts/test.js
+        volumeMounts:
+          - name: k6-scripts
+            mountPath: /scripts
+      volumes:
+        - name: k6-scripts
+          configMap:
+            name: hello-app-k6-scripts
+
+    # Report completion
+    - name: report-complete
+      container:
+        image: busybox
+        command: [sh, -c]
+        args:
+          - |
+            echo "========================================"
+            echo "Hello App Experiment Complete"
+            echo "Timestamp: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            echo "========================================"

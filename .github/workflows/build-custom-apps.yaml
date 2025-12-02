@@ -1,0 +1,135 @@
+name: Build Custom Apps
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'custom-apps/**'
+      - '!custom-apps/_template/**'
+      - '!custom-apps/README.md'
+  workflow_dispatch:
+    inputs:
+      app_name:
+        description: 'App name to build (leave empty to build all changed)'
+        required: false
+        type: string
+
+env:
+  REGISTRY: ghcr.io
+
+jobs:
+  detect-changes:
+    runs-on: ubuntu-latest
+    outputs:
+      apps: ${{ steps.changes.outputs.apps }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+
+      - name: Detect changed apps
+        id: changes
+        run: |
+          if [ -n "${{ inputs.app_name }}" ]; then
+            # Manual trigger with specific app
+            echo "apps=[\"${{ inputs.app_name }}\"]" >> $GITHUB_OUTPUT
+          else
+            # Detect changes from git diff
+            CHANGED_APPS=$(git diff --name-only HEAD~1 HEAD -- 'custom-apps/' | \
+              grep -v '^custom-apps/_template' | \
+              grep -v '^custom-apps/README.md' | \
+              cut -d'/' -f2 | \
+              sort -u | \
+              grep -v '^$' | \
+              jq -R -s -c 'split("\n") | map(select(length > 0))')
+
+            if [ "$CHANGED_APPS" = "[]" ] || [ -z "$CHANGED_APPS" ]; then
+              echo "No custom apps changed"
+              echo "apps=[]" >> $GITHUB_OUTPUT
+            else
+              echo "Changed apps: $CHANGED_APPS"
+              echo "apps=$CHANGED_APPS" >> $GITHUB_OUTPUT
+            fi
+          fi
+
+  build:
+    needs: detect-changes
+    if: needs.detect-changes.outputs.apps != '[]'
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        app: ${{ fromJson(needs.detect-changes.outputs.apps) }}
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check if app exists
+        run: |
+          if [ ! -d "custom-apps/${{ matrix.app }}" ]; then
+            echo "App directory custom-apps/${{ matrix.app }} does not exist"
+            exit 1
+          fi
+          if [ ! -f "custom-apps/${{ matrix.app }}/Dockerfile" ]; then
+            echo "Dockerfile not found in custom-apps/${{ matrix.app }}"
+            exit 1
+          fi
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.REGISTRY }}/${{ github.repository }}/${{ matrix.app }}
+          tags: |
+            type=sha,prefix=
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: custom-apps/${{ matrix.app }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Update deployment manifest with new image tag
+        run: |
+          SHORT_SHA=$(echo ${{ github.sha }} | cut -c1-7)
+          MANIFEST="custom-apps/${{ matrix.app }}/manifests/deployment.yaml"
+
+          if [ -f "$MANIFEST" ]; then
+            # Update the image tag in the deployment manifest
+            sed -i "s|image: ${{ env.REGISTRY }}/${{ github.repository }}/${{ matrix.app }}:.*|image: ${{ env.REGISTRY }}/${{ github.repository }}/${{ matrix.app }}:${SHORT_SHA}|g" "$MANIFEST"
+            echo "Updated $MANIFEST with image tag: ${SHORT_SHA}"
+          fi
+
+      - name: Commit manifest changes
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          MANIFEST="custom-apps/${{ matrix.app }}/manifests/deployment.yaml"
+          if git diff --quiet "$MANIFEST"; then
+            echo "No changes to commit"
+          else
+            git add "$MANIFEST"
+            git commit -m "chore(${{ matrix.app }}): update image tag to ${{ github.sha }}"
+            git push
+          fi
