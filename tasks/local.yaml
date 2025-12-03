@@ -234,8 +234,7 @@ tasks:
             {
               "bearerToken": "${TOKEN}",
               "tlsClientConfig": {
-                "insecure": false,
-                "caData": "${CLUSTER_CA}"
+                "insecure": true
               }
             }
         ENDOFFILE
