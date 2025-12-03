@@ -1,9 +1,16 @@
-# Contour Helm Values (Official Chart)
-# https://projectcontour.io/docs/latest/guides/gateway-api/
+# Bitnami Contour Helm Values
+# https://github.com/bitnami/charts/tree/main/bitnami/contour
 
-# Gateway provisioner configuration
-gatewayProvisioner:
+# Enable Gateway API support
+gateway:
   enabled: true
+  installCRDs: true
+
+# Contour configuration
+contour:
+  ingressClass:
+    create: true
+    name: contour
 
 # Envoy configuration
 envoy:
