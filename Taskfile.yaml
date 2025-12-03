@@ -13,10 +13,10 @@ tasks:
       - task --list
 
   # =============================================================================
-  # Bootstrap
+  # Init
   # =============================================================================
-  bootstrap:
-    desc: Bootstrap minikube with ArgoCD
+  init:minikube:
+    desc: Initialize minikube with ArgoCD
     cmds:
       - helm repo add argo https://argoproj.github.io/argo-helm 2>/dev/null || true
       - helm repo update argo
@@ -26,10 +26,10 @@ tasks:
           --create-namespace \
           --values {{.ARGOCD_VALUES}} \
           --wait
-      - task: argocd:password
+      - task: argocd:password:minikube
 
-  bootstrap:upgrade:
-    desc: Upgrade ArgoCD installation
+  init:upgrade:minikube:
+    desc: Upgrade ArgoCD on minikube
     cmds:
       - helm repo update argo
       - |
@@ -41,7 +41,7 @@ tasks:
   # =============================================================================
   # Status
   # =============================================================================
-  status:
+  status:minikube:
     desc: Show status of all ArgoCD applications
     cmds:
       - kubectl get applications -n {{.ARGOCD_NAMESPACE}}
@@ -49,7 +49,7 @@ tasks:
   # =============================================================================
   # ArgoCD
   # =============================================================================
-  argocd:password:
+  argocd:password:minikube:
     desc: Display ArgoCD admin password
     cmds:
       - |
@@ -57,7 +57,7 @@ tasks:
         echo "  Username: admin"
         echo "  Password: $(kubectl -n {{.ARGOCD_NAMESPACE}} get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d)"
 
-  argocd:ui:
+  argocd:ui:minikube:
     desc: Port-forward ArgoCD UI to localhost:8080
     cmds:
       - echo "ArgoCD UI available at https://localhost:8080"
