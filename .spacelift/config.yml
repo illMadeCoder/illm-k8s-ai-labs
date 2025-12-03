@@ -1,0 +1,68 @@
+# Spacelift Configuration
+# This file configures global settings for Spacelift in the illm-k8s-lab repository
+
+version: "1"
+
+# Stack defaults applied to all stacks unless overridden
+stack_defaults:
+  # Use OpenTofu instead of Terraform (open source)
+  runner_image: public.ecr.aws/spacelift/runner-terraform:latest
+  terraform_version: "1.6.0"
+
+  # Default labels for organization
+  labels:
+    - "illm-k8s-lab"
+    - "portfolio"
+
+# Define which directories contain Terraform/OpenTofu code
+# Spacelift will auto-discover stacks based on these patterns
+autodiscover:
+  # Root stack that manages other stacks
+  - path: "spacelift-stacks/base"
+    name: "spacelift-root"
+    administrative: true
+    description: "Administrative stack managing all other Spacelift stacks"
+    labels:
+      - "administrative"
+      - "root"
+
+  # Foundation networking stacks (manually triggered)
+  - path: "terraform-modules/azure-networking"
+    name: "azure-foundation"
+    autodeploy: false
+    labels:
+      - "foundation"
+      - "azure"
+
+  - path: "terraform-modules/aws-networking"
+    name: "aws-foundation"
+    autodeploy: false
+    labels:
+      - "foundation"
+      - "aws"
+
+  # Experiment stacks are created dynamically by the root stack
+  # based on experiments/ directory contents
+
+# Shared contexts for credentials
+contexts:
+  - name: "azure-credentials"
+    description: "Azure service principal for AKS provisioning"
+    # Environment variables set in Spacelift UI:
+    # - ARM_CLIENT_ID
+    # - ARM_CLIENT_SECRET
+    # - ARM_SUBSCRIPTION_ID
+    # - ARM_TENANT_ID
+
+  - name: "aws-credentials"
+    description: "AWS credentials for EKS provisioning"
+    # Environment variables set in Spacelift UI:
+    # - AWS_ACCESS_KEY_ID
+    # - AWS_SECRET_ACCESS_KEY
+    # - AWS_DEFAULT_REGION
+
+# Policies to attach globally
+policies:
+  - name: "plan-approval"
+    path: ".spacelift/policies/plan-approval.rego"
+    type: "APPROVAL"

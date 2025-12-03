@@ -528,3 +528,169 @@ tasks:
         echo "=============================================="
         echo "  PROD EXPERIMENT COMPLETE"
         echo "=============================================="
+
+  # =============================================================================
+  # Spacelift Integration
+  # =============================================================================
+  spacelift:login:
+    desc: Login to Spacelift CLI
+    cmds:
+      - |
+        if ! command -v spacectl &> /dev/null; then
+          echo "spacectl not found. Install with:"
+          echo "  brew install spacelift-io/spacelift/spacectl"
+          echo "  or see https://docs.spacelift.io/concepts/spacectl"
+          exit 1
+        fi
+        spacectl profile login illm-k8s-lab
+
+  spacelift:stacks:
+    desc: List all Spacelift stacks
+    cmds:
+      - spacectl stack list
+
+  spacelift:trigger:
+    desc: Trigger a Spacelift stack run (STACK=<stack-name>)
+    cmds:
+      - |
+        if [ -z "{{.STACK}}" ]; then
+          echo "Usage: task spacelift:trigger STACK=<stack-name>"
+          echo ""
+          echo "List stacks with: task spacelift:stacks"
+          exit 1
+        fi
+        spacectl stack run-manual --id {{.STACK}}
+
+  exp:deploy:spacelift:
+    desc: Deploy experiment via Spacelift (NAME=<experiment> CLOUD=azure|aws|both)
+    cmds:
+      - |
+        if [ -z "{{.NAME}}" ]; then
+          echo "Usage: task exp:deploy:spacelift NAME=<experiment> [CLOUD=azure]"
+          exit 1
+        fi
+        CLOUD={{.CLOUD | default "azure"}}
+
+        case "$CLOUD" in
+          azure)
+            echo "Triggering Spacelift stack: exp-{{.NAME}}-aks"
+            spacectl stack run-manual --id exp-{{.NAME}}-aks
+            ;;
+          aws)
+            echo "Triggering Spacelift stack: exp-{{.NAME}}-eks"
+            spacectl stack run-manual --id exp-{{.NAME}}-eks
+            ;;
+          both)
+            echo "Triggering Spacelift stacks for both Azure and AWS..."
+            spacectl stack run-manual --id exp-{{.NAME}}-aks &
+            spacectl stack run-manual --id exp-{{.NAME}}-eks &
+            wait
+            ;;
+          *)
+            echo "Invalid CLOUD value: $CLOUD"
+            echo "Valid options: azure, aws, both"
+            exit 1
+            ;;
+        esac
+
+  exp:destroy:spacelift:
+    desc: Destroy experiment via Spacelift (NAME=<experiment> CLOUD=azure|aws|both)
+    prompt: This will DESTROY cloud infrastructure. Continue?
+    cmds:
+      - |
+        if [ -z "{{.NAME}}" ]; then
+          echo "Usage: task exp:destroy:spacelift NAME=<experiment> [CLOUD=azure]"
+          exit 1
+        fi
+        CLOUD={{.CLOUD | default "azure"}}
+
+        case "$CLOUD" in
+          azure)
+            echo "Triggering destroy for: exp-{{.NAME}}-aks"
+            spacectl stack task --id exp-{{.NAME}}-aks --tail "terraform destroy -auto-approve"
+            ;;
+          aws)
+            echo "Triggering destroy for: exp-{{.NAME}}-eks"
+            spacectl stack task --id exp-{{.NAME}}-eks --tail "terraform destroy -auto-approve"
+            ;;
+          both)
+            echo "Triggering destroy for both Azure and AWS..."
+            spacectl stack task --id exp-{{.NAME}}-aks --tail "terraform destroy -auto-approve" &
+            spacectl stack task --id exp-{{.NAME}}-eks --tail "terraform destroy -auto-approve" &
+            wait
+            ;;
+          *)
+            echo "Invalid CLOUD value: $CLOUD"
+            exit 1
+            ;;
+        esac
+
+  # =============================================================================
+  # Crossplane
+  # =============================================================================
+  crossplane:status:
+    desc: Show Crossplane provider and XRD status
+    cmds:
+      - |
+        echo "=== Crossplane Providers ==="
+        kubectl get providers.pkg.crossplane.io 2>/dev/null || echo "No providers installed"
+        echo ""
+        echo "=== Provider Health ==="
+        kubectl get providers.pkg.crossplane.io -o jsonpath='{range .items[*]}{.metadata.name}: {.status.conditions[?(@.type=="Healthy")].status}{"\n"}{end}' 2>/dev/null || true
+        echo ""
+        echo "=== CompositeResourceDefinitions (XRDs) ==="
+        kubectl get xrds.apiextensions.crossplane.io 2>/dev/null || echo "No XRDs installed"
+        echo ""
+        echo "=== Compositions ==="
+        kubectl get compositions.apiextensions.crossplane.io 2>/dev/null || echo "No compositions installed"
+
+  crossplane:claims:
+    desc: Show all Crossplane claims across namespaces
+    cmds:
+      - |
+        echo "=== Databases ==="
+        kubectl get databases.illm.io --all-namespaces 2>/dev/null || echo "No database claims"
+        echo ""
+        echo "=== Object Storage ==="
+        kubectl get objectstorages.illm.io --all-namespaces 2>/dev/null || echo "No storage claims"
+        echo ""
+        echo "=== Caches ==="
+        kubectl get caches.illm.io --all-namespaces 2>/dev/null || echo "No cache claims"
+        echo ""
+        echo "=== Queues ==="
+        kubectl get queues.illm.io --all-namespaces 2>/dev/null || echo "No queue claims"
+
+  crossplane:managed:
+    desc: Show all Crossplane managed resources
+    cmds:
+      - |
+        echo "=== Azure Managed Resources ==="
+        kubectl get managed -l crossplane.io/provider-config=default 2>/dev/null | head -50 || echo "No Azure resources"
+        echo ""
+        echo "=== AWS Managed Resources ==="
+        kubectl get managed -l aws.upbound.io/provider-config=default 2>/dev/null | head -50 || echo "No AWS resources"
+
+  crossplane:events:
+    desc: Show recent Crossplane events (useful for debugging)
+    cmds:
+      - |
+        echo "=== Recent Crossplane Events ==="
+        kubectl get events -n crossplane-system --sort-by='.lastTimestamp' | tail -30
+
+  deploy:crossplane:
+    desc: Deploy Crossplane (core + providers + XRDs)
+    cmds:
+      - |
+        echo "Deploying Crossplane..."
+        kubectl apply -f argocd-apps/crossplane/crossplane.yaml
+        echo "Waiting for Crossplane to be ready..."
+        sleep 10
+        kubectl wait --for=condition=healthy deployment/crossplane -n crossplane-system --timeout=5m || true
+        echo ""
+        echo "Deploying Crossplane providers..."
+        kubectl apply -f argocd-apps/crossplane-providers/providers.yaml
+        echo ""
+        echo "Deploying XRDs and Compositions..."
+        kubectl apply -f argocd-apps/crossplane-xrds/xrds.yaml
+        echo ""
+        echo "Crossplane deployment initiated. Check status with: task crossplane:status"

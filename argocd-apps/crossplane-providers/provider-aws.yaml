@@ -1,0 +1,104 @@
+---
+# Upbound AWS Provider Family
+# Installs the base provider and specific resource providers
+apiVersion: pkg.crossplane.io/v1
+kind: Provider
+metadata:
+  name: provider-family-aws
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  package: xpkg.upbound.io/upbound/provider-family-aws:v1.7.0
+  controllerConfigRef:
+    name: aws-controller-config
+---
+# Controller configuration for AWS providers
+# Uses IRSA (IAM Roles for Service Accounts) for authentication
+apiVersion: pkg.crossplane.io/v1alpha1
+kind: ControllerConfig
+metadata:
+  name: aws-controller-config
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  podSecurityContext:
+    fsGroup: 2000
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+---
+# AWS RDS Provider (PostgreSQL, MySQL)
+apiVersion: pkg.crossplane.io/v1
+kind: Provider
+metadata:
+  name: provider-aws-rds
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  package: xpkg.upbound.io/upbound/provider-aws-rds:v1.7.0
+  controllerConfigRef:
+    name: aws-controller-config
+---
+# AWS S3 Provider (Object Storage)
+apiVersion: pkg.crossplane.io/v1
+kind: Provider
+metadata:
+  name: provider-aws-s3
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  package: xpkg.upbound.io/upbound/provider-aws-s3:v1.7.0
+  controllerConfigRef:
+    name: aws-controller-config
+---
+# AWS ElastiCache Provider (Redis, Memcached)
+apiVersion: pkg.crossplane.io/v1
+kind: Provider
+metadata:
+  name: provider-aws-elasticache
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  package: xpkg.upbound.io/upbound/provider-aws-elasticache:v1.7.0
+  controllerConfigRef:
+    name: aws-controller-config
+---
+# AWS SQS Provider (Message Queues)
+apiVersion: pkg.crossplane.io/v1
+kind: Provider
+metadata:
+  name: provider-aws-sqs
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  package: xpkg.upbound.io/upbound/provider-aws-sqs:v1.7.0
+  controllerConfigRef:
+    name: aws-controller-config
+---
+# AWS Route53 Provider (DNS)
+apiVersion: pkg.crossplane.io/v1
+kind: Provider
+metadata:
+  name: provider-aws-route53
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  package: xpkg.upbound.io/upbound/provider-aws-route53:v1.7.0
+  controllerConfigRef:
+    name: aws-controller-config
+---
+# AWS EC2 Provider (VPC, Subnets, Security Groups)
+apiVersion: pkg.crossplane.io/v1
+kind: Provider
+metadata:
+  name: provider-aws-ec2
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  package: xpkg.upbound.io/upbound/provider-aws-ec2:v1.7.0
+  controllerConfigRef:
+    name: aws-controller-config

@@ -1,0 +1,71 @@
+---
+# k6 Load Test Scripts for Multi-Cloud Demo
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: k6-scripts
+  namespace: demo
+  labels:
+    experiment: multi-cloud-demo
+data:
+  baseline.js: |
+    import http from 'k6/http';
+    import { check, sleep } from 'k6';
+    import { Counter, Rate, Trend } from 'k6/metrics';
+
+    // Custom metrics
+    const errorRate = new Rate('errors');
+    const latency = new Trend('latency');
+    const requestCount = new Counter('requests');
+
+    // Configuration from environment
+    const USERS = parseInt(__ENV.USERS) || 10;
+    const DURATION = __ENV.DURATION || '60s';
+    const TARGET_URL = __ENV.TARGET_URL || 'http://demo-app.demo.svc:80';
+
+    export const options = {
+      vus: USERS,
+      duration: DURATION,
+      thresholds: {
+        http_req_duration: ['p(95)<500'],
+        errors: ['rate<0.1'],
+      },
+    };
+
+    export default function () {
+      // Health check endpoint
+      const healthRes = http.get(`${TARGET_URL}/health`);
+      check(healthRes, {
+        'health check status is 200': (r) => r.status === 200,
+      });
+      errorRate.add(healthRes.status !== 200);
+      latency.add(healthRes.timings.duration);
+      requestCount.add(1);
+
+      sleep(0.5);
+
+      // Main endpoint
+      const mainRes = http.get(`${TARGET_URL}/`);
+      check(mainRes, {
+        'main page status is 200': (r) => r.status === 200,
+      });
+      errorRate.add(mainRes.status !== 200);
+      latency.add(mainRes.timings.duration);
+      requestCount.add(1);
+
+      sleep(0.5);
+    }
+
+    export function handleSummary(data) {
+      return {
+        'stdout': JSON.stringify({
+          experiment: 'multi-cloud-demo',
+          metrics: {
+            requests: data.metrics.requests?.values?.count || 0,
+            errors: data.metrics.errors?.values?.rate || 0,
+            latency_p95: data.metrics.http_req_duration?.values['p(95)'] || 0,
+            latency_avg: data.metrics.http_req_duration?.values.avg || 0,
+          },
+        }, null, 2),
+      };
+    }

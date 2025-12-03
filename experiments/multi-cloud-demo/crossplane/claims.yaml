@@ -1,0 +1,95 @@
+---
+# Multi-Cloud Demo - Crossplane Resource Claims
+# These cloud-agnostic claims automatically provision resources
+# on the appropriate cloud based on the EnvironmentConfig
+#
+# The composition selector uses labels to match the right composition:
+# - Azure clusters get Azure resources
+# - AWS clusters get AWS resources
+# - The experiment author doesn't need to know which cloud!
+
+---
+# Database Claim - PostgreSQL instance
+# Will become Azure PostgreSQL Flexible Server or AWS RDS PostgreSQL
+apiVersion: illm.io/v1alpha1
+kind: Database
+metadata:
+  name: demo-db
+  namespace: demo
+  labels:
+    experiment: multi-cloud-demo
+    component: database
+spec:
+  # Cloud-agnostic parameters
+  engine: postgresql
+  version: "14"
+  size: small           # Maps to: Azure B_Standard_B1ms / AWS db.t3.micro
+  storageGB: 20
+  publicAccess: false   # Keep private, access via cluster
+  highAvailability: false
+  backupRetentionDays: 7
+
+  # Connection secret will be created in the claim's namespace
+  writeConnectionSecretToRef:
+    name: demo-db-credentials
+
+---
+# Cache Claim - Redis instance
+# Will become Azure Cache for Redis or AWS ElastiCache
+apiVersion: illm.io/v1alpha1
+kind: Cache
+metadata:
+  name: demo-cache
+  namespace: demo
+  labels:
+    experiment: multi-cloud-demo
+    component: cache
+spec:
+  engine: redis
+  version: "7"
+  size: small           # Maps to: Azure Basic C0 / AWS cache.t3.micro
+  highAvailability: false
+  encryption: true
+
+  writeConnectionSecretToRef:
+    name: demo-cache-credentials
+
+---
+# Object Storage Claim - Blob/S3 bucket
+# Will become Azure Blob Storage or AWS S3
+apiVersion: illm.io/v1alpha1
+kind: ObjectStorage
+metadata:
+  name: demo-storage
+  namespace: demo
+  labels:
+    experiment: multi-cloud-demo
+    component: storage
+spec:
+  publicAccess: false
+  versioning: false
+  encryption: true
+
+  writeConnectionSecretToRef:
+    name: demo-storage-credentials
+
+---
+# Queue Claim - Message queue
+# Will become Azure Service Bus Queue or AWS SQS
+apiVersion: illm.io/v1alpha1
+kind: Queue
+metadata:
+  name: demo-queue
+  namespace: demo
+  labels:
+    experiment: multi-cloud-demo
+    component: queue
+spec:
+  type: standard
+  messageRetentionDays: 4
+  visibilityTimeoutSeconds: 30
+  deadLetterQueue: false
+  encryption: true
+
+  writeConnectionSecretToRef:
+    name: demo-queue-credentials

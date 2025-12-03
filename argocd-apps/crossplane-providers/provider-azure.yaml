@@ -1,0 +1,107 @@
+---
+# Upbound Azure Provider Family
+# Installs the base provider and specific resource providers
+apiVersion: pkg.crossplane.io/v1
+kind: Provider
+metadata:
+  name: provider-family-azure
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  package: xpkg.upbound.io/upbound/provider-family-azure:v1.3.0
+  controllerConfigRef:
+    name: azure-controller-config
+---
+# Controller configuration for Azure providers
+# Uses Workload Identity for authentication (no secrets needed)
+apiVersion: pkg.crossplane.io/v1alpha1
+kind: ControllerConfig
+metadata:
+  name: azure-controller-config
+  annotations:
+    argocd.argoproj.io/sync-wave: "0"
+spec:
+  metadata:
+    labels:
+      azure.workload.identity/use: "true"
+  podSecurityContext:
+    fsGroup: 65532
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+---
+# Azure SQL Provider (PostgreSQL, MySQL)
+apiVersion: pkg.crossplane.io/v1
+kind: Provider
+metadata:
+  name: provider-azure-sql
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  package: xpkg.upbound.io/upbound/provider-azure-sql:v1.3.0
+  controllerConfigRef:
+    name: azure-controller-config
+---
+# Azure Storage Provider (Blob, Files)
+apiVersion: pkg.crossplane.io/v1
+kind: Provider
+metadata:
+  name: provider-azure-storage
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  package: xpkg.upbound.io/upbound/provider-azure-storage:v1.3.0
+  controllerConfigRef:
+    name: azure-controller-config
+---
+# Azure Cache Provider (Redis)
+apiVersion: pkg.crossplane.io/v1
+kind: Provider
+metadata:
+  name: provider-azure-cache
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  package: xpkg.upbound.io/upbound/provider-azure-cache:v1.3.0
+  controllerConfigRef:
+    name: azure-controller-config
+---
+# Azure Service Bus Provider (Queues)
+apiVersion: pkg.crossplane.io/v1
+kind: Provider
+metadata:
+  name: provider-azure-servicebus
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  package: xpkg.upbound.io/upbound/provider-azure-servicebus:v1.3.0
+  controllerConfigRef:
+    name: azure-controller-config
+---
+# Azure Network Provider (DNS, VNet)
+apiVersion: pkg.crossplane.io/v1
+kind: Provider
+metadata:
+  name: provider-azure-network
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  package: xpkg.upbound.io/upbound/provider-azure-network:v1.3.0
+  controllerConfigRef:
+    name: azure-controller-config
+---
+# Azure Management Provider (Resource Groups)
+apiVersion: pkg.crossplane.io/v1
+kind: Provider
+metadata:
+  name: provider-azure-management
+  annotations:
+    argocd.argoproj.io/sync-wave: "1"
+spec:
+  package: xpkg.upbound.io/upbound/provider-azure-management:v1.3.0
+  controllerConfigRef:
+    name: azure-controller-config

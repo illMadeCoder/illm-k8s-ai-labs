@@ -1,0 +1,91 @@
+---
+# ObjectStorage CompositeResourceDefinition
+# Provides a cloud-agnostic API for object/blob storage
+# Compositions implement Azure Blob Storage and AWS S3
+apiVersion: apiextensions.crossplane.io/v1
+kind: CompositeResourceDefinition
+metadata:
+  name: xobjectstorages.illm.io
+spec:
+  group: illm.io
+  names:
+    kind: XObjectStorage
+    plural: xobjectstorages
+  claimNames:
+    kind: ObjectStorage
+    plural: objectstorages
+  connectionSecretKeys:
+    - endpoint
+    - accessKey
+    - secretKey
+    - bucket
+  versions:
+    - name: v1alpha1
+      served: true
+      referenceable: true
+      schema:
+        openAPIV3Schema:
+          type: object
+          properties:
+            spec:
+              type: object
+              properties:
+                publicAccess:
+                  type: boolean
+                  description: Allow public read access to objects
+                  default: false
+                versioning:
+                  type: boolean
+                  description: Enable object versioning
+                  default: false
+                encryption:
+                  type: boolean
+                  description: Enable server-side encryption
+                  default: true
+                lifecycleRules:
+                  type: object
+                  description: Lifecycle rules for automatic object management
+                  properties:
+                    enabled:
+                      type: boolean
+                      default: false
+                    expirationDays:
+                      type: integer
+                      description: Days after which objects expire
+                      default: 90
+                    transitionDays:
+                      type: integer
+                      description: Days after which objects transition to cold storage
+                      default: 30
+                cors:
+                  type: boolean
+                  description: Enable CORS for web access
+                  default: false
+            status:
+              type: object
+              properties:
+                endpoint:
+                  type: string
+                  description: Storage endpoint URL
+                bucketName:
+                  type: string
+                  description: Actual bucket/container name
+                cloud:
+                  type: string
+                  description: Cloud provider
+      additionalPrinterColumns:
+        - name: Endpoint
+          type: string
+          jsonPath: .status.endpoint
+        - name: Bucket
+          type: string
+          jsonPath: .status.bucketName
+        - name: Versioning
+          type: boolean
+          jsonPath: .spec.versioning
+        - name: Cloud
+          type: string
+          jsonPath: .status.cloud
+        - name: Age
+          type: date
+          jsonPath: .metadata.creationTimestamp
