@@ -1,0 +1,54 @@
+version: '3'
+
+silent: true
+
+# TODO: Cloud deployment via Spacelift/Terraform
+# - init: provision AKS/EKS clusters via Spacelift
+# - deploy: get kubeconfig from terraform, deploy ArgoCD apps
+# - destroy: terraform destroy via Spacelift
+# - conduct: full lifecycle with cross-cluster load testing
+
+tasks:
+  init:
+    desc: "Initialize cloud infrastructure (TODO)"
+    cmds:
+      - |
+        echo "TODO: Implement cloud:init"
+        echo ""
+        echo "This should:"
+        echo "  1. Trigger Spacelift stack to provision AKS/EKS"
+        echo "  2. Wait for infrastructure to be ready"
+        echo "  3. Store kubeconfig for cluster access"
+
+  deploy:
+    desc: "Deploy experiment to cloud (TODO)"
+    cmds:
+      - |
+        echo "TODO: Implement cloud:deploy"
+        echo ""
+        echo "This should:"
+        echo "  1. Get kubeconfig from terraform output"
+        echo "  2. Deploy ArgoCD apps to cloud cluster"
+
+  destroy:
+    desc: "Destroy cloud infrastructure (TODO)"
+    cmds:
+      - |
+        echo "TODO: Implement cloud:destroy"
+        echo ""
+        echo "This should:"
+        echo "  1. Trigger Spacelift destroy"
+        echo "  2. Clean up kubeconfig files"
+
+  conduct:
+    desc: "Conduct experiment on cloud (TODO)"
+    cmds:
+      - |
+        echo "TODO: Implement cloud:conduct"
+        echo ""
+        echo "This should:"
+        echo "  1. Provision infrastructure (init)"
+        echo "  2. Deploy experiment"
+        echo "  3. Run workflow with external target URL"
+        echo "  4. Collect results"
+        echo "  5. Destroy infrastructure"
