@@ -419,12 +419,12 @@ tasks:
   # =============================================================================
   # Full Experiment Lifecycle (deploy → run → destroy)
   # =============================================================================
-  exp:run:full:
-    desc: "Run full experiment on minikube: task exp:run:full -- <experiment-path>"
+  exp:conduct:minikube:
+    desc: "Conduct experiment on minikube: task exp:conduct:minikube -- <experiment-path>"
     cmds:
       - |
         if [ -z "{{.CLI_ARGS}}" ]; then
-          echo "Usage: task exp:run:full -- <experiment-path> [USERS=10] [DURATION=60s]"
+          echo "Usage: task exp:conduct:minikube -- <experiment-path> [USERS=10] [DURATION=60s]"
           exit 1
         fi
 
@@ -488,12 +488,12 @@ tasks:
         echo "  EXPERIMENT COMPLETE"
         echo "=============================================="
 
-  exp:run:full:prod:
-    desc: "Run full experiment on prod: task exp:run:full:prod -- <experiment-path>"
+  exp:conduct:prod:
+    desc: "Conduct experiment on prod: task exp:conduct:prod -- <experiment-path>"
     cmds:
       - |
         if [ -z "{{.CLI_ARGS}}" ]; then
-          echo "Usage: task exp:run:full:prod -- <experiment-path> [USERS=10] [DURATION=60s]"
+          echo "Usage: task exp:conduct:prod -- <experiment-path> [USERS=10] [DURATION=60s]"
           exit 1
         fi
 
