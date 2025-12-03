@@ -143,15 +143,32 @@ tasks:
           printf "  - %s\n" "$name"
         done
 
-  deploy:core:
-    desc: Deploy core infrastructure (observability, storage, etc.)
+  deploy:minikube:
+    desc: "Deploy apps to minikube: task deploy:minikube -- <paths...>"
     cmds:
       - |
-        echo "Deploying core infrastructure..."
-        kubectl apply -f argocd-apps/core-utils.yaml
+        if [ -z "{{.CLI_ARGS}}" ]; then
+          echo "Usage: task deploy:minikube -- <path> [path...]"
+          echo ""
+          echo "Examples:"
+          echo "  task deploy:minikube -- argocd-apps/core-app-of-apps.yaml argocd-apps/stacks/loki.yaml"
+          echo "  task deploy:minikube -- argocd-apps/core-app-of-apps.yaml argocd-apps/stacks/elk.yaml"
+          exit 1
+        fi
+
+        for path in {{.CLI_ARGS}}; do
+          if [ ! -f "$path" ]; then
+            echo "ERROR: File not found: $path"
+            exit 1
+          fi
+          echo "=== Deploying: $path ==="
+          kubectl apply -f "$path"
+        done
+
+        echo ""
         echo "Waiting for ArgoCD to sync..."
         sleep 5
-        kubectl get applications -n argocd -l layer=core
+        kubectl get applications -n argocd
 
   exp:deploy:minikube:
     desc: Deploy experiment to minikube via ArgoCD (NAME=<experiment>)
@@ -682,15 +699,15 @@ tasks:
     cmds:
       - |
         echo "Deploying Crossplane..."
-        kubectl apply -f argocd-apps/crossplane/crossplane.yaml
+        kubectl apply -f argocd-apps/components/infrastructure/crossplane/crossplane.yaml
         echo "Waiting for Crossplane to be ready..."
         sleep 10
         kubectl wait --for=condition=healthy deployment/crossplane -n crossplane-system --timeout=5m || true
         echo ""
         echo "Deploying Crossplane providers..."
-        kubectl apply -f argocd-apps/crossplane-providers/providers.yaml
+        kubectl apply -f argocd-apps/components/infrastructure/crossplane-providers/providers.yaml
         echo ""
         echo "Deploying XRDs and Compositions..."
-        kubectl apply -f argocd-apps/crossplane-xrds/xrds.yaml
+        kubectl apply -f argocd-apps/components/infrastructure/crossplane-xrds/xrds.yaml
         echo ""
         echo "Crossplane deployment initiated. Check status with: task crossplane:status"
