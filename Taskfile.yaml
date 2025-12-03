@@ -28,16 +28,6 @@ tasks:
           --wait
       - task: argocd:password:minikube
 
-  init:upgrade:minikube:
-    desc: Upgrade ArgoCD on minikube
-    cmds:
-      - helm repo update argo
-      - |
-        helm upgrade argocd argo/argo-cd \
-          --namespace {{.ARGOCD_NAMESPACE}} \
-          --values {{.ARGOCD_VALUES}} \
-          --wait
-
   # =============================================================================
   # Status
   # =============================================================================
