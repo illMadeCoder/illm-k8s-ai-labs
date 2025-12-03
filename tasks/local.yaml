@@ -3,6 +3,7 @@ version: '3'
 silent: true
 
 vars:
+  KIND_CLUSTER: illm-lab
   ARGOCD_NAMESPACE: argocd
   ARGOCD_VALUES: argocd-apps/components/core/argocd/values.yaml
 
@@ -11,17 +12,35 @@ tasks:
   # Cluster Setup
   # =============================================================================
   init:
-    desc: Initialize local cluster with ArgoCD
+    desc: Initialize local kind cluster with ArgoCD
     cmds:
+      - |
+        if kind get clusters 2>/dev/null | grep -q "^{{.KIND_CLUSTER}}$"; then
+          echo "Kind cluster '{{.KIND_CLUSTER}}' already exists"
+        else
+          echo "Creating kind cluster '{{.KIND_CLUSTER}}'..."
+          kind create cluster --name {{.KIND_CLUSTER}} --wait 60s
+        fi
       - helm repo add argo https://argoproj.github.io/argo-helm 2>/dev/null || true
       - helm repo update argo
       - |
-        helm install argocd argo/argo-cd \
-          --namespace {{.ARGOCD_NAMESPACE}} \
-          --create-namespace \
-          --values {{.ARGOCD_VALUES}} \
-          --wait
+        if helm status argocd -n {{.ARGOCD_NAMESPACE}} >/dev/null 2>&1; then
+          echo "ArgoCD already installed"
+        else
+          echo "Installing ArgoCD..."
+          helm install argocd argo/argo-cd \
+            --namespace {{.ARGOCD_NAMESPACE}} \
+            --create-namespace \
+            --values {{.ARGOCD_VALUES}} \
+            --wait
+        fi
       - task: password
+
+  reset:
+    desc: Delete and recreate the kind cluster
+    cmds:
+      - kind delete cluster --name {{.KIND_CLUSTER}} 2>/dev/null || true
+      - task: init
 
   status:
     desc: Show status of all ArgoCD applications
