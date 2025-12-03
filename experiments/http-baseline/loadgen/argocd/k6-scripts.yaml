@@ -1,14 +1,10 @@
 # k6 Scripts ConfigMap for HTTP Baseline Experiment
-apiVersion: v1
-kind: Namespace
-metadata:
-  name: k6
----
+# Deployed to argo-workflows namespace on orchestrator (where workflows run)
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: k6-scripts
-  namespace: k6
+  namespace: argo-workflows
 data:
   baseline.js: |
     // HTTP Baseline Load Test Scenario

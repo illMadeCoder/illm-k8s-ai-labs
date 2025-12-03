@@ -8,6 +8,11 @@ vars:
   ARGOCD_VALUES: argocd-apps/components/core/argocd/values.yaml
 
 tasks:
+  # Helper to clear stale docker env from minikube
+  _clear-docker-env:
+    internal: true
+    cmds:
+      - unset DOCKER_TLS_VERIFY DOCKER_CERT_PATH DOCKER_HOST MINIKUBE_ACTIVE_DOCKERD 2>/dev/null || true
   # =============================================================================
   # Orchestrator Setup
   # =============================================================================
@@ -15,6 +20,15 @@ tasks:
     desc: Initialize the orchestrator cluster (ArgoCD, Argo Workflows, Crossplane)
     cmds:
       - |
+        # Clean up any non-orchestrator clusters
+        for cluster in $(kind get clusters 2>/dev/null); do
+          if [ "$cluster" != "{{.ORCHESTRATOR_CLUSTER}}" ]; then
+            echo "Removing stale cluster: $cluster"
+            kind delete cluster --name "$cluster"
+          fi
+        done
+
+        # Create or reuse orchestrator
         if kind get clusters 2>/dev/null | grep -q "^{{.ORCHESTRATOR_CLUSTER}}$"; then
           echo "Orchestrator cluster already exists"
         else
@@ -170,38 +184,85 @@ tasks:
           fi
         done
 
-        # Step 3: Deploy ArgoCD apps to each cluster
+        # Step 3: Register clusters with ArgoCD on orchestrator
         echo ""
-        echo "=== Step 3/5: Deploying apps to clusters ==="
+        echo "=== Step 3/5: Registering clusters with ArgoCD ==="
+        for cluster in $CLUSTERS; do
+          full_name="${EXP_NAME}-${cluster}"
+          echo "  Registering: $full_name"
+
+          # Get the cluster's API server URL and CA
+          CLUSTER_CONTEXT="kind-${full_name}"
+          CLUSTER_SERVER=$(kubectl config view -o jsonpath="{.clusters[?(@.name=='${CLUSTER_CONTEXT}')].cluster.server}")
+          CLUSTER_CA=$(kubectl config view --raw -o jsonpath="{.clusters[?(@.name=='${CLUSTER_CONTEXT}')].cluster.certificate-authority-data}")
+
+          # Create service account on target cluster for ArgoCD
+          kubectl --context "$CLUSTER_CONTEXT" create serviceaccount argocd-manager -n kube-system 2>/dev/null || true
+          kubectl --context "$CLUSTER_CONTEXT" create clusterrolebinding argocd-manager --clusterrole=cluster-admin --serviceaccount=kube-system:argocd-manager 2>/dev/null || true
+
+          # Create SA token secret
+          cat > /tmp/sa-token.yaml << 'ENDOFFILE'
+        apiVersion: v1
+        kind: Secret
+        metadata:
+          name: argocd-manager-token
+          namespace: kube-system
+          annotations:
+            kubernetes.io/service-account.name: argocd-manager
+        type: kubernetes.io/service-account-token
+        ENDOFFILE
+          kubectl --context "$CLUSTER_CONTEXT" apply -f /tmp/sa-token.yaml
+          sleep 2
+          TOKEN=$(kubectl --context "$CLUSTER_CONTEXT" -n kube-system get secret argocd-manager-token -o jsonpath='{.data.token}' | base64 -d)
+
+          # Register with ArgoCD on orchestrator
+          cat > /tmp/cluster-secret.yaml << ENDOFFILE
+        apiVersion: v1
+        kind: Secret
+        metadata:
+          name: cluster-${cluster}
+          namespace: argocd
+          labels:
+            argocd.argoproj.io/secret-type: cluster
+        type: Opaque
+        stringData:
+          name: "${cluster}"
+          server: "${CLUSTER_SERVER}"
+          config: |
+            {
+              "bearerToken": "${TOKEN}",
+              "tlsClientConfig": {
+                "insecure": false,
+                "caData": "${CLUSTER_CA}"
+              }
+            }
+        ENDOFFILE
+          kubectl --context kind-{{.ORCHESTRATOR_CLUSTER}} apply -f /tmp/cluster-secret.yaml
+          echo "    Registered: $cluster -> $CLUSTER_SERVER"
+        done
+
+        # Step 4: Deploy ArgoCD apps from orchestrator to experiment clusters
+        echo ""
+        echo "=== Step 4/5: Deploying apps via ArgoCD ==="
         for cluster in $CLUSTERS; do
           full_name="${EXP_NAME}-${cluster}"
           cluster_dir="$EXP_PATH/$cluster"
           argocd_dir="$cluster_dir/argocd"
 
-          echo "  Deploying to $full_name..."
-          kubectl config use-context "kind-${full_name}"
-
-          # Apply ArgoCD apps if they exist
-          if [ -d "$argocd_dir" ] && ls "$argocd_dir"/*.yaml >/dev/null 2>&1; then
-            for f in "$argocd_dir"/*.yaml; do
-              echo "    Applying: $(basename $f)"
-              kubectl apply -f "$f"
-            done
-          fi
-
-          # Apply Crossplane claims if they exist
-          crossplane_dir="$cluster_dir/crossplane"
-          if [ -d "$crossplane_dir" ] && ls "$crossplane_dir"/*.yaml >/dev/null 2>&1; then
-            for f in "$crossplane_dir"/*.yaml; do
-              echo "    Applying Crossplane: $(basename $f)"
-              kubectl apply -f "$f"
-            done
+          # Apply ArgoCD Application manifests to orchestrator (they sync the rest)
+          if [ -d "$argocd_dir" ] && [ -f "$argocd_dir/app.yaml" ]; then
+            echo "  Applying to orchestrator: app.yaml -> $full_name"
+            kubectl --context kind-{{.ORCHESTRATOR_CLUSTER}} apply -f "$argocd_dir/app.yaml"
           fi
         done
 
-        # Step 4: Run workflow on orchestrator
+        # Wait for ArgoCD to sync
+        echo "  Waiting for sync..."
+        sleep 15
+
+        # Step 5: Run workflow on orchestrator
         echo ""
-        echo "=== Step 4/5: Running workflow on orchestrator ==="
+        echo "=== Step 5/6: Running workflow on orchestrator ==="
         kubectl config use-context kind-{{.ORCHESTRATOR_CLUSTER}}
 
         # Determine target URL (first cluster's service)
@@ -225,9 +286,9 @@ tasks:
         argo get "$WORKFLOW_NAME" -n argo-workflows 2>/dev/null || \
           kubectl get "$WORKFLOW_NAME" -n argo-workflows -o yaml
 
-        # Step 5: Cleanup experiment clusters
+        # Step 6: Cleanup experiment clusters
         echo ""
-        echo "=== Step 5/5: Cleaning up experiment clusters ==="
+        echo "=== Step 6/6: Cleaning up experiment clusters ==="
         for cluster in $CLUSTERS; do
           full_name="${EXP_NAME}-${cluster}"
           echo "  Deleting cluster: $full_name"
