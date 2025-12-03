@@ -1,0 +1,42 @@
+# ECK Operator Helm Values
+# Minimal configuration for lab environment
+
+# Install CRDs with the operator
+installCRDs: true
+
+# Single replica for lab
+replicaCount: 1
+
+# Reduced resources for lab environment
+resources:
+  limits:
+    cpu: 500m
+    memory: 512Mi
+  requests:
+    cpu: 50m
+    memory: 128Mi
+
+# Manage all namespaces
+managedNamespaces: []
+
+# Telemetry settings
+telemetry:
+  disabled: false
+  distributionChannel: helm
+
+# Logging configuration
+config:
+  logVerbosity: "0"
+  metricsPort: "4321"
+  containerRegistry: docker.elastic.co
+  maxConcurrentReconciles: "3"
+  caValidity: 8760h
+  caRotateBefore: 24h
+  certificatesValidity: 8760h
+  certificatesRotateBefore: 24h
+  exposedNodeLabels: []
+  setDefaultSecurityContext: auto-detect
+  kubeClientTimeout: 60s
+  elasticsearchClientTimeout: 180s
+  disableDowngradeValidation: false
+  validateStorageClass: true

@@ -60,6 +60,22 @@ spec:
         recurse: false
         include: 'otel-collector.yaml'
 
+    # Observability - ECK Operator (manages ELK stack)
+    - repoURL: https://github.com/illMadeCoder/illm-k8s-lab.git
+      targetRevision: HEAD
+      path: argocd-apps/eck-operator
+      directory:
+        recurse: false
+        include: 'eck-operator.yaml'
+
+    # Observability - ELK Stack (Elasticsearch, Kibana, Filebeat)
+    - repoURL: https://github.com/illMadeCoder/illm-k8s-lab.git
+      targetRevision: HEAD
+      path: argocd-apps/elk-stack
+      directory:
+        recurse: false
+        include: 'elk-stack.yaml'
+
     # Artifact storage
     - repoURL: https://github.com/illMadeCoder/illm-k8s-lab.git
       targetRevision: HEAD
