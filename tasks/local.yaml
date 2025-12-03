@@ -191,9 +191,11 @@ tasks:
           full_name="${EXP_NAME}-${cluster}"
           echo "  Registering: $full_name"
 
-          # Get the cluster's API server URL and CA
+          # Get the cluster's internal Docker IP (for cross-cluster communication)
           CLUSTER_CONTEXT="kind-${full_name}"
-          CLUSTER_SERVER=$(kubectl config view -o jsonpath="{.clusters[?(@.name=='${CLUSTER_CONTEXT}')].cluster.server}")
+          CONTAINER_NAME="${full_name}-control-plane"
+          CLUSTER_IP=$(docker inspect "$CONTAINER_NAME" | jq -r '.[0].NetworkSettings.Networks.kind.IPAddress')
+          CLUSTER_SERVER="https://${CLUSTER_IP}:6443"
           CLUSTER_CA=$(kubectl config view --raw -o jsonpath="{.clusters[?(@.name=='${CLUSTER_CONTEXT}')].cluster.certificate-authority-data}")
 
           # Create service account on target cluster for ArgoCD
