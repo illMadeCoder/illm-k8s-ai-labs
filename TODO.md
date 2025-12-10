@@ -7,7 +7,7 @@ A learning-focused Kubernetes experiment roadmap for **Cloud Architect**, **Plat
 | | |
 |---|---|
 | **Target** | ~73 experiments across 16 phases |
-| **Environment** | Kind (local), Raspberry Pi (home lab), AKS/EKS (cloud) |
+| **Environment** | Kind (local), Talos on N100 (home lab), AKS/EKS (cloud) |
 | **Focus** | Portfolio-ready experiments with ADRs |
 
 **Principles:**
@@ -69,12 +69,12 @@ A learning-focused Kubernetes experiment roadmap for **Cloud Architect**, **Plat
 - Practice GitOps for both OS and cluster configuration
 
 **Hardware:**
-- [ ] N100 Mini PC (start with 1, expand to 3)
-  - [ ] Recommended: Beelink S12 Pro, GMKtec G3, or similar (~$150-180)
-  - [ ] 16GB RAM, 500GB NVMe
-  - [ ] Single GbE sufficient (software network separation like cloud)
-- [ ] Network switch (5-port gigabit, ~$20)
-- [ ] Ethernet cables
+- [x] GMKtec NucBox G3 (ordered)
+  - [x] Intel N100 (4C/4T, up to 3.4GHz, 6W TDP)
+  - [x] 16GB DDR4 RAM, 512GB NVMe SSD
+  - [x] 2.5GbE ethernet, WiFi 6, BT 5.2
+- [ ] Network switch (5-port gigabit, ~$20) - optional for single node
+- [ ] Ethernet cable
 
 **Tasks:**
 - [ ] Create `experiments/talos-home-lab/`
