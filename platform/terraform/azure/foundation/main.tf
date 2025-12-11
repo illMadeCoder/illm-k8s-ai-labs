@@ -1,6 +1,9 @@
 terraform {
   required_version = ">= 1.0"
 
+  # GitLab-managed state backend - configured via CLI in .gitlab-ci.yml
+  backend "http" {}
+
   required_providers {
     azurerm = {
       source  = "hashicorp/azurerm"
@@ -33,7 +36,7 @@ resource "azurerm_resource_group" "lab" {
   tags = {
     project     = "illm-k8s-lab"
     environment = "lab"
-    managed_by  = "spacelift"
+    managed_by  = "gitlab-ci"
   }
 }
 
@@ -45,7 +48,7 @@ resource "azurerm_key_vault" "lab" {
   tenant_id           = data.azurerm_client_config.current.tenant_id
   sku_name            = "standard"
 
-  # Allow the current user (Spacelift SP) to manage secrets
+  # Allow the current user (GitLab CI SP) to manage secrets
   access_policy {
     tenant_id = data.azurerm_client_config.current.tenant_id
     object_id = data.azurerm_client_config.current.object_id
@@ -58,7 +61,7 @@ resource "azurerm_key_vault" "lab" {
   tags = {
     project     = "illm-k8s-lab"
     environment = "lab"
-    managed_by  = "spacelift"
+    managed_by  = "gitlab-ci"
   }
 }
 
