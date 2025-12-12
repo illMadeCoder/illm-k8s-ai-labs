@@ -56,68 +56,141 @@ A learning-focused Kubernetes experiment roadmap for **Cloud Architect**, **Plat
 
 ---
 
-### 1.2 Hub Cluster
+### 1.2 Hub Cluster & Three-Tier Architecture
 
-**Goal:** Establish a persistent hub cluster that provides foundational services for all experiments
+**Goal:** Establish a persistent hub cluster and define the three-tier experiment architecture
 
-*The hub hosts services that experiments depend on but shouldn't duplicate. It can run on Kind (laptop), K3s/Talos (N100 home lab), or even cloud - the bootstrap is idempotent.*
+*The hub hosts shared services. Each experiment gets its own orchestrator cluster (with ArgoCD + Argo Workflows) that deploys to target clusters. This provides complete isolation between experiments.*
 
 **Learning objectives:**
-- Understand the hub-spoke cluster pattern
-- Design environment-agnostic cluster bootstrap
-- Establish service boundaries between hub and experiment clusters
+- Understand the three-tier cluster pattern (Hub → Orchestrator → Target)
+- Design idempotent, environment-agnostic cluster bootstrap
+- Establish GitOps flow across cluster tiers
 
-**Architecture:**
+**Three-Tier Architecture:**
 ```
-┌─────────────────────────────────────────────────────────────┐
-│  Hub Cluster                                                │
-│  ┌─────────────┐ ┌─────────────┐ ┌─────────────┐           │
-│  │  OpenBao    │ │  Registry   │ │   ArgoCD    │           │
-│  │  (secrets)  │ │  (Harbor)   │ │  (GitOps)   │           │
-│  └─────────────┘ └─────────────┘ └─────────────┘           │
-│  ┌─────────────┐ ┌─────────────┐ ┌─────────────┐           │
-│  │ Private CA  │ │  Identity   │ │  Artifact   │           │
-│  │ (step-ca)   │ │  (Keycloak) │ │  Storage    │           │
-│  └─────────────┘ └─────────────┘ └─────────────┘           │
-└─────────────────────────────────────────────────────────────┘
-          │ provides secrets, images, certs, identity
-          ▼
-┌─────────────────────┐  ┌─────────────────────┐
-│ Experiment A        │  │ Experiment B        │
-│ (own orchestration) │  │ (own orchestration) │
-└─────────────────────┘  └─────────────────────┘
+┌─────────────────────────────────────────────────────────────────────┐
+│  Hub Cluster (always running - your N100, Kind, or cloud)          │
+│  ┌─────────────┐ ┌─────────────┐ ┌─────────────┐                   │
+│  │   ArgoCD    │ │  OpenBao    │ │  Registry   │                   │
+│  │   (root)    │ │  (secrets)  │ │  (Harbor)   │                   │
+│  └─────────────┘ └─────────────┘ └─────────────┘                   │
+│        │                                                            │
+│        │ deploys orchestrator via: task exp:run experiment=X       │
+└────────┼────────────────────────────────────────────────────────────┘
+         │
+         ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│  Orchestrator Cluster (per-experiment, ephemeral)                   │
+│  ┌─────────────┐ ┌─────────────┐                                   │
+│  │   ArgoCD    │ │    Argo     │  ← Pulls secrets from Hub OpenBao │
+│  │ (exp-local) │ │  Workflows  │  ← Pulls images from Hub Registry │
+│  └─────────────┘ └─────────────┘                                   │
+│        │                                                            │
+│        │ deploys workloads to target(s)                            │
+└────────┼────────────────────────────────────────────────────────────┘
+         │
+         ▼
+┌─────────────────────────────────────────────────────────────────────┐
+│  Target Cluster(s) (per-experiment, ephemeral)                      │
+│  ┌─────────────┐ ┌─────────────┐ ┌─────────────┐                   │
+│  │   App A     │ │   App B     │ │  Load Gen   │                   │
+│  └─────────────┘ └─────────────┘ └─────────────┘                   │
+└─────────────────────────────────────────────────────────────────────┘
 ```
 
-**Core Services (MVP):**
-- [ ] **OpenBao** - Secrets management (Vault fork, open source)
-- [ ] **Container Registry** - Harbor or distribution/registry
-- [ ] **ArgoCD** - GitOps deployments to experiment clusters
+**Experiment Lifecycle:**
+```bash
+task exp:run experiment=http-baseline
+  ├── 1. Create orchestrator cluster (Kind/K3s/cloud)
+  ├── 2. Bootstrap ArgoCD on orchestrator (pulls from Hub)
+  ├── 3. Orchestrator ArgoCD deploys target cluster(s)
+  ├── 4. Orchestrator ArgoCD deploys workloads to targets
+  ├── 5. Argo Workflows runs experiment workflow
+  ├── 6. Collect results to Hub (MinIO/artifacts)
+  └── 7. (optional) task exp:teardown experiment=http-baseline
+```
 
-**Extended Services (Later):**
+**Hub Core Services (MVP, in dependency order):**
+1. **ArgoCD** - Root GitOps, deploys everything else
+2. **OpenBao** - Secrets for all tiers (needed before cloudflared)
+3. **Cloudflare Tunnel** - Webhook delivery to hub behind NAT (see ADR-003)
+4. **Container Registry** - Harbor or distribution/registry
+
+**Hub Extended Services (Later):**
 - [ ] **Private CA** - step-ca for internal certificates
 - [ ] **Identity Provider** - Keycloak or Dex for SSO
-- [ ] **Artifact Storage** - MinIO for Helm charts, backups, logs
+- [ ] **Artifact Storage** - MinIO for results, Helm charts, backups
 - [ ] **DNS** - CoreDNS or external-dns for service discovery
 
-**Bootstrap Requirements:**
-- [ ] Single command bootstrap (Makefile or Taskfile)
-- [ ] Works on Kind (laptop dev)
-- [ ] Works on K3s (lightweight production)
-- [ ] Works on Talos (immutable production)
-- [ ] Idempotent - can re-run safely
-- [ ] Configuration in Git (GitOps from day one)
+**GitOps Flow (webhook-triggered):**
+```
+git push → GitHub webhook → Cloudflare Tunnel → ArgoCD → sync
+```
+- GitHub webhook configured to `https://hub.yourdomain.com/api/webhook`
+- Cloudflare Tunnel routes webhook to ArgoCD (no inbound firewall needed)
+- ArgoCD ApplicationSet auto-discovers experiments in `experiments/` directory
+- Fallback: ArgoCD polls Git every 3 min if webhook unavailable
 
-**Tasks:**
-- [ ] Create `platform/hub/` directory structure
-- [ ] Design bootstrap script/Taskfile
-- [ ] Create Helm values / Kustomize overlays per environment:
-  - [ ] `overlays/kind/` - laptop development
-  - [ ] `overlays/k3s/` - lightweight home lab
-  - [ ] `overlays/talos/` - production home lab
-- [ ] Bootstrap ArgoCD (chicken-egg: manual first, then self-managed)
-- [ ] Create app-of-apps for hub services
-- [ ] Document hub cluster architecture
-- [ ] **ADR:** Document hub cluster pattern and service selection
+**Bootstrap Requirements:**
+- [ ] Single command bootstrap: `task hub:bootstrap OVERLAY=<env>`
+- [ ] Portable across deployment environments:
+  - [ ] Kind - laptop development
+  - [ ] K3s - lightweight home lab
+  - [ ] Talos - immutable home lab (N100)
+  - [ ] AKS/EKS/GKE - cloud-hosted hub (for those without local hardware)
+- [ ] Idempotent - can re-run safely
+- [ ] GitOps from first deployment (ArgoCD self-manages after bootstrap)
+- [ ] Same Git repo, different overlays - only cluster-specific config differs
+
+**Directory Structure:**
+```
+platform/
+├── hub/
+│   ├── bootstrap/
+│   │   ├── Taskfile.yaml        # task hub:bootstrap
+│   │   ├── argocd-install.yaml  # Minimal ArgoCD for bootstrap
+│   │   └── root-app.yaml        # App-of-apps → gitops/
+│   ├── gitops/
+│   │   ├── root-app-of-apps.yaml
+│   │   ├── argocd/              # ArgoCD manages itself
+│   │   ├── cloudflared/         # Tunnel for webhook delivery
+│   │   ├── openbao/
+│   │   ├── harbor/
+│   │   └── cert-manager/
+│   └── overlays/
+│       ├── kind/                 # Laptop dev (NodePort, local storage)
+│       ├── k3s/                  # Lightweight home lab
+│       ├── talos/                # Immutable home lab
+│       └── cloud/                # AKS/EKS/GKE (LoadBalancer, cloud storage)
+└── orchestrator/                 # Reusable orchestrator bootstrap
+    ├── bootstrap/
+    │   ├── Taskfile.yaml        # Reused by experiments
+    │   └── argocd-install.yaml
+    └── gitops/
+        ├── argocd/
+        └── argo-workflows/
+```
+
+**Tasks (in order):**
+1. [ ] Create `platform/hub/` directory structure
+2. [ ] Create `platform/orchestrator/` reusable bootstrap
+3. [ ] Design Taskfile for hub bootstrap
+4. [ ] Create Kustomize overlays per environment (Kind, K3s, Talos, Cloud)
+5. [ ] Bootstrap ArgoCD (imperative install, then self-managed via GitOps)
+6. [ ] Create root app-of-apps for hub services
+7. [ ] Deploy OpenBao via ArgoCD (sync wave 1)
+8. [ ] Configure Cloudflare Tunnel for webhook delivery:
+   - [ ] Create tunnel in Cloudflare Zero Trust (manual or Terraform)
+   - [ ] Store tunnel token in OpenBao
+   - [ ] Deploy cloudflared via ArgoCD (sync wave 2, after OpenBao)
+   - [ ] Configure GitHub webhook to tunnel URL
+9. [ ] Deploy Harbor via ArgoCD (sync wave 2)
+10. [ ] Create ArgoCD ApplicationSet for experiment auto-discovery
+11. [ ] Design Taskfile for experiment lifecycle (`exp:run`, `exp:teardown`)
+12. [ ] Document three-tier architecture
+13. [ ] **ADR:** Document hub cluster pattern and three-tier architecture
+14. [ ] **ADR:** Document GitOps webhook delivery (see `docs/adrs/ADR-003-gitops-webhook-delivery.md`)
 
 ---
 
@@ -2632,7 +2705,7 @@ A learning-focused Kubernetes experiment roadmap for **Cloud Architect**, **Plat
 **Tasks:**
 - [ ] Create `docs/reference-architecture.md`
 - [ ] Document architecture layers:
-  - [ ] Infrastructure layer (Crossplane, Spacelift)
+  - [ ] Infrastructure layer (Crossplane, GitLab CI + Terraform)
   - [ ] Platform layer (Kubernetes, service mesh, observability)
   - [ ] Application layer (deployments, services, ingress)
   - [ ] Data layer (databases, caching, messaging)
@@ -2683,9 +2756,40 @@ A learning-focused Kubernetes experiment roadmap for **Cloud Architect**, **Plat
 
 ## Notes
 
-- All experiments follow `experiments/_template/` structure
-- **Hub Cluster**: Persistent cluster hosting OpenBao, Registry, ArgoCD - runs on Kind (laptop), K3s, or Talos (N100)
-- **Environment progression**: Kind (dev) → Talos on N100 (home lab) → AKS/EKS (cloud experiments only)
+**Three-Tier Cluster Architecture:**
+- **Hub Cluster**: Persistent, hosts ArgoCD (root), OpenBao, Registry - portable across Kind/K3s/Talos/Cloud
+- **Orchestrator Cluster**: Per-experiment, hosts ArgoCD + Argo Workflows, ephemeral
+- **Target Cluster(s)**: Per-experiment, hosts workloads under test, ephemeral
+
+**Experiment Structure:**
+```
+experiments/<name>/
+├── experiment.yaml              # Metadata (cluster providers, overlays)
+├── orchestrator/
+│   ├── cluster.yaml            # Orchestrator cluster config
+│   └── gitops/
+│       ├── root-app.yaml       # Orchestrator's app-of-apps
+│       ├── argocd/             # ArgoCD config for this experiment
+│       ├── argo-workflows/     # Workflow engine config
+│       └── targets/            # ArgoCD apps for target cluster(s)
+├── target/
+│   ├── cluster.yaml            # Target cluster config
+│   └── workloads/              # What gets deployed to target
+├── loadgen/                     # Optional: separate load generator cluster
+│   ├── cluster.yaml
+│   └── workloads/
+└── workflow/
+    └── experiment.yaml         # Argo Workflow (the actual test)
+```
+
+**Experiment Lifecycle:**
+```bash
+task exp:run experiment=http-baseline    # Create clusters, deploy, run workflow
+task exp:status experiment=http-baseline # Check status
+task exp:teardown experiment=http-baseline # Clean up
+```
+
+**Other Notes:**
 - **CapEx over OpEx**: Home lab infrastructure is self-hosted; cloud resources only for experiments that require them
 - GitLab CI + Terraform for cloud IaC when experiments need cloud resources
 - Crossplane for K8s-native cloud resource provisioning
