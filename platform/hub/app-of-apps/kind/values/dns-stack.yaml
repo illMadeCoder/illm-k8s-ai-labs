@@ -11,10 +11,11 @@ watchedResources:
   - Ingress
   - Service
 
-# Expose via LoadBalancer (cloud-provider-kind assigns IP)
+# Expose via LoadBalancer with fixed IP for predictable DNS config
 service:
   type: LoadBalancer
   port: 53
+  loadBalancerIP: 172.19.255.200
 
 # Fallback DNS for non-k8s.local queries
 fallthrough:

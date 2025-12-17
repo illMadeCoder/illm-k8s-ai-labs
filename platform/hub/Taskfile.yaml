@@ -37,6 +37,12 @@ tasks:
         echo "Applying hub application..."
         kubectl apply -f platform/hub/bootstrap/hub-application.yaml
       - task: status
+      - |
+        echo ""
+        echo "=== Next Steps ==="
+        echo "1. Wait for all apps to sync: watch kubectl get applications -n argocd"
+        echo "2. Configure DNS: task hub:dns (requires sudo)"
+        echo "3. Access ArgoCD: curl -k https://argocd-server.argocd.k8s.local"
 
   status:
     desc: Show hub status
@@ -55,6 +61,57 @@ tasks:
     cmds:
       - echo "https://localhost:8080 (admin / $(kubectl -n {{.ARGOCD_NAMESPACE}} get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d))"
       - kubectl port-forward svc/argocd-server -n {{.ARGOCD_NAMESPACE}} 8080:443
+
+  wait:
+    desc: Wait for all hub services to be ready
+    cmds:
+      - |
+        echo "Waiting for hub applications to sync..."
+        until kubectl get application dns-stack -n argocd -o jsonpath='{.status.health.status}' 2>/dev/null | grep -q "Healthy"; do
+          echo "Waiting for dns-stack..."
+          sleep 5
+        done
+        echo "dns-stack ready!"
+      - |
+        echo "Waiting for k8s_gateway LoadBalancer..."
+        until kubectl get svc dns-stack-k8s-gateway -n dns-system -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null | grep -q "172.19.255.200"; do
+          echo "Waiting for LoadBalancer IP..."
+          sleep 2
+        done
+        echo "k8s_gateway ready at 172.19.255.200"
+
+  dns:
+    desc: Configure host DNS to resolve *.k8s.local
+    vars:
+      DNS_IP: 172.19.255.200
+    cmds:
+      - |
+        echo "Configuring DNS for k8s.local → {{.DNS_IP}}"
+
+        # Check if already configured
+        if grep -q "{{.DNS_IP}}" /etc/resolv.conf 2>/dev/null; then
+          echo "Already configured"
+          exit 0
+        fi
+
+        # Add k8s_gateway as first nameserver
+        if grep -q "nameserver" /etc/resolv.conf; then
+          sudo sed -i '0,/nameserver/s/nameserver/nameserver {{.DNS_IP}}\nnameserver/' /etc/resolv.conf
+        else
+          echo "nameserver {{.DNS_IP}}" | sudo tee -a /etc/resolv.conf
+        fi
+
+        echo "DNS configured. Test with: dig argocd-server.argocd.k8s.local"
+
+  dns:status:
+    desc: Test DNS resolution
+    cmds:
+      - |
+        echo "Testing k8s.local resolution..."
+        dig +short argocd-server.argocd.k8s.local || echo "Failed - is dns-stack running?"
+        echo ""
+        echo "Testing external resolution (fallthrough)..."
+        dig +short google.com || echo "Failed - check fallthrough config"
 
   destroy:
     desc: Destroy Kind hub cluster
