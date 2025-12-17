@@ -52,18 +52,24 @@ tasks:
         done
         echo "k8s_gateway ready at {{.DNS_IP}}"
 
-      # Configure host DNS
+      # Configure host DNS (best-effort, non-fatal)
       - |
         echo "=== Configuring host DNS ==="
         if grep -q "{{.DNS_IP}}" /etc/resolv.conf 2>/dev/null; then
           echo "Already configured"
         else
-          if grep -q "nameserver" /etc/resolv.conf; then
-            sudo sed -i '0,/nameserver/s/nameserver/nameserver {{.DNS_IP}}\nnameserver/' /etc/resolv.conf
+          if sudo -n true 2>/dev/null; then
+            # sudo available without password
+            if grep -q "nameserver" /etc/resolv.conf; then
+              sudo sed -i '0,/nameserver/s/nameserver/nameserver {{.DNS_IP}}\nnameserver/' /etc/resolv.conf
+            else
+              echo "nameserver {{.DNS_IP}}" | sudo tee -a /etc/resolv.conf
+            fi
+            echo "DNS configured"
           else
-            echo "nameserver {{.DNS_IP}}" | sudo tee -a /etc/resolv.conf
+            echo "Skipped (needs sudo). Run manually:"
+            echo "  echo 'nameserver {{.DNS_IP}}' | sudo tee -a /etc/resolv.conf"
           fi
-          echo "DNS configured"
         fi
 
       # Verify
