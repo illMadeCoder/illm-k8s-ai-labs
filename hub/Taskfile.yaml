@@ -8,8 +8,8 @@ version: '3'
 # Bootstrap:
 #   kind create cluster --name hub --wait 60s
 #   helm install argocd argo/argo-cd -n argocd --create-namespace \
-#     -f hub/bootstrap/argocd-values-kind.yaml
-#   kubectl apply -f hub/bootstrap/hub-application.yaml
+#     -f bootstrap/argocd-values-kind.yaml
+#   kubectl apply -f bootstrap/hub-application.yaml
 
 silent: true
 
@@ -31,11 +31,11 @@ tasks:
         helm repo update argo
         helm upgrade --install argocd argo/argo-cd \
           -n {{.ARGOCD_NAMESPACE}} --create-namespace \
-          -f hub/bootstrap/argocd-values-kind.yaml \
+          -f {{.TASKFILE_DIR}}/bootstrap/argocd-values-kind.yaml \
           --wait
       - |
         echo "Applying hub application..."
-        kubectl apply -f hub/bootstrap/hub-application.yaml
+        kubectl apply -f {{.TASKFILE_DIR}}/bootstrap/hub-application.yaml
       - task: status
       - |
         echo ""
