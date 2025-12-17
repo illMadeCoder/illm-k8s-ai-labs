@@ -145,7 +145,7 @@ git push → GitHub webhook → Cloudflare Tunnel → ArgoCD → sync
 
 **Directory Structure:**
 ```
-platform/hub/
+hub/
 ├── Taskfile.yaml                      # Convenience tasks (optional)
 ├── bootstrap/
 │   ├── argocd-values-kind.yaml        # ArgoCD + app-of-apps reference
@@ -185,18 +185,18 @@ lab/experiments/
 ```bash
 # Kind
 kind create cluster --name hub
-helm install argocd argo/argo-cd -n argocd --create-namespace -f platform/hub/bootstrap/argocd-values-kind.yaml
+helm install argocd argo/argo-cd -n argocd --create-namespace -f hub/bootstrap/argocd-values-kind.yaml
 # ArgoCD deploys: MetalLB → dns-stack → other services (all GitOps)
 
 # Talos (cluster already exists)
-helm install argocd argo/argo-cd -n argocd --create-namespace -f platform/hub/bootstrap/argocd-values-talos.yaml
+helm install argocd argo/argo-cd -n argocd --create-namespace -f hub/bootstrap/argocd-values-talos.yaml
 
 # Cloud (cluster already exists)
-helm install argocd argo/argo-cd -n argocd --create-namespace -f platform/hub/bootstrap/argocd-values-cloud.yaml
+helm install argocd argo/argo-cd -n argocd --create-namespace -f hub/bootstrap/argocd-values-cloud.yaml
 ```
 
 **Tasks (in order):**
-1. [x] Create `platform/hub/` directory structure
+1. [x] Create `hub/` directory structure
 2. [x] Create ArgoCD bootstrap values with app-of-apps reference
 3. [x] Create Kind app-of-apps with ArgoCD self-management
 4. [x] Add MetalLB to Kind app-of-apps (LoadBalancer capability)

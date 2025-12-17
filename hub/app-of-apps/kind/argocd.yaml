@@ -1,35 +1,33 @@
-# MetalLB for Kind
+# ArgoCD self-management
 #
-# Provides LoadBalancer capability for Kind clusters.
-# Assigns IPs from a configured range on the Kind docker network.
+# After bootstrap via Helm, ArgoCD manages its own configuration via GitOps.
+# Changes to ArgoCD config should be made in Git, not via helm upgrade.
 
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: metallb
+  name: argocd
   namespace: argocd
   labels:
     app.kubernetes.io/part-of: hub
     environment: kind
-  annotations:
-    argocd.argoproj.io/sync-wave: "-1"  # Deploy before other apps need LoadBalancer
   finalizers:
     - resources-finalizer.argocd.argoproj.io
 spec:
   project: default
   sources:
-    - repoURL: https://metallb.github.io/metallb
-      chart: metallb
-      targetRevision: 0.14.9
+    - repoURL: https://argoproj.github.io/argo-helm
+      chart: argo-cd
+      targetRevision: 7.7.5
       helm:
         valueFiles:
-          - $values/platform/hub/app-of-apps/kind/values/metallb.yaml
+          - $values/hub/app-of-apps/kind/values/argocd.yaml
     - repoURL: https://github.com/illMadeCoder/illm-k8s-lab.git
       targetRevision: HEAD
       ref: values
   destination:
     server: https://kubernetes.default.svc
-    namespace: metallb-system
+    namespace: argocd
   syncPolicy:
     automated:
       prune: true

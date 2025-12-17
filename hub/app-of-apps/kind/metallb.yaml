@@ -1,38 +1,39 @@
-# DNS Stack for Kind
+# MetalLB for Kind
 #
-# k8s_gateway - CoreDNS with k8s_gateway plugin for LoadBalancer/Ingress DNS.
-# Queries Kubernetes API directly, no etcd needed.
-#
-# Usage: dig @<coredns-loadbalancer-ip> -p 53 argocd-server.argocd.k8s.local
+# Provides LoadBalancer capability for Kind clusters.
+# Assigns IPs from a configured range on the Kind docker network.
 
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: dns-stack
+  name: metallb
   namespace: argocd
   labels:
     app.kubernetes.io/part-of: hub
     environment: kind
+  annotations:
+    argocd.argoproj.io/sync-wave: "-1"  # Deploy before other apps need LoadBalancer
   finalizers:
     - resources-finalizer.argocd.argoproj.io
 spec:
   project: default
   sources:
-    - repoURL: https://ori-edge.github.io/k8s_gateway
-      chart: k8s-gateway
-      targetRevision: 2.4.0
+    - repoURL: https://metallb.github.io/metallb
+      chart: metallb
+      targetRevision: 0.14.9
       helm:
         valueFiles:
-          - $values/platform/hub/app-of-apps/kind/values/dns-stack.yaml
+          - $values/hub/app-of-apps/kind/values/metallb.yaml
     - repoURL: https://github.com/illMadeCoder/illm-k8s-lab.git
       targetRevision: HEAD
       ref: values
   destination:
     server: https://kubernetes.default.svc
-    namespace: dns-system
+    namespace: metallb-system
   syncPolicy:
     automated:
       prune: true
       selfHeal: true
     syncOptions:
       - CreateNamespace=true
+      - ServerSideApply=true

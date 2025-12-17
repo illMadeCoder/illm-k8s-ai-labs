@@ -3,8 +3,8 @@
 # Bootstrap:
 #   kind create cluster --name hub
 #   helm install argocd argo/argo-cd -n argocd --create-namespace \
-#     -f platform/hub/bootstrap/argocd-values-kind.yaml
-#   kubectl apply -f platform/hub/bootstrap/hub-application.yaml
+#     -f hub/bootstrap/argocd-values-kind.yaml
+#   kubectl apply -f hub/bootstrap/hub-application.yaml
 
 server:
   service:
