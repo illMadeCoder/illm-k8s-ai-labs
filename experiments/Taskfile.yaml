@@ -18,6 +18,130 @@ vars:
 
 tasks:
   # =============================================================================
+  # Internal Helpers - Docker-based infrastructure for Kind
+  # =============================================================================
+  _ensure-cloud-provider-kind:
+    internal: true
+    cmds:
+      - |
+        # Check if already running
+        if docker ps --format '{{.Names}}' | grep -q "^{{.CPK_CONTAINER}}$"; then
+          echo "  [cloud-provider-kind] Already running"
+          exit 0
+        fi
+
+        # Remove any stopped container with same name
+        docker rm -f {{.CPK_CONTAINER}} 2>/dev/null || true
+
+        echo "  [cloud-provider-kind] Starting container..."
+        docker run -d \
+          --name {{.CPK_CONTAINER}} \
+          --network kind \
+          --restart unless-stopped \
+          -v /var/run/docker.sock:/var/run/docker.sock \
+          registry.k8s.io/cloud-provider-kind/cloud-controller-manager:v0.6.0
+
+        sleep 2
+
+        if docker ps --format '{{.Names}}' | grep -q "^{{.CPK_CONTAINER}}$"; then
+          echo "  [cloud-provider-kind] Running"
+        else
+          echo "  [cloud-provider-kind] Failed to start"
+          docker logs {{.CPK_CONTAINER}} 2>&1 | tail -10
+          exit 1
+        fi
+
+  _ensure-dnsmasq:
+    internal: true
+    cmds:
+      - |
+        # Check if already running
+        if docker ps --format '{{.Names}}' | grep -q "^{{.DNSMASQ_CONTAINER}}$"; then
+          echo "  [dnsmasq] Already running"
+          exit 0
+        fi
+
+        # Remove any stopped container with same name
+        docker rm -f {{.DNSMASQ_CONTAINER}} 2>/dev/null || true
+
+        echo "  [dnsmasq] Starting container..."
+
+        # Create dnsmasq config
+        mkdir -p /tmp/kind-dnsmasq
+        cat > /tmp/kind-dnsmasq/dnsmasq.conf << 'EOF'
+        # Kind cluster DNS
+        # Resolves *.k8s.local to the kind Docker network
+        no-resolv
+        no-hosts
+        # Forward other queries to Google DNS
+        server=8.8.8.8
+        server=8.8.4.4
+        # Wildcard for k8s.local - updated dynamically
+        address=/k8s.local/127.0.0.1
+        EOF
+
+        docker run -d \
+          --name {{.DNSMASQ_CONTAINER}} \
+          --network kind \
+          --restart unless-stopped \
+          --cap-add NET_ADMIN \
+          -p 127.0.0.1:5353:53/udp \
+          -v /tmp/kind-dnsmasq:/etc/dnsmasq.d:ro \
+          andyshinn/dnsmasq:latest \
+          --conf-dir=/etc/dnsmasq.d,*.conf --no-daemon --log-facility=-
+
+        sleep 2
+
+        if docker ps --format '{{.Names}}' | grep -q "^{{.DNSMASQ_CONTAINER}}$"; then
+          echo "  [dnsmasq] Running on 127.0.0.1:5353"
+          echo "  [dnsmasq] Test with: dig @127.0.0.1 -p 5353 test.{{.DNSMASQ_DOMAIN}}"
+        else
+          echo "  [dnsmasq] Failed to start"
+          docker logs {{.DNSMASQ_CONTAINER}} 2>&1 | tail -10
+          exit 1
+        fi
+
+  _update-dns:
+    internal: true
+    cmds:
+      - |
+        # Skip if dnsmasq container not running
+        if ! docker ps --format '{{.Names}}' | grep -q "^{{.DNSMASQ_CONTAINER}}$"; then
+          exit 0
+        fi
+
+        echo "  [dnsmasq] Updating DNS entries..."
+
+        # Rebuild config with current LoadBalancer IPs
+        mkdir -p /tmp/kind-dnsmasq
+        cat > /tmp/kind-dnsmasq/dnsmasq.conf << 'EOF'
+        no-resolv
+        no-hosts
+        server=8.8.8.8
+        server=8.8.4.4
+        EOF
+
+        # Add entries for all LoadBalancer services
+        for cluster in $(kind get clusters 2>/dev/null); do
+          kubectl --context "kind-${cluster}" get svc -A -o json 2>/dev/null | \
+            jq -r '.items[] | select(.spec.type=="LoadBalancer") | select(.status.loadBalancer.ingress != null) | "address=/\(.metadata.name).\(.metadata.namespace).{{.DNSMASQ_DOMAIN}}/\(.status.loadBalancer.ingress[0].ip)"' \
+            >> /tmp/kind-dnsmasq/dnsmasq.conf
+        done
+
+        # Restart dnsmasq to pick up changes
+        docker restart {{.DNSMASQ_CONTAINER}} > /dev/null
+        echo "  [dnsmasq] Updated"
+
+  _stop-infrastructure:
+    internal: true
+    cmds:
+      - |
+        echo "Stopping local infrastructure containers..."
+        docker rm -f {{.CPK_CONTAINER}} 2>/dev/null && echo "  Stopped {{.CPK_CONTAINER}}" || true
+        docker rm -f {{.DNSMASQ_CONTAINER}} 2>/dev/null && echo "  Stopped {{.DNSMASQ_CONTAINER}}" || true
+        rm -rf /tmp/kind-dnsmasq 2>/dev/null || true
+
+  # =============================================================================
   # Listing
   # =============================================================================
   list:
@@ -31,8 +155,8 @@ tasks:
   local:conduct:
     desc: "Conduct experiment locally: task experiments:local:conduct -- <experiment-name>"
     cmds:
-      - task: :local:_ensure-cloud-provider-kind
-      - task: :local:_ensure-dnsmasq
+      - task: _ensure-cloud-provider-kind
+      - task: _ensure-dnsmasq
       - |
         if [ -z "{{.CLI_ARGS}}" ]; then
           echo "Usage: task experiments:local:conduct -- <experiment-name> [USERS=10] [DURATION=60s]"
@@ -168,7 +292,7 @@ tasks:
         # Wait for ArgoCD to sync
         echo "  Waiting for sync..."
         sleep 15
-      - task: :local:_update-dns
+      - task: _update-dns
       - |
         EXP_NAME="{{.CLI_ARGS}}"
         EXP_PATH="experiments/scenarios/$EXP_NAME"
