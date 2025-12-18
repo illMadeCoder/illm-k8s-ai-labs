@@ -95,7 +95,8 @@ Validate            Platform Engineering     Synthesis
 ### Appendices (Optional Deep Dives)
 
 - [MLOps & AI Infrastructure](docs/roadmap/appendix-mlops.md) - Kubeflow, KServe, vector DBs, GPU scheduling
-- [Identity & Authentication](docs/roadmap/appendix-identity-auth.md) - Password security, JWT/JWE, OAuth flows, OIDC, IdP deployment
+- [Identity & Authentication](docs/roadmap/appendix-identity-auth.md) - Password security, JWT/JWE, OAuth flows, OIDC, API keys/PATs, IdP deployment
+- [PKI & Certificate Management](docs/roadmap/appendix-pki-certs.md) - X.509, TLS, step-ca, cert-manager, mTLS, SPIFFE
 - [Compliance & Security Operations](docs/roadmap/appendix-compliance-soc.md) - SOC, PCI-DSS, HIPAA/PHI, hardening
 
 ---

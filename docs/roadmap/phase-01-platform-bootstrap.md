@@ -96,7 +96,7 @@ task exp:run experiment=http-baseline
 4. **Container Registry** - Harbor or distribution/registry
 
 **Hub Extended Services (Later):**
-- [ ] **Private CA** - step-ca for internal certificates
+- [ ] **Private CA** - step-ca for internal certificates (see [Appendix C: PKI & Certs](appendix-pki-certs.md))
 - [ ] **Identity Provider** - Keycloak or Dex for SSO (see [Appendix B: Identity & Auth](appendix-identity-auth.md))
 - [ ] **Artifact Storage** - MinIO for results, Helm charts, backups
 - [ ] **DNS** - CoreDNS or external-dns for service discovery
