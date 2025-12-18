@@ -97,7 +97,7 @@ task exp:run experiment=http-baseline
 
 **Hub Extended Services (Later):**
 - [ ] **Private CA** - step-ca for internal certificates
-- [ ] **Identity Provider** - Keycloak or Dex for SSO
+- [ ] **Identity Provider** - Keycloak or Dex for SSO (see [Appendix B: Identity & Auth](appendix-identity-auth.md))
 - [ ] **Artifact Storage** - MinIO for results, Helm charts, backups
 - [ ] **DNS** - CoreDNS or external-dns for service discovery
 

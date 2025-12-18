@@ -3,8 +3,11 @@ version: '3'
 # Hub Cluster Bootstrap
 #
 # Usage:
-#   task bootstrap:kind    # Full setup (cluster, ArgoCD, DNS)
-#   task destroy           # Tear down
+#   task hub:kind:bootstrap    # Full setup (cluster, ArgoCD, DNS)
+#   task hub:kind:destroy      # Tear down
+#   task hub:kind:status       # Show status
+#
+# Variants: kind, talos, cloud (future)
 
 silent: true
 
@@ -14,7 +17,7 @@ vars:
   DNS_IP: 172.19.255.200
 
 tasks:
-  bootstrap:kind:
+  kind:bootstrap:
     desc: Bootstrap hub on Kind (full setup)
     cmds:
       # Create cluster
@@ -81,18 +84,22 @@ tasks:
         echo "ArgoCD UI: https://argocd-server.argocd.k8s.local"
         echo "Password:  $(kubectl -n {{.ARGOCD_NAMESPACE}} get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d)"
 
-  destroy:
+  kind:destroy:
     desc: Destroy Kind hub cluster
     cmds:
       - kind delete cluster --name {{.HUB_CLUSTER}}
 
-  # Helper tasks (optional)
-  status:
-    desc: Show hub status
+  kind:status:
+    desc: Show Kind hub status
     cmds:
-      - kubectl get applications -n {{.ARGOCD_NAMESPACE}} 2>/dev/null || echo "ArgoCD not installed"
+      - |
+        echo "=== Kind Hub Cluster ==="
+        kubectl config use-context kind-{{.HUB_CLUSTER}} 2>/dev/null || { echo "Hub cluster not found"; exit 1; }
+        echo ""
+        echo "=== ArgoCD Applications ==="
+        kubectl get applications -n {{.ARGOCD_NAMESPACE}} 2>/dev/null || echo "ArgoCD not installed"
 
-  password:
-    desc: Get ArgoCD admin password
+  kind:password:
+    desc: Get Kind hub ArgoCD admin password
     cmds:
-      - kubectl -n {{.ARGOCD_NAMESPACE}} get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d && echo
+      - kubectl --context kind-{{.HUB_CLUSTER}} -n {{.ARGOCD_NAMESPACE}} get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d && echo

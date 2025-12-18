@@ -1,0 +1,51 @@
+# Argo Workflows Helm values for Kind hub
+#
+# Minimal config for local development. Workflows will orchestrate
+# experiment cluster creation and execution.
+
+# Controller settings
+controller:
+  # Use emissary executor (no docker socket needed)
+  containerRuntimeExecutor: emissary
+
+  # Resource limits for Kind
+  resources:
+    requests:
+      cpu: 100m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+# Server (UI + API)
+server:
+  enabled: true
+
+  # Auth mode - for local dev, use server mode (no auth)
+  # Production should use sso
+  authMode: server
+
+  # Expose via LoadBalancer for Kind
+  service:
+    type: LoadBalancer
+
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+
+# Workflow defaults
+workflow:
+  serviceAccount:
+    create: true
+    name: argo-workflow
+
+  rbac:
+    create: true
+
+# Use minio for artifact storage (can add later)
+# For now, workflows will use emptyDir or outputs
+useDefaultArtifactRepo: false
