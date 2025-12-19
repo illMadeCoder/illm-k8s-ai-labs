@@ -8,6 +8,11 @@ controller:
   # Use emissary executor (no docker socket needed)
   containerRuntimeExecutor: emissary
 
+  # Default service account for workflows
+  workflowDefaults:
+    spec:
+      serviceAccountName: argo-workflow
+
   # Resource limits for Kind
   resources:
     requests:
