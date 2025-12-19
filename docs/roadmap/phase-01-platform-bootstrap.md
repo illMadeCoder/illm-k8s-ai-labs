@@ -34,72 +34,70 @@
 
 ---
 
-### 1.2 Hub Cluster & Three-Tier Architecture
+### 1.2 Hub Cluster & Experiment Architecture
 
-**Goal:** Establish a persistent hub cluster and define the three-tier experiment architecture
+**Goal:** Establish a persistent hub cluster that provisions experiment infrastructure
 
-*The hub hosts shared services. Each experiment gets its own orchestrator cluster (with ArgoCD + Argo Workflows) that deploys to target clusters. This provides complete isolation between experiments.*
+*The hub is always local (Kind for dev, Talos for home lab) - zero cloud cost for persistent infrastructure. The hub provisions experiment clusters (including an orchestrator) in parallel via Crossplane or Kind, then the orchestrator runs the experiment.*
 
 **Learning objectives:**
-- Understand the three-tier cluster pattern (Hub → Orchestrator → Target)
+- Understand the hub → experiment cluster pattern
 - Design idempotent, environment-agnostic cluster bootstrap
-- Establish GitOps flow across cluster tiers
+- Establish GitOps flow for experiment provisioning
 
-**Three-Tier Architecture:**
+**Architecture:**
 ```
 ┌─────────────────────────────────────────────────────────────────────┐
-│  Hub Cluster (always running - your N100, Kind, or cloud)          │
-│  ┌─────────────┐ ┌─────────────┐ ┌─────────────┐                   │
-│  │   ArgoCD    │ │  OpenBao    │ │  Registry   │                   │
-│  │   (root)    │ │  (secrets)  │ │  (Harbor)   │                   │
-│  └─────────────┘ └─────────────┘ └─────────────┘                   │
-│        │                                                            │
-│        │ deploys orchestrator via: task exp:run experiment=X       │
-└────────┼────────────────────────────────────────────────────────────┘
+│  Hub Cluster (always local: Kind for dev, Talos for home lab)      │
+│  ┌─────────────┐ ┌─────────────┐ ┌─────────────┐ ┌─────────────┐   │
+│  │   ArgoCD    │ │    Argo     │ │  Crossplane │ │  OpenBao    │   │
+│  │   (root)    │ │  Workflows  │ │ (provisions)│ │  (secrets)  │   │
+│  └─────────────┘ └─────────────┘ └─────────────┘ └─────────────┘   │
+│        │                               │                            │
+│        │ task kind:conduct             │ provisions in PARALLEL     │
+└────────┼───────────────────────────────┼────────────────────────────┘
+         │                               │
+         │         ┌─────────────────────┼─────────────────────┐
+         │         ▼                     ▼                     ▼
+         │  ┌─────────────┐       ┌─────────────┐       ┌─────────────┐
+         │  │ Orchestrator│       │   Target    │       │   Loadgen   │
+         │  │ (ArgoCD +   │       │  Cluster    │       │   Cluster   │
+         │  │  Workflows) │       │             │       │             │
+         │  └──────┬──────┘       └─────────────┘       └─────────────┘
+         │         │                     ▲                     ▲
+         │         │    deploys apps     │                     │
+         │         └─────────────────────┴─────────────────────┘
          │
-         ▼
-┌─────────────────────────────────────────────────────────────────────┐
-│  Orchestrator Cluster (per-experiment, ephemeral)                   │
-│  ┌─────────────┐ ┌─────────────┐                                   │
-│  │   ArgoCD    │ │    Argo     │  ← Pulls secrets from Hub OpenBao │
-│  │ (exp-local) │ │  Workflows  │  ← Pulls images from Hub Registry │
-│  └─────────────┘ └─────────────┘                                   │
-│        │                                                            │
-│        │ deploys workloads to target(s)                            │
-└────────┼────────────────────────────────────────────────────────────┘
-         │
-         ▼
-┌─────────────────────────────────────────────────────────────────────┐
-│  Target Cluster(s) (per-experiment, ephemeral)                      │
-│  ┌─────────────┐ ┌─────────────┐ ┌─────────────┐                   │
-│  │   App A     │ │   App B     │ │  Load Gen   │                   │
-│  └─────────────┘ └─────────────┘ └─────────────┘                   │
-└─────────────────────────────────────────────────────────────────────┘
+         └── orchestrator runs experiment workflow
 ```
 
 **Experiment Lifecycle:**
 ```bash
-task exp:run experiment=http-baseline
-  ├── 1. Create orchestrator cluster (Kind/K3s/cloud)
-  ├── 2. Bootstrap ArgoCD on orchestrator (pulls from Hub)
-  ├── 3. Orchestrator ArgoCD deploys target cluster(s)
-  ├── 4. Orchestrator ArgoCD deploys workloads to targets
-  ├── 5. Argo Workflows runs experiment workflow
-  ├── 6. Collect results to Hub (MinIO/artifacts)
-  └── 7. (optional) task exp:teardown experiment=http-baseline
+task kind:conduct -- http-baseline
+  ├── 1. Hub provisions ALL clusters in PARALLEL:
+  │     ├── http-baseline-orchestrator (Kind or cloud via Crossplane)
+  │     ├── http-baseline-target
+  │     └── http-baseline-loadgen
+  ├── 2. Hub bootstraps ArgoCD + Argo Workflows on orchestrator
+  ├── 3. Hub registers target/loadgen with orchestrator's ArgoCD
+  ├── 4. Orchestrator's ArgoCD deploys workloads to targets
+  ├── 5. Orchestrator's Argo Workflows runs experiment
+  ├── 6. Results collected to Hub (future: MinIO)
+  └── 7. Cleanup: orchestrator + targets destroyed, hub remains
 ```
 
 **Hub Core Services (MVP, in dependency order):**
 1. **ArgoCD** - Root GitOps, deploys everything else
-2. **OpenBao** - Secrets for all tiers (needed before cloudflared)
-3. **Cloudflare Tunnel** - Webhook delivery to hub behind NAT (see ADR-003)
-4. **Container Registry** - Harbor or distribution/registry
+2. **Argo Workflows** - Experiment orchestration
+3. **OpenBao** - Secrets for all tiers
+4. **Crossplane** - Provisions cloud resources for experiments
+5. **Cloudflare Tunnel** - Webhook delivery to hub behind NAT (see ADR-003)
 
 **Hub Extended Services (Later):**
-- [ ] **Private CA** - step-ca for internal certificates (see [Appendix C: PKI & Certs](appendix-pki-certs.md))
-- [ ] **Identity Provider** - Keycloak or Dex for SSO (see [Appendix B: Identity & Auth](appendix-identity-auth.md))
+- [ ] **Container Registry** - Harbor for experiment images
+- [ ] **Private CA** - step-ca for internal certificates (see [Appendix: PKI & Certs](appendix-pki-certs.md))
+- [ ] **Identity Provider** - Keycloak or Dex for SSO (see [Appendix: Identity & Auth](appendix-identity-auth.md))
 - [ ] **Artifact Storage** - MinIO for results, Helm charts, backups
-- [ ] **DNS** - CoreDNS or external-dns for service discovery
 
 **GitOps Flow (webhook-triggered):**
 ```
@@ -110,87 +108,66 @@ git push → GitHub webhook → Cloudflare Tunnel → ArgoCD → sync
 - ArgoCD ApplicationSet auto-discovers experiments in `experiments/scenarios/` directory
 - Fallback: ArgoCD polls Git every 3 min if webhook unavailable
 
-**Bootstrap Requirements:**
-- [ ] Single command bootstrap: `task hub:bootstrap OVERLAY=<env>`
-- [ ] Portable across deployment environments:
-  - [ ] Kind - laptop development
-  - [ ] K3s - lightweight home lab
-  - [ ] Talos - immutable home lab (N100)
-  - [ ] AKS/EKS/GKE - cloud-hosted hub (for those without local hardware)
-- [ ] Idempotent - can re-run safely
-- [ ] GitOps from first deployment (ArgoCD self-manages after bootstrap)
-- [ ] Same Git repo, different overlays - only cluster-specific config differs
+**Hub Environments:**
+
+| Environment | Purpose | Provisions Targets Via |
+|-------------|---------|------------------------|
+| Kind hub | Dev/test for Talos hub | Kind clusters (local) |
+| Talos hub | Production home lab | Kind, Crossplane (cloud) |
+
+*No cloud hub - the hub is always local (zero cloud cost for persistent infra).*
 
 **Directory Structure:**
 ```
 hub/
-├── Taskfile.yaml                      # Convenience tasks (optional)
 ├── bootstrap/
 │   ├── argocd-values-kind.yaml        # ArgoCD + app-of-apps reference
-│   ├── argocd-values-talos.yaml
-│   └── argocd-values-cloud.yaml
+│   └── hub-application.yaml           # Root app-of-apps
 └── app-of-apps/
-    ├── kind/                          # Kind-specific services
-    │   ├── kustomization.yaml
+    ├── kind/                          # Kind hub services
     │   ├── argocd.yaml                # ArgoCD self-manages
-    │   ├── dns-stack.yaml             # CoreDNS + etcd + ExternalDNS
+    │   ├── argo-workflows.yaml        # Experiment orchestration
+    │   ├── metallb.yaml               # LoadBalancer
+    │   ├── dns-stack.yaml             # k8s_gateway for DNS
     │   └── values/
-    ├── talos/                         # Talos-specific services
-    │   ├── kustomization.yaml
-    │   ├── argocd.yaml
-    │   ├── dns-stack.yaml
-    │   ├── metallb.yaml               # LoadBalancer for bare metal
-    │   └── values/
-    └── cloud/                         # Cloud-specific services
-        ├── kustomization.yaml
-        ├── argocd.yaml
-        ├── external-dns.yaml          # Route53/CloudDNS/Azure DNS
-        └── values/
+    └── talos/                         # Talos hub services (future)
 
-experiments/scenarios/
-└── <experiment-name>/
-    ├── orchestrator/                  # Per-experiment orchestrator (ephemeral)
-    └── target/                        # Target cluster workloads
+kind/
+└── Taskfile.yaml                      # task kind:bootstrap, kind:conduct, etc.
+
+experiments/scenarios/<experiment-name>/
+├── orchestrator/                      # Orchestrator cluster config
+│   ├── cluster.yaml                   # Cluster definition
+│   └── argocd/                        # Apps for orchestrator
+├── target/                            # Target cluster config
+│   ├── cluster.yaml
+│   └── argocd/
+└── workflow/
+    └── experiment.yaml                # Argo Workflow (runs on orchestrator)
 ```
-
-**Adaptor Layer (provides consistent capabilities across environments):**
-| Capability | Kind | Talos | Cloud |
-|------------|------|-------|-------|
-| LoadBalancer | MetalLB | MetalLB | native |
-| DNS | k8s_gateway (CoreDNS plugin) | k8s_gateway | ExternalDNS → cloud DNS |
 
 **Bootstrap (one command per environment):**
 ```bash
-# Kind
-kind create cluster --name hub
-helm install argocd argo/argo-cd -n argocd --create-namespace -f hub/bootstrap/argocd-values-kind.yaml
-# ArgoCD deploys: MetalLB → dns-stack → other services (all GitOps)
+# Kind hub (dev)
+task kind:bootstrap
 
-# Talos (cluster already exists)
-helm install argocd argo/argo-cd -n argocd --create-namespace -f hub/bootstrap/argocd-values-talos.yaml
-
-# Cloud (cluster already exists)
-helm install argocd argo/argo-cd -n argocd --create-namespace -f hub/bootstrap/argocd-values-cloud.yaml
+# Talos hub (future)
+task talos:bootstrap
 ```
 
 **Tasks (in order):**
 1. [x] Create `hub/` directory structure
 2. [x] Create ArgoCD bootstrap values with app-of-apps reference
 3. [x] Create Kind app-of-apps with ArgoCD self-management
-4. [x] Add MetalLB to Kind app-of-apps (LoadBalancer capability)
-5. [x] Add dns-stack to Kind app-of-apps (k8s_gateway for DNS)
-6. [ ] Test Kind hub bootstrap
-6. [ ] Deploy OpenBao via ArgoCD
-7. [ ] Configure Cloudflare Tunnel for webhook delivery:
-   - [ ] Create tunnel in Cloudflare Zero Trust (manual or Terraform)
-   - [ ] Store tunnel token in OpenBao
-   - [ ] Deploy cloudflared via ArgoCD (after OpenBao)
-   - [ ] Configure GitHub webhook to tunnel URL
-8. [ ] Deploy Harbor via ArgoCD
-9. [ ] Create ArgoCD ApplicationSet for experiment auto-discovery
-10. [ ] Create Talos app-of-apps (add MetalLB)
-11. [ ] Create Cloud app-of-apps (ExternalDNS for cloud provider)
-12. [ ] **ADR:** Document hub cluster pattern and adaptor layer
+4. [x] Add MetalLB to Kind app-of-apps
+5. [x] Add dns-stack to Kind app-of-apps
+6. [x] Add Argo Workflows to Kind app-of-apps
+7. [ ] Test Kind hub bootstrap end-to-end
+8. [ ] Deploy OpenBao via ArgoCD
+9. [ ] Deploy Crossplane via ArgoCD
+10. [ ] Configure Cloudflare Tunnel for webhook delivery
+11. [ ] Create Talos app-of-apps
+12. [ ] **ADR:** Document hub cluster pattern
 
 ---
 
@@ -326,34 +303,41 @@ helm install argocd argo/argo-cd -n argocd --create-namespace -f hub/bootstrap/a
 
 ### 1.7 Argo Workflows Fundamentals
 
-**Goal:** Set up Argo Workflows as the experiment execution engine
+**Goal:** Set up Argo Workflows for experiment orchestration
 
-*Argo Workflows runs on the orchestrator cluster and executes experiment pipelines. This covers basic setup - advanced patterns come later in Phase 14.*
+*Argo Workflows runs on both the hub (for provisioning) and orchestrator (for experiment execution). This section covers hub deployment - orchestrator bootstrap happens during `kind:conduct`.*
 
 **Learning objectives:**
-- Understand Argo Workflows role in experiment execution
-- Deploy and configure Argo Workflows
-- Create basic experiment workflow templates
+- Understand Argo Workflows role in experiment lifecycle
+- Deploy and configure Argo Workflows on hub
+- Create workflow templates for experiment provisioning
+
+**Argo Workflows in the Architecture:**
+
+| Location | Purpose |
+|----------|---------|
+| Hub | Provisions experiment clusters, bootstraps orchestrator |
+| Orchestrator | Runs actual experiment workflow (k6, etc.) |
 
 **Tasks:**
-- [ ] Deploy Argo Workflows to orchestrator:
-  - [ ] Install via Helm chart
-  - [ ] Configure artifact repository (MinIO/S3)
-  - [ ] Set up RBAC for workflow execution
-  - [ ] Configure resource quotas for workflows
+- [x] Deploy Argo Workflows to hub via ArgoCD
 - [ ] Basic workflow patterns:
-  - [ ] Simple sequential workflow (deploy → test → cleanup)
-  - [ ] Parameter passing (target URL, duration, users)
-  - [ ] Artifact collection (test results, logs)
+  - [ ] Parameter passing between steps
   - [ ] Exit handlers for cleanup
-- [ ] Create base experiment template:
-  - [ ] WorkflowTemplate for standard experiment structure
-  - [ ] Parameterized inputs (experiment name, config)
-  - [ ] Standard outputs (results location, status)
-- [ ] Integration with experiment lifecycle:
-  - [ ] Taskfile triggers workflow submission
+  - [ ] Retry policies
+- [ ] Hub provisioning workflow:
+  - [ ] Create Kind clusters in parallel
+  - [ ] Bootstrap ArgoCD on orchestrator
+  - [ ] Register targets with orchestrator
+  - [ ] Trigger orchestrator workflow
+- [ ] Orchestrator experiment workflow:
+  - [ ] Wait for apps to sync
+  - [ ] Run load test (k6)
+  - [ ] Collect results
+- [ ] Integration with `task kind:conduct`:
+  - [ ] Submit workflow to hub
   - [ ] Wait for completion
-  - [ ] Retrieve results
+  - [ ] Report results
 - [ ] Verify with simple test workflow
 - [ ] **ADR:** Document Argo Workflows vs Tekton for experiment orchestration
 

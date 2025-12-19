@@ -94,10 +94,18 @@ Validate            Platform Engineering     Synthesis
 
 ### Appendices (Optional Deep Dives)
 
-- [MLOps & AI Infrastructure](docs/roadmap/appendix-mlops.md) - Kubeflow, KServe, vector DBs, GPU scheduling
-- [Identity & Authentication](docs/roadmap/appendix-identity-auth.md) - Password security, JWT/JWE, OAuth flows, OIDC, API keys/PATs, IdP deployment
-- [PKI & Certificate Management](docs/roadmap/appendix-pki-certs.md) - X.509, TLS, step-ca, cert-manager, mTLS, SPIFFE
-- [Compliance & Security Operations](docs/roadmap/appendix-compliance-soc.md) - SOC, PCI-DSS, HIPAA/PHI, hardening
+- [A: MLOps & AI Infrastructure](docs/roadmap/appendix-mlops.md) - Kubeflow, KServe, vector DBs, GPU scheduling
+- [B: Identity & Authentication](docs/roadmap/appendix-identity-auth.md) - Password security, JWT/JWE, OAuth flows, OIDC, API keys/PATs, IdP deployment
+- [C: PKI & Certificate Management](docs/roadmap/appendix-pki-certs.md) - X.509, TLS, step-ca, cert-manager, mTLS, SPIFFE
+- [D: Compliance & Security Operations](docs/roadmap/appendix-compliance-soc.md) - SOC, PCI-DSS, HIPAA/PHI, hardening
+- [E: Distributed Systems Fundamentals](docs/roadmap/appendix-distributed-systems.md) - Consensus, CAP, distributed transactions, clocks, replication
+- [F: API Design & Contracts](docs/roadmap/appendix-api-design.md) - REST, GraphQL, gRPC, versioning, OpenAPI, contract testing
+- [G: Container & Runtime Internals](docs/roadmap/appendix-container-internals.md) - Namespaces, cgroups, OCI, runtimes, security primitives
+- [H: Performance Engineering](docs/roadmap/appendix-performance-engineering.md) - Profiling, load testing, capacity planning, latency optimization
+- [I: Event-Driven Architecture](docs/roadmap/appendix-event-driven.md) - Event sourcing, CQRS, Saga, outbox pattern, schema evolution
+- [J: Database Internals](docs/roadmap/appendix-database-internals.md) - Storage engines, indexing, query optimization, replication, sharding
+- [K: SRE Practices & Incident Management](docs/roadmap/appendix-sre-practices.md) - SLOs, on-call, incident response, post-mortems, toil reduction
+- [L: Multi-Cloud & Disaster Recovery](docs/roadmap/appendix-multicloud-dr.md) - Multi-cloud strategy, DR planning, failover, geographic distribution
 
 ---
 
@@ -109,10 +117,11 @@ Validate            Platform Engineering     Synthesis
 - [x] Create Kind app-of-apps with ArgoCD self-management
 - [x] Add MetalLB to Kind app-of-apps
 - [x] Add dns-stack to Kind app-of-apps
+- [x] Add Argo Workflows to Kind app-of-apps
 - [ ] Test Kind hub bootstrap end-to-end
 - [ ] Deploy OpenBao via ArgoCD
-- [ ] Set up Argo Workflows on orchestrator
+- [ ] Deploy Crossplane via ArgoCD
+- [ ] Update `kind:conduct` for orchestrator pattern
 - [ ] Configure Cloudflare Tunnel for webhooks
-- [ ] Deploy Harbor via ArgoCD
 
 See [Phase 1](docs/roadmap/phase-01-platform-bootstrap.md) for full details.
