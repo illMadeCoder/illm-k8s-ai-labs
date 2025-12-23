@@ -122,7 +122,9 @@ Validate            Platform Engineering     Synthesis
 - [x] Update `kind:conduct` for orchestrator pattern (parallel provisioning)
 - [x] Add OpenBao to Kind app-of-apps
 - [x] Add Crossplane to Kind app-of-apps
-- [ ] Configure Cloudflare Tunnel for webhooks
-- [ ] Test full hub bootstrap with all components
+- [x] Test full hub bootstrap with all components
+- [ ] *(Optional)* Configure webhooks for instant sync (smee.io or Cloudflare Tunnel)
+
+**Phase 1 Core Complete** - Hub bootstraps with ArgoCD, Argo Workflows, OpenBao, Crossplane, MetalLB, dns-stack.
 
 See [Phase 1](docs/roadmap/phase-01-platform-bootstrap.md) for full details.
