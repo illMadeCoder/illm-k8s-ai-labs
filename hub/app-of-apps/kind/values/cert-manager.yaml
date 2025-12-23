@@ -7,6 +7,12 @@ crds:
   enabled: true
   keep: true
 
+# Use public DNS for ACME DNS-01 propagation checks
+# (cluster DNS can't resolve external domains properly)
+extraArgs:
+  - --dns01-recursive-nameservers=8.8.8.8:53,1.1.1.1:53
+  - --dns01-recursive-nameservers-only
+
 # Resource limits for Kind
 resources:
   requests:
