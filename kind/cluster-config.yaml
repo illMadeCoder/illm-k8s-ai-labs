@@ -14,4 +14,4 @@ nodes:
       - hostPath: /home/illm/.illmlab/openbao-data
         containerPath: /mnt/openbao-data
         readOnly: false
-        propagation: Bidirectional
+        propagation: None
