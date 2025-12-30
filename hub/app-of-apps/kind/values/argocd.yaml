@@ -15,6 +15,12 @@ server:
     # Must be within MetalLB pool range (see manifests/metallb-config/kustomization.yaml)
     loadBalancerIP: 172.19.255.201  # ArgoCD gets .201, DNS gets .200
 
+# Run server in insecure mode (HTTP internally, TLS terminated at LoadBalancer)
+# This allows internal services to connect via HTTP without cert mismatch issues
+configs:
+  params:
+    server.insecure: true
+
 # Webhook Configuration
 # GitHub webhook secret - must match the secret configured in GitHub repo settings
 # Store in OpenBao: task kind:secret -- github/argocd-webhook secret=<your-secret>
