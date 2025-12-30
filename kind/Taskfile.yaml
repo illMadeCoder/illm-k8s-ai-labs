@@ -316,7 +316,7 @@ tasks:
         echo "Secret stored successfully!"
 
   cert-backup:
-    desc: "Backup Let's Encrypt certificate to OpenBao"
+    desc: "Manually backup Let's Encrypt certificate to OpenBao (usually automatic via PushSecret)"
     cmds:
       - |
         KEYS_FILE="{{.OPENBAO_KEYS_FILE}}"
