@@ -15,6 +15,14 @@ server:
     # Must be within MetalLB pool range (see manifests/metallb-config/kustomization.yaml)
     loadBalancerIP: 172.19.255.201  # ArgoCD gets .201, DNS gets .200
 
+  # Use internal TLS certificate (issued by OpenBao internal CA)
+  # Includes SANs for both external domain and internal service names
+  certificate:
+    enabled: false  # We manage cert via cert-manager, not ArgoCD
+  certificateSecret:
+    enabled: true
+    name: argocd-server-internal-tls  # Created by cert-manager from OpenBao PKI
+
 # Webhook Configuration
 # For local development, webhook secret is optional (smee.io URL is obscure enough)
 # To enable: configure same secret in GitHub webhook settings and uncomment below

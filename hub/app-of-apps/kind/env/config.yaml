@@ -69,3 +69,27 @@
 # Store with: task kind:secret -- github/argocd-webhook secret=<your-secret>
 #
 # The same secret must be configured in GitHub repo webhook settings.
+
+# ============================================================================
+# Internal PKI (Zero-Trust Internal TLS)
+# ============================================================================
+
+# OpenBao PKI Engine
+# Path: pki/
+# Root CA: illmlab-internal-ca (10 year validity)
+# Role: internal-tls (30 day certs)
+# Set up by: task kind:bootstrap
+#
+# Allowed domains:
+#   - svc.cluster.local
+#   - cluster.local
+#   - argocd
+#   - illmlab.xyz
+
+# cert-manager ClusterIssuer: openbao-pki
+# File: manifests/cert-manager-config/openbao-issuer.yaml
+# Token: openbao-pki-token secret in cert-manager namespace
+
+# Internal CA Certificate (for clients to trust)
+# Secret: openbao-internal-ca in argocd namespace
+# Usage: Mount as volume, set NODE_EXTRA_CA_CERTS or add to trust store

@@ -156,6 +156,79 @@ tasks:
           --dry-run=client -o yaml | kubectl apply -f -
         echo "ESO configured with OpenBao token"
       - |
+        echo "=== Configuring OpenBao PKI (Internal CA) ==="
+        KEYS_FILE="{{.OPENBAO_KEYS_FILE}}"
+        ROOT_TOKEN=$(jq -r '.root_token' "$KEYS_FILE")
+        OPENBAO_POD=$(kubectl get pods -n {{.OPENBAO_NAMESPACE}} -l app.kubernetes.io/name=openbao -o jsonpath='{.items[0].metadata.name}')
+
+        # Enable PKI secrets engine
+        kubectl exec -n {{.OPENBAO_NAMESPACE}} $OPENBAO_POD -- \
+          env BAO_TOKEN="$ROOT_TOKEN" bao secrets enable -path=pki pki 2>/dev/null || echo "PKI engine already enabled"
+
+        # Configure max TTL (10 years for root CA)
+        kubectl exec -n {{.OPENBAO_NAMESPACE}} $OPENBAO_POD -- \
+          env BAO_TOKEN="$ROOT_TOKEN" bao secrets tune -max-lease-ttl=87600h pki
+
+        # Check if root CA already exists
+        CA_EXISTS=$(kubectl exec -n {{.OPENBAO_NAMESPACE}} $OPENBAO_POD -- \
+          env BAO_TOKEN="$ROOT_TOKEN" bao read pki/cert/ca 2>/dev/null && echo "yes" || echo "no")
+
+        if [ "$CA_EXISTS" = "no" ]; then
+          echo "Generating internal root CA..."
+          kubectl exec -n {{.OPENBAO_NAMESPACE}} $OPENBAO_POD -- \
+            env BAO_TOKEN="$ROOT_TOKEN" bao write pki/root/generate/internal \
+            common_name="illmlab-internal-ca" \
+            ttl=87600h \
+            key_bits=4096
+        else
+          echo "Root CA already exists"
+        fi
+
+        # Configure CA and CRL URLs
+        kubectl exec -n {{.OPENBAO_NAMESPACE}} $OPENBAO_POD -- \
+          env BAO_TOKEN="$ROOT_TOKEN" bao write pki/config/urls \
+          issuing_certificates="http://openbao.openbao.svc.cluster.local:8200/v1/pki/ca" \
+          crl_distribution_points="http://openbao.openbao.svc.cluster.local:8200/v1/pki/crl"
+
+        # Create role for internal certificates
+        kubectl exec -n {{.OPENBAO_NAMESPACE}} $OPENBAO_POD -- \
+          env BAO_TOKEN="$ROOT_TOKEN" bao write pki/roles/internal-tls \
+          allowed_domains="svc.cluster.local,cluster.local,argocd,illmlab.xyz" \
+          allow_subdomains=true \
+          allow_bare_domains=true \
+          max_ttl=720h \
+          key_bits=2048
+
+        echo "OpenBao PKI configured!"
+
+        # Create token for cert-manager (scoped to PKI)
+        echo "Creating cert-manager PKI token..."
+        PKI_POLICY='path "pki/*" { capabilities = ["create", "read", "update", "delete", "list"] }'
+        kubectl exec -n {{.OPENBAO_NAMESPACE}} $OPENBAO_POD -- \
+          env BAO_TOKEN="$ROOT_TOKEN" sh -c "echo '$PKI_POLICY' | bao policy write pki-policy -" 2>/dev/null || true
+
+        PKI_TOKEN=$(kubectl exec -n {{.OPENBAO_NAMESPACE}} $OPENBAO_POD -- \
+          env BAO_TOKEN="$ROOT_TOKEN" bao token create -policy=pki-policy -ttl=87600h -format=json | jq -r '.auth.client_token')
+
+        # Create secret for cert-manager
+        kubectl create secret generic openbao-pki-token \
+          -n cert-manager \
+          --from-literal=token="$PKI_TOKEN" \
+          --dry-run=client -o yaml | kubectl apply -f -
+        echo "cert-manager PKI token configured"
+
+        # Export CA certificate for clients to trust
+        echo "Exporting internal CA certificate..."
+        CA_CERT=$(kubectl exec -n {{.OPENBAO_NAMESPACE}} $OPENBAO_POD -- \
+          env BAO_TOKEN="$ROOT_TOKEN" bao read -field=certificate pki/cert/ca)
+
+        # Create CA secret in argocd namespace for webhook-relay
+        kubectl create secret generic openbao-internal-ca \
+          -n argocd \
+          --from-literal=ca.crt="$CA_CERT" \
+          --dry-run=client -o yaml | kubectl apply -f -
+        echo "Internal CA certificate exported"
+      - |
         echo "=== Configuring host DNS ==="
         if grep -q "{{.DNS_IP}}" /etc/resolv.conf 2>/dev/null; then
           echo "Already configured"

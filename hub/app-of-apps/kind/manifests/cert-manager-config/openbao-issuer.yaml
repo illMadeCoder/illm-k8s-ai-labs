@@ -1,0 +1,23 @@
+# OpenBao PKI ClusterIssuer for Internal TLS
+#
+# Issues certificates from the internal CA stored in OpenBao.
+# Used for zero-trust internal service communication.
+#
+# Prerequisites (set up by bootstrap):
+#   - OpenBao PKI engine enabled at path 'pki'
+#   - Root CA generated
+#   - Role 'internal-tls' created
+#   - Token stored in secret 'openbao-pki-token' in cert-manager namespace
+
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: openbao-pki
+spec:
+  vault:
+    server: http://openbao.openbao.svc.cluster.local:8200
+    path: pki/sign/internal-tls
+    auth:
+      tokenSecretRef:
+        name: openbao-pki-token
+        key: token

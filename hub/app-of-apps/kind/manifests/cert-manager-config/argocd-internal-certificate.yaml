@@ -1,0 +1,33 @@
+# ArgoCD Internal TLS Certificate
+#
+# Issued by OpenBao internal CA for zero-trust internal communication.
+# Includes both external domain and internal service names as SANs.
+#
+# This enables:
+#   - Internal services to connect via HTTPS using service names
+#   - Proper TLS verification without hacks
+#   - Zero-trust internal communication
+
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: argocd-server-internal-tls
+  namespace: argocd
+spec:
+  secretName: argocd-server-internal-tls
+  duration: 720h    # 30 days
+  renewBefore: 360h # Renew 15 days before expiry
+
+  # Subject Alternative Names - all valid ways to reach ArgoCD
+  dnsNames:
+    # External domain (for browser/external access)
+    - argocd.illmlab.xyz
+    # Internal service names (for pod-to-pod communication)
+    - argocd-server
+    - argocd-server.argocd
+    - argocd-server.argocd.svc
+    - argocd-server.argocd.svc.cluster.local
+
+  issuerRef:
+    name: openbao-pki
+    kind: ClusterIssuer
