@@ -20,6 +20,16 @@ spec:
       labels:
         app: smee-client
     spec:
+      # Use Cloudflare DNS to resolve argocd.illmlab.xyz (public domain -> private IP)
+      dnsPolicy: "None"
+      dnsConfig:
+        nameservers:
+          - "1.1.1.1"  # Cloudflare (allows private IP responses)
+          - "1.0.0.1"
+        searches:
+          - "argocd.svc.cluster.local"
+          - "svc.cluster.local"
+          - "cluster.local"
       containers:
         - name: smee-client
           image: node:20-alpine
@@ -28,7 +38,8 @@ spec:
             - "--url"
             - "PLACEHOLDER_SMEE_URL"
             - "--target"
-            - "http://argocd-server.argocd.svc.cluster.local/api/webhook"
+            # Use external domain so TLS cert matches (resolved via k8s_gateway)
+            - "https://argocd.illmlab.xyz/api/webhook"
           resources:
             requests:
               cpu: 10m
