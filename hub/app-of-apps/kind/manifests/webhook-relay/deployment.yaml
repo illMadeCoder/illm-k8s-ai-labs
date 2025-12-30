@@ -24,9 +24,9 @@ spec:
         - name: smee-client
           image: twalter/smee-client:latest
           args:
-            - --url
+            - -u
             - "PLACEHOLDER_SMEE_URL"
-            - --target
+            - -t
             - "http://argocd-server.argocd.svc.cluster.local/api/webhook"
           resources:
             requests:
