@@ -22,8 +22,8 @@ vars:
   #   - hub/app-of-apps/kind/values/argocd.yaml (loadBalancerIP)
   #   - hub/bootstrap/argocd-values-kind.yaml (loadBalancerIP)
   DNS_IP: 172.19.255.200
-  # OpenBao persistence
-  OPENBAO_KEYS_FILE: ~/.illmlab/openbao-keys.json
+  # OpenBao persistence (use $HOME instead of ~ for reliable expansion)
+  OPENBAO_KEYS_FILE: $HOME/.illmlab/openbao-keys.json
   OPENBAO_NAMESPACE: openbao
   # Infrastructure containers
   CPK_CONTAINER: cloud-provider-kind
@@ -88,7 +88,6 @@ tasks:
         INIT_STATUS=$(kubectl exec -n {{.OPENBAO_NAMESPACE}} $OPENBAO_POD -- bao status -format=json 2>/dev/null | jq -r '.initialized' || echo "false")
 
         KEYS_FILE="{{.OPENBAO_KEYS_FILE}}"
-        KEYS_FILE="${KEYS_FILE/#\~/$HOME}"
 
         if [ "$INIT_STATUS" = "false" ]; then
           echo "Initializing OpenBao (first time setup)..."
@@ -123,7 +122,6 @@ tasks:
       - |
         echo "=== Configuring OpenBao ==="
         KEYS_FILE="{{.OPENBAO_KEYS_FILE}}"
-        KEYS_FILE="${KEYS_FILE/#\~/$HOME}"
         ROOT_TOKEN=$(jq -r '.root_token' "$KEYS_FILE")
         OPENBAO_POD=$(kubectl get pods -n {{.OPENBAO_NAMESPACE}} -l app.kubernetes.io/name=openbao -o jsonpath='{.items[0].metadata.name}')
 
@@ -216,7 +214,6 @@ tasks:
         fi
 
         KEYS_FILE="{{.OPENBAO_KEYS_FILE}}"
-        KEYS_FILE="${KEYS_FILE/#\~/$HOME}"
 
         if [ ! -f "$KEYS_FILE" ]; then
           echo "ERROR: OpenBao keys file not found at $KEYS_FILE"
