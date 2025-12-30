@@ -191,11 +191,12 @@ tasks:
           crl_distribution_points="http://openbao.openbao.svc.cluster.local:8200/v1/pki/crl"
 
         # Create role for internal certificates
+        # Use allow_any_name=true to support all internal service name patterns
+        # (e.g., argocd-server, argocd-server.argocd, argocd-server.argocd.svc)
         kubectl exec -n {{.OPENBAO_NAMESPACE}} $OPENBAO_POD -- \
           env BAO_TOKEN="$ROOT_TOKEN" bao write pki/roles/internal-tls \
-          allowed_domains="svc.cluster.local,cluster.local,argocd,illmlab.xyz" \
-          allow_subdomains=true \
-          allow_bare_domains=true \
+          allow_any_name=true \
+          enforce_hostnames=true \
           max_ttl=720h \
           key_bits=2048
 

@@ -77,14 +77,12 @@
 # OpenBao PKI Engine
 # Path: pki/
 # Root CA: illmlab-internal-ca (10 year validity)
-# Role: internal-tls (30 day certs)
+# Role: internal-tls (30 day certs, allow_any_name=true)
 # Set up by: task kind:bootstrap
 #
-# Allowed domains:
-#   - svc.cluster.local
-#   - cluster.local
-#   - argocd
-#   - illmlab.xyz
+# The role uses allow_any_name=true to support all Kubernetes
+# service name patterns (short names, namespace-qualified, FQDN).
+# enforce_hostnames=true ensures names are valid DNS hostnames.
 
 # cert-manager ClusterIssuer: openbao-pki
 # File: manifests/cert-manager-config/openbao-issuer.yaml
