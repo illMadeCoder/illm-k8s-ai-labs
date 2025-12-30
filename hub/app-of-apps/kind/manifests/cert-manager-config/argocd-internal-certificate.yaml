@@ -18,6 +18,9 @@ spec:
   duration: 720h    # 30 days
   renewBefore: 360h # Renew 15 days before expiry
 
+  # Common Name (required by OpenBao)
+  commonName: argocd-server.argocd.svc.cluster.local
+
   # Subject Alternative Names - all valid ways to reach ArgoCD
   dnsNames:
     # External domain (for browser/external access)
