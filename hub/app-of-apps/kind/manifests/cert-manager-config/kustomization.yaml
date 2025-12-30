@@ -9,6 +9,8 @@ kind: Kustomization
 resources:
   - cluster-issuer.yaml
   - argocd-certificate.yaml
+  - openbao-issuer.yaml
+  - argocd-internal-certificate.yaml
 
 # Environment-specific values
 # Change these to match your domain and email
