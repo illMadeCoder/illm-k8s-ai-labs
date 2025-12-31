@@ -8,7 +8,6 @@ kind: Kustomization
 
 resources:
   - cluster-issuer.yaml
-  - argocd-certificate.yaml
   - openbao-issuer.yaml
 
 # Environment-specific values
@@ -46,15 +45,3 @@ replacements:
           name: letsencrypt-staging
         fieldPaths:
           - spec.acme.email
-
-  # Replace domain in ArgoCD Certificate
-  - source:
-      kind: ConfigMap
-      name: cert-manager-env
-      fieldPath: data.ARGOCD_DOMAIN
-    targets:
-      - select:
-          kind: Certificate
-          name: argocd-server-tls
-        fieldPaths:
-          - spec.dnsNames.0
