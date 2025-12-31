@@ -128,3 +128,36 @@ Validate            Platform Engineering     Synthesis
 **Phase 1 Complete** - Hub bootstraps with ArgoCD, Argo Workflows, OpenBao, Crossplane, MetalLB, dns-stack, webhook relay.
 
 See [Phase 1](docs/roadmap/phase-01-platform-bootstrap.md) for full details.
+
+---
+
+## Recent Progress (2025-12-30)
+
+### Experiment Lifecycle
+
+- [x] Implement full experiment lifecycle (deploy → run → cleanup)
+- [x] Add `onExit` cleanup handlers to Argo Workflows
+- [x] Configure RBAC for workflow cleanup operations
+- [x] Test hello-app and http-baseline experiments end-to-end
+- [x] Document pattern in [ADR-005](docs/adrs/ADR-005-experiment-lifecycle.md)
+
+### TLS & Certificates
+
+- [x] Implement TLS persistence via OpenBao (ADR-004)
+- [x] Configure External Secrets Operator for TLS sync
+- [x] Temporarily disable Let's Encrypt (rate limit exhaustion)
+- [x] Add `ignoreDifferences` for ESO-managed secrets
+- [ ] Re-enable Let's Encrypt after rate limit reset (~Jan 1)
+
+### ArgoCD Fixes
+
+- [x] Fix metallb OutOfSync (CRD annotation drift)
+- [x] Fix cert-manager-config Degraded (remove deleted file references)
+- [x] Fix external-secrets-config Degraded (remove circular PushSecret)
+- [x] All apps now Synced and Healthy
+
+### Next Steps
+
+- [ ] Phase 2: CI/CD & Supply Chain
+- [ ] Add more experiments (canary, chaos, etc.)
+- [ ] Set up Talos home lab cluster

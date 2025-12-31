@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted
+Accepted (Let's Encrypt temporarily disabled - see Current Status)
 
 ## Context
 
@@ -95,6 +95,57 @@ dnsNames:
 
 This allows internal services (like webhook-relay) to connect via HTTPS using internal service names with proper TLS verification.
 
+## Current Status (2025-12-30)
+
+**Let's Encrypt is temporarily disabled due to rate limit exhaustion.** The rate limit resets approximately January 1, 2025.
+
+### What Changed
+
+The full Let's Encrypt + PushSecret architecture proved complex and ran into issues:
+
+1. **Rate limit exhausted**: Repeated testing during development consumed all 5 certificates
+2. **PushSecret circular dependency**: ESO cannot push secrets it owns back to OpenBao (the secret must not be managed by ExternalSecret)
+3. **Certificate status mismatch**: Restored certificates showed `False` status in cert-manager
+
+### Files Removed
+
+- `cert-manager-config/argocd-certificate.yaml` - Let's Encrypt Certificate request
+- `external-secrets-config/argocd-tls-push-secret.yaml` - PushSecret to OpenBao
+- `external-secrets-config/argocd-tls-letsencrypt-external-secret.yaml` - ExternalSecret for cert-manager
+
+### Current Architecture (Simplified)
+
+```
+OpenBao PKI
+    │
+    ├── argocd-tls-external-secret.yaml
+    │   (pulls from secret/data/tls/argocd)
+    │
+    └── argocd-server-tls
+        (Kubernetes TLS secret)
+```
+
+The existing certificate in OpenBao (persisted from before rate limit exhaustion) is served via ExternalSecret. No new Let's Encrypt requests are made.
+
+### Browser Trust
+
+Currently using OpenBao PKI certificate which shows a browser warning (not publicly trusted). After rate limit reset, the Let's Encrypt architecture can be re-enabled for browser-trusted certificates.
+
+### ArgoCD ignoreDifferences
+
+The ArgoCD application for ArgoCD itself includes `ignoreDifferences` to prevent drift detection on the ESO-managed TLS secret:
+
+```yaml
+ignoreDifferences:
+  - group: ""
+    kind: Secret
+    name: argocd-server-tls
+    jsonPointers:
+      - /data
+      - /metadata/labels
+      - /metadata/ownerReferences
+```
+
 ## Consequences
 
 ### Positive
@@ -128,17 +179,35 @@ This allows internal services (like webhook-relay) to connect via HTTPS using in
 
 ## Files
 
+### Current (Simplified Architecture)
+
 ```
 hub/app-of-apps/kind/manifests/
 ├── cert-manager-config/
-│   ├── argocd-certificate.yaml      # Let's Encrypt Certificate
-│   ├── cluster-issuer.yaml          # Let's Encrypt ClusterIssuers
+│   ├── cluster-issuer.yaml          # Let's Encrypt ClusterIssuers (ready for re-enabling)
 │   └── openbao-issuer.yaml          # OpenBao PKI ClusterIssuer
 └── external-secrets-config/
-    ├── argocd-tls-external-secret.yaml           # OpenBao → argocd-server-tls
-    ├── argocd-tls-letsencrypt-external-secret.yaml  # OpenBao → argocd-server-tls-letsencrypt
-    └── argocd-tls-push-secret.yaml               # argocd-server-tls-letsencrypt → OpenBao
+    ├── argocd-tls-external-secret.yaml  # OpenBao → argocd-server-tls
+    └── cluster-secret-store.yaml        # OpenBao connection
 ```
+
+### Original Architecture (For Re-enabling Later)
+
+When Let's Encrypt rate limits reset, recreate these files to restore full automation:
+
+```
+hub/app-of-apps/kind/manifests/
+├── cert-manager-config/
+│   └── argocd-certificate.yaml      # Let's Encrypt Certificate (DELETED)
+└── external-secrets-config/
+    ├── argocd-tls-letsencrypt-external-secret.yaml  # OpenBao → cert-manager secret (DELETED)
+    └── argocd-tls-push-secret.yaml  # cert-manager → OpenBao (DELETED - but has circular dependency issue)
+```
+
+**Note**: The PushSecret approach has a fundamental issue - ESO cannot push secrets it owns. A different pattern may be needed, such as:
+- Using a CronJob to periodically backup certs to OpenBao
+- Using cert-manager's built-in secret syncing
+- Using a dedicated operator for certificate backup
 
 ## References
 
