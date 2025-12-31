@@ -38,7 +38,7 @@ spec:
       ref: values
     - repoURL: https://github.com/illMadeCoder/illm-k8s-lab.git
       targetRevision: HEAD
-      path: experiments/components/components/observability/prometheus-stack
+      path: experiments/components/observability/prometheus-stack
       directory:
         include: '*-httproute.yaml'
   destination:

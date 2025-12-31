@@ -1,37 +1,37 @@
 ---
-# Crossplane XRDs and Compositions ArgoCD Application
-# Deploys the cloud abstraction layer - XRDs provide a unified API
-# while Compositions implement cloud-specific resources
+# Crossplane Providers ArgoCD Application
+# Installs Azure and AWS provider families for multi-cloud resource management
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: crossplane-xrds
+  name: crossplane-providers
   namespace: argocd
   labels:
     layer: core
     component: crossplane
   annotations:
-    # Deploy after providers are healthy
-    argocd.argoproj.io/sync-wave: "2"
+    # Deploy after Crossplane core is ready
+    argocd.argoproj.io/sync-wave: "1"
   finalizers:
     - resources-finalizer.argocd.argoproj.io
 spec:
   project: default
   ignoreDifferences:
-    - group: apiextensions.crossplane.io
-      kind: CompositeResourceDefinition
+    - group: pkg.crossplane.io
+      kind: Provider
       jqPathExpressions:
         - .status
-    - group: apiextensions.crossplane.io
-      kind: Composition
+    - group: pkg.crossplane.io
+      kind: ProviderRevision
       jqPathExpressions:
         - .status
   source:
     repoURL: https://github.com/illMadeCoder/illm-k8s-lab.git
     targetRevision: HEAD
-    path: experiments/components/components/infrastructure/crossplane-xrds/definitions
+    path: experiments/components/infrastructure/crossplane-providers
     directory:
       recurse: true
+      exclude: 'providers.yaml'
   destination:
     server: https://kubernetes.default.svc
     namespace: crossplane-system

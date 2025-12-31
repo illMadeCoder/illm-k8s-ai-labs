@@ -17,7 +17,7 @@ spec:
     # Deploy demo application
     - repoURL: https://github.com/illMadeCoder/illm-k8s-lab.git
       targetRevision: HEAD
-      path: experiments/components/components/apps/demo-app
+      path: experiments/components/apps/demo-app
       directory:
         exclude: 'demo-app.yaml'
 

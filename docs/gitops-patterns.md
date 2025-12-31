@@ -84,7 +84,7 @@ spec:
     # Each source deploys a specific component category
     - repoURL: https://github.com/illMadeCoder/illm-k8s-lab.git
       targetRevision: HEAD
-      path: lab/experiments/components/components/core/cert-manager
+      path: lab/experiments/components/core/cert-manager
       directory:
         recurse: false
         include: 'cert-manager*.yaml'
@@ -130,7 +130,7 @@ spec:
       helm:
         releaseName: cert-manager
         valueFiles:
-          - $values/lab/experiments/components/components/core/cert-manager/values.yaml
+          - $values/lab/experiments/components/core/cert-manager/values.yaml
 
     # Source 2: Git repository (creates $values reference)
     - repoURL: https://github.com/illMadeCoder/illm-k8s-lab.git
@@ -144,9 +144,9 @@ spec:
 3. Enables separation of chart definition from deployment values
 
 **Examples:**
-- `lab/experiments/components/components/core/cert-manager/cert-manager.yaml`
-- `lab/experiments/components/components/infrastructure/vault/vault.yaml`
-- `lab/experiments/components/components/observability/prometheus-stack/kube-prometheus-stack.yaml`
+- `lab/experiments/components/core/cert-manager/cert-manager.yaml`
+- `lab/experiments/components/infrastructure/vault/vault.yaml`
+- `lab/experiments/components/observability/prometheus-stack/kube-prometheus-stack.yaml`
 
 ### Directory-Based Selective Sync
 
@@ -373,7 +373,7 @@ spec:
   sources:
     - repoURL: https://github.com/illMadeCoder/illm-k8s-lab.git
       targetRevision: HEAD
-      path: lab/experiments/components/components/apps/demo-app/k8s
+      path: lab/experiments/components/apps/demo-app/k8s
       directory:
         recurse: false
         include: 'deployment.yaml'
@@ -401,7 +401,7 @@ spec:
 ### Directory Structure
 
 ```
-experiments/components/components/
+experiments/components/
 ├── apps/              # Business applications
 │   ├── demo-app/
 │   └── hello-app/

@@ -1,8 +1,7 @@
----
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: argocd-ingress
+  name: hello-app
   namespace: argocd
   finalizers:
     - resources-finalizer.argocd.argoproj.io
@@ -11,13 +10,13 @@ spec:
   source:
     repoURL: https://github.com/illMadeCoder/illm-k8s-lab.git
     targetRevision: HEAD
-    path: experiments/components/components/core/argocd
-    directory:
-      include: '*-httproute.yaml'
+    path: experiments/components/apps/hello-app/k8s
   destination:
     server: https://kubernetes.default.svc
-    namespace: argocd
+    namespace: hello-app
   syncPolicy:
     automated:
       prune: true
       selfHeal: true
+    syncOptions:
+      - CreateNamespace=true

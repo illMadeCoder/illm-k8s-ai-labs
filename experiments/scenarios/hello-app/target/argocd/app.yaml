@@ -16,7 +16,7 @@ spec:
     # Deploy hello-app manifests (excluding HTTPRoute - no Gateway API in Kind)
     - repoURL: https://github.com/illMadeCoder/illm-k8s-lab.git
       targetRevision: HEAD
-      path: experiments/components/components/apps/hello-app/k8s
+      path: experiments/components/apps/hello-app/k8s
       directory:
         recurse: false
         include: '{deployment.yaml,service.yaml}'

@@ -15,7 +15,7 @@ spec:
     # TLS/Certificate management
     - repoURL: https://github.com/illMadeCoder/illm-k8s-lab.git
       targetRevision: HEAD
-      path: experiments/components/components/core/cert-manager
+      path: experiments/components/core/cert-manager
       directory:
         recurse: false
         include: 'cert-manager*.yaml'
@@ -23,7 +23,7 @@ spec:
     # Gateway/Ingress
     - repoURL: https://github.com/illMadeCoder/illm-k8s-lab.git
       targetRevision: HEAD
-      path: experiments/components/components/core/gateway-api
+      path: experiments/components/core/gateway-api
       directory:
         recurse: false
         include: 'gateway-api.yaml'
@@ -31,7 +31,7 @@ spec:
     # Metrics - Prometheus/Grafana
     - repoURL: https://github.com/illMadeCoder/illm-k8s-lab.git
       targetRevision: HEAD
-      path: experiments/components/components/observability/prometheus-stack
+      path: experiments/components/observability/prometheus-stack
       directory:
         recurse: false
         include: 'kube-prometheus-stack.yaml'
@@ -39,7 +39,7 @@ spec:
     # Traces - OpenTelemetry
     - repoURL: https://github.com/illMadeCoder/illm-k8s-lab.git
       targetRevision: HEAD
-      path: experiments/components/components/observability/otel-collector
+      path: experiments/components/observability/otel-collector
       directory:
         recurse: false
         include: 'otel-collector.yaml'
@@ -47,7 +47,7 @@ spec:
     # Storage - MinIO (S3-compatible)
     - repoURL: https://github.com/illMadeCoder/illm-k8s-lab.git
       targetRevision: HEAD
-      path: experiments/components/components/storage/minio
+      path: experiments/components/storage/minio
       directory:
         recurse: false
         include: 'minio.yaml'
@@ -55,7 +55,7 @@ spec:
     # Workflows - Argo Workflows
     - repoURL: https://github.com/illMadeCoder/illm-k8s-lab.git
       targetRevision: HEAD
-      path: experiments/components/components/workflows/argo-workflows
+      path: experiments/components/workflows/argo-workflows
       directory:
         recurse: false
         include: 'argo-workflows.yaml'
@@ -63,7 +63,7 @@ spec:
     # Load Testing - K6
     - repoURL: https://github.com/illMadeCoder/illm-k8s-lab.git
       targetRevision: HEAD
-      path: experiments/components/components/workflows/k6
+      path: experiments/components/workflows/k6
       directory:
         recurse: false
         include: 'k6-operator.yaml'

@@ -2,30 +2,28 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: elk-stack
+  name: loki
   namespace: argocd
   finalizers:
     - resources-finalizer.argocd.argoproj.io
-  annotations:
-    argocd.argoproj.io/sync-wave: "1"
 spec:
   project: default
   sources:
-    - repoURL: https://helm.elastic.co
-      chart: eck-stack
-      targetRevision: 0.17.0
+    - repoURL: https://grafana.github.io/helm-charts
+      chart: loki
+      targetRevision: 6.28.0
       helm:
-        releaseName: elk
+        releaseName: loki
         valueFiles:
-          - $values/argocd-apps/components/observability/elk-stack/values.yaml
+          - $values/argocd-apps/components/observability/loki/values.yaml
     - repoURL: https://github.com/illMadeCoder/illm-k8s-lab.git
       targetRevision: HEAD
       ref: values
     - repoURL: https://github.com/illMadeCoder/illm-k8s-lab.git
       targetRevision: HEAD
-      path: experiments/components/components/observability/elk-stack
+      path: experiments/components/observability/loki
       directory:
-        include: '{*-httproute.yaml,*-rbac.yaml}'
+        include: '*-httproute.yaml'
   destination:
     server: https://kubernetes.default.svc
     namespace: observability
@@ -35,7 +33,6 @@ spec:
       selfHeal: true
     syncOptions:
       - CreateNamespace=true
-      - ServerSideApply=true
     retry:
       limit: 5
       backoff:

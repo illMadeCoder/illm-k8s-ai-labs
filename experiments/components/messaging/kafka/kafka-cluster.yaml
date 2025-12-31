@@ -1,7 +1,8 @@
+---
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: hello-app
+  name: kafka-cluster
   namespace: argocd
   finalizers:
     - resources-finalizer.argocd.argoproj.io
@@ -10,10 +11,10 @@ spec:
   source:
     repoURL: https://github.com/illMadeCoder/illm-k8s-lab.git
     targetRevision: HEAD
-    path: experiments/components/components/apps/hello-app/k8s
+    path: experiments/components/messaging/kafka/resources
   destination:
     server: https://kubernetes.default.svc
-    namespace: hello-app
+    namespace: kafka
   syncPolicy:
     automated:
       prune: true
