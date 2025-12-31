@@ -13,10 +13,13 @@ metadata:
 spec:
   project: default
   sources:
-    # Deploy hello-app manifests
+    # Deploy hello-app manifests (excluding HTTPRoute - no Gateway API in Kind)
     - repoURL: https://github.com/illMadeCoder/illm-k8s-lab.git
       targetRevision: HEAD
       path: experiments/components/components/apps/hello-app/k8s
+      directory:
+        recurse: false
+        include: '{deployment.yaml,service.yaml}'
   destination:
     server: https://kubernetes.default.svc
     namespace: hello-app
