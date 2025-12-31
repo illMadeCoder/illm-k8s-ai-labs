@@ -17,10 +17,6 @@ spec:
     - repoURL: https://github.com/illMadeCoder/illm-k8s-lab.git
       targetRevision: HEAD
       path: experiments/components/components/apps/hello-app/k8s
-    # Deploy k6 test scripts ConfigMap
-    - repoURL: https://github.com/illMadeCoder/illm-k8s-lab.git
-      targetRevision: HEAD
-      path: experiments/scenarios/hello-app/k6
   destination:
     server: https://kubernetes.default.svc
     namespace: hello-app

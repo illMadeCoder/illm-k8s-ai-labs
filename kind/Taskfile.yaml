@@ -702,7 +702,7 @@ tasks:
     internal: true
     cmds:
       - |
-        if docker ps --format '{{.Names}}' | grep -q "^{{.CPK_CONTAINER}}$"; then
+        if docker ps --format '{{"{{"}}.Names{{"}}"}}' | grep -q "^{{.CPK_CONTAINER}}$"; then
           echo "  [cloud-provider-kind] Already running"
           exit 0
         fi
@@ -715,13 +715,13 @@ tasks:
           -v /var/run/docker.sock:/var/run/docker.sock \
           registry.k8s.io/cloud-provider-kind/cloud-controller-manager:v0.6.0
         sleep 2
-        docker ps --format '{{.Names}}' | grep -q "^{{.CPK_CONTAINER}}$" && echo "  [cloud-provider-kind] Running" || exit 1
+        docker ps --format '{{"{{"}}.Names{{"}}"}}' | grep -q "^{{.CPK_CONTAINER}}$" && echo "  [cloud-provider-kind] Running" || exit 1
 
   _ensure-dnsmasq:
     internal: true
     cmds:
       - |
-        if docker ps --format '{{.Names}}' | grep -q "^{{.DNSMASQ_CONTAINER}}$"; then
+        if docker ps --format '{{"{{"}}.Names{{"}}"}}' | grep -q "^{{.DNSMASQ_CONTAINER}}$"; then
           echo "  [dnsmasq] Already running"
           exit 0
         fi
@@ -745,13 +745,13 @@ tasks:
           andyshinn/dnsmasq:latest \
           --conf-dir=/etc/dnsmasq.d,*.conf --no-daemon --log-facility=-
         sleep 2
-        docker ps --format '{{.Names}}' | grep -q "^{{.DNSMASQ_CONTAINER}}$" && echo "  [dnsmasq] Running" || exit 1
+        docker ps --format '{{"{{"}}.Names{{"}}"}}' | grep -q "^{{.DNSMASQ_CONTAINER}}$" && echo "  [dnsmasq] Running" || exit 1
 
   _update-dns:
     internal: true
     cmds:
       - |
-        if ! docker ps --format '{{.Names}}' | grep -q "^{{.DNSMASQ_CONTAINER}}$"; then
+        if ! docker ps --format '{{"{{"}}.Names{{"}}"}}' | grep -q "^{{.DNSMASQ_CONTAINER}}$"; then
           exit 0
         fi
         echo "  [dnsmasq] Updating DNS entries..."
