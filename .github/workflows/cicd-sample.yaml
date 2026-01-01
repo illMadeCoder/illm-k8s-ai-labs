@@ -126,7 +126,7 @@ jobs:
       - name: Validate Kubernetes manifests
         uses: docker://ghcr.io/yannh/kubeconform:latest
         with:
-          args: "-summary -output json experiments/components/apps/cicd-sample/k8s/"
+          args: "-summary -output json -skip Kustomization experiments/components/apps/cicd-sample/k8s/"
 
       # Note: Manifest updates handled by ArgoCD Image Updater
       # CI just builds/signs/scans - GitOps handled by ArgoCD
