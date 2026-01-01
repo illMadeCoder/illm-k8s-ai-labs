@@ -1,9 +1,9 @@
 # ArgoCD Application for cicd-sample
 #
 # Image Updater annotations configure automatic image updates:
-# - Watches ghcr.io/illmadecoder/cicd-sample for new tags
+# - Watches ghcr.io/illmadecoder/cicd-sample for new semver tags
 # - Updates Application spec directly (write-back: argocd)
-# - Uses latest tag matching short SHA pattern (7-char git SHA)
+# - Uses semver strategy: v1.0.0 -> 1.0.0, updates to highest version
 
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -14,10 +14,9 @@ metadata:
     app.kubernetes.io/part-of: experiments
     environment: kind
   annotations:
-    # Image Updater configuration
-    argocd-image-updater.argoproj.io/image-list: cicd-sample=ghcr.io/illmadecoder/cicd-sample
-    argocd-image-updater.argoproj.io/cicd-sample.update-strategy: newest-build
-    argocd-image-updater.argoproj.io/cicd-sample.allow-tags: regexp:^[a-f0-9]{7}$
+    # Image Updater configuration - semver strategy
+    argocd-image-updater.argoproj.io/image-list: cicd-sample=ghcr.io/illmadecoder/cicd-sample:~1
+    argocd-image-updater.argoproj.io/cicd-sample.update-strategy: semver
     argocd-image-updater.argoproj.io/write-back-method: argocd
   finalizers:
     - resources-finalizer.argocd.argoproj.io
