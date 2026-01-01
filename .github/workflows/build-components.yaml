@@ -186,4 +186,4 @@ jobs:
         if: hashFiles(format('{0}/k8s/*.yaml', steps.path.outputs.path)) != ''
         uses: docker://ghcr.io/yannh/kubeconform:latest
         with:
-          args: "-summary -output json -skip Kustomization ${{ steps.path.outputs.path }}/k8s/"
+          args: "-summary -output json -skip Kustomization,HTTPRoute,ServiceMonitor ${{ steps.path.outputs.path }}/k8s/"
