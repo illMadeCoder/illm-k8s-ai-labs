@@ -1,4 +1,4 @@
-## Phase 7: Deployment Strategies
+## Phase 5: Deployment Strategies
 
 *Progressive complexity: rolling → blue-green → canary → GitOps patterns → feature flags.*
 

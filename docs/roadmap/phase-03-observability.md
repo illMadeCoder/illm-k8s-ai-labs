@@ -1,4 +1,4 @@
-## Phase 4: Observability Stack
+## Phase 3: Observability Stack
 
 *You need to see what's happening before you can improve it. These skills are used in every subsequent experiment.*
 

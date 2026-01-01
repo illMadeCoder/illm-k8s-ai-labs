@@ -17,9 +17,9 @@ A learning-focused Kubernetes experiment roadmap for **Cloud Architect**, **Plat
 | Concern | Where It Appears |
 |---------|-----------------|
 | **ADRs** | Every phase - document decisions as you make them |
-| **FinOps** | Phase 1.6 (foundation), 4.7, 8.5, 9.6, 10.6, 11.6 (full), 15.5 |
-| **SLOs/SLAs** | Phase 4.2 (foundation), 7.6 (deployments), 12.4 (chaos), Appendix A.6 (contracts) |
-| **Security** | Phase 3 (foundation), 6 (network), plus security sections throughout |
+| **FinOps** | Phase 1.6 (foundation), 3.7, 6.5, 9.6, 10.6, 11.6 (full), 15.5 |
+| **SLOs/SLAs** | Phase 3.2 (foundation), 5.6 (deployments), 12.4 (chaos), Appendix A.6 (contracts) |
+| **Security** | Phase 7 (foundation), 8 (network), plus security sections throughout |
 | **Testing** | Phase 2.5 (foundation), plus validation in every experiment |
 
 | | |
@@ -30,7 +30,7 @@ A learning-focused Kubernetes experiment roadmap for **Cloud Architect**, **Plat
 
 **Principles:**
 - Supply chain security from day one (Phase 2)
-- Security foundations before features (Phase 3)
+- Build something before securing it (Data & Storage before Security)
 - Build system complexity, then chaos test it (Phase 12)
 - Workflow automation after manual understanding (Phase 13)
 - ADRs mandatory for technology decisions (continuous, not a phase)
@@ -40,16 +40,18 @@ A learning-focused Kubernetes experiment roadmap for **Cloud Architect**, **Plat
 
 ## Phases
 
+*Reordered: Security moved after Data & Storage so you have something to secure.*
+
 | Phase | Topic | Status | Details |
 |-------|-------|--------|---------|
 | 1 | [Platform Bootstrap & GitOps](docs/roadmap/phase-01-platform-bootstrap.md) | Complete | Hub, orchestrator, Argo Workflows, Talos, GitLab CI |
 | 2 | [CI/CD & Supply Chain](docs/roadmap/phase-02-cicd-supply-chain.md) | Complete | Image building, scanning, SBOM, signing, Image Updater |
-| 3 | [Security Foundations](docs/roadmap/phase-03-security.md) | Not Started | Secrets, RBAC, admission control, policy |
-| 4 | [Observability](docs/roadmap/phase-04-observability.md) | Not Started | Metrics, logging, tracing, dashboards |
-| 5 | [Traffic Management](docs/roadmap/phase-05-traffic-management.md) | Not Started | Ingress, load balancing, DNS |
-| 6 | [Network Security](docs/roadmap/phase-06-network-security.md) | Not Started | Network policies, firewalls, DDoS, WAF |
-| 7 | [Deployment Strategies](docs/roadmap/phase-07-deployment-strategies.md) | Not Started | Blue-green, canary, progressive delivery |
-| 8 | [Data & Storage](docs/roadmap/phase-08-data-storage.md) | Not Started | Persistent volumes, operators, backup |
+| 3 | [Observability](docs/roadmap/phase-03-observability.md) | Not Started | Metrics, logging, tracing, dashboards |
+| 4 | [Traffic Management](docs/roadmap/phase-04-traffic-management.md) | Not Started | Ingress, load balancing, DNS |
+| 5 | [Deployment Strategies](docs/roadmap/phase-05-deployment-strategies.md) | Not Started | Blue-green, canary, progressive delivery |
+| 6 | [Data & Storage](docs/roadmap/phase-06-data-storage.md) | Not Started | Persistent volumes, operators, backup |
+| 7 | [Security Foundations](docs/roadmap/phase-07-security.md) | Not Started | Secrets, RBAC, admission control, policy |
+| 8 | [Network Security](docs/roadmap/phase-08-network-security.md) | Not Started | Network policies, firewalls, DDoS, WAF |
 | 9 | [Service Mesh](docs/roadmap/phase-09-service-mesh.md) | Not Started | Istio, Linkerd, mTLS, traffic policies |
 | 10 | [Messaging & Events](docs/roadmap/phase-10-messaging.md) | Not Started | Kafka, RabbitMQ, NATS, CloudEvents |
 | 11 | [Autoscaling](docs/roadmap/phase-11-autoscaling.md) | Not Started | HPA, VPA, KEDA, cluster autoscaling |
@@ -71,17 +73,17 @@ A learning-focused Kubernetes experiment roadmap for **Cloud Architect**, **Plat
 ## Progression
 
 ```
-Foundation          Traffic & Releases       System Complexity
+Foundation          Traffic & Releases       Stateful + Security
 ─────────────────   ──────────────────────   ─────────────────────────
-1. Platform         5. Traffic Management    8.  Data & Storage
-2. CI/CD            6. Network Security      9.  Service Mesh
-3. Security         7. Deployment            10. Messaging
-4. Observability                             11. Autoscaling
+1. Platform         4. Traffic Management    6.  Data & Storage
+2. CI/CD            5. Deployment            7.  Security (now has context)
+3. Observability                             8.  Network Security
 
-Validate            Platform Engineering     Synthesis
+Complexity          Validate                 Synthesis
 ─────────────────   ──────────────────────   ─────────────────────────
-12. Chaos           13. Workflow             15. Advanced Benchmarks
-                    14. Developer Experience 16. Web Serving (capstone)
+9.  Service Mesh    12. Chaos                15. Advanced Benchmarks
+10. Messaging       13. Workflow             16. Web Serving (capstone)
+11. Autoscaling     14. Developer Experience
 ```
 
 ---

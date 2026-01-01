@@ -1,4 +1,4 @@
-## Phase 8: Data & Storage
+## Phase 6: Data & Storage
 
 *Stateful workloads: databases, caching, persistent storage, and disaster recovery.*
 

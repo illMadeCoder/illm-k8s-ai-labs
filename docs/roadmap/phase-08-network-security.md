@@ -1,4 +1,4 @@
-## Phase 6: Network Security & Edge Protection
+## Phase 8: Network Security & Edge Protection
 
 *Secure the network perimeter and protect against external threats. Covers firewalls, DDoS mitigation, WAF, and network security layers.*
 

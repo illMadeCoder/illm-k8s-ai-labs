@@ -1,4 +1,4 @@
-## Phase 3: Security Foundations
+## Phase 7: Security Foundations
 
 *Security first - TLS, certificates, identity, secrets, and policies are prerequisites for everything else.*
 

@@ -1,4 +1,4 @@
-## Phase 5: Traffic Management
+## Phase 4: Traffic Management
 
 *Control how traffic flows before learning deployment strategies that depend on it.*
 
