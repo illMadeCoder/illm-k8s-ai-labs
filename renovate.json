@@ -9,6 +9,9 @@
   "labels": ["dependencies"],
   "prHourlyLimit": 5,
   "prConcurrentLimit": 10,
+  "platformAutomerge": true,
+  "automerge": true,
+  "automergeType": "pr",
   "packageRules": [
     {
       "description": "Docker base images - all Dockerfiles",
