@@ -1,0 +1,24 @@
+# ArgoCD Image Updater values for Kind cluster
+
+# Registry configuration
+config:
+  registries:
+    - name: ghcr
+      api_url: https://ghcr.io
+      prefix: ghcr.io
+      # Public images - no credentials needed (rate limited)
+      default: true
+
+# Resource limits for Kind
+resources:
+  limits:
+    cpu: 100m
+    memory: 128Mi
+  requests:
+    cpu: 50m
+    memory: 64Mi
+
+# Logging - debug initially to troubleshoot
+extraArgs:
+  - --interval=2m
+  - --loglevel=debug

@@ -18,10 +18,10 @@ jobs:
   build:
     runs-on: ubuntu-latest
     permissions:
-      contents: write
       packages: write
       security-events: write
       id-token: write  # For keyless Cosign signing (OIDC)
+      # Note: contents:write removed - ArgoCD Image Updater handles manifest updates
 
     steps:
       - name: Checkout
@@ -120,23 +120,5 @@ jobs:
         with:
           args: "-summary -output json experiments/components/apps/cicd-sample/k8s/"
 
-      - name: Update deployment manifest
-        if: github.event_name != 'pull_request'
-        run: |
-          sed -i "s|image: ghcr.io/.*/cicd-sample:.*|image: ${{ env.REGISTRY }}/${{ steps.vars.outputs.owner_lc }}/${{ env.IMAGE_NAME }}:${{ steps.vars.outputs.short_sha }}|" \
-            experiments/components/apps/cicd-sample/k8s/deployment.yaml
-
-      - name: Commit manifest changes
-        if: github.event_name != 'pull_request'
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-
-          if git diff --quiet experiments/components/apps/cicd-sample/k8s/deployment.yaml; then
-            echo "No changes to commit"
-          else
-            git add experiments/components/apps/cicd-sample/k8s/deployment.yaml
-            git commit -m "chore(cicd-sample): update image to ${{ steps.vars.outputs.short_sha }}"
-            git pull --rebase origin main
-            git push
-          fi
+      # Note: Manifest updates handled by ArgoCD Image Updater
+      # CI just builds/signs/scans - GitOps handled by ArgoCD

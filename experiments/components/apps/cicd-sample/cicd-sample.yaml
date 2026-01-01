@@ -1,0 +1,39 @@
+# ArgoCD Application for cicd-sample
+#
+# Image Updater annotations configure automatic image updates:
+# - Watches ghcr.io/illmadecoder/cicd-sample for new tags
+# - Updates deployment.yaml in git (write-back: git)
+# - Uses latest tag matching short SHA pattern
+
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: cicd-sample
+  namespace: argocd
+  labels:
+    app.kubernetes.io/part-of: experiments
+    environment: kind
+  annotations:
+    # Image Updater configuration
+    argocd-image-updater.argoproj.io/image-list: cicd-sample=ghcr.io/illmadecoder/cicd-sample
+    argocd-image-updater.argoproj.io/cicd-sample.update-strategy: latest
+    argocd-image-updater.argoproj.io/cicd-sample.allow-tags: regexp:^[a-f0-9]{7}$
+    argocd-image-updater.argoproj.io/write-back-method: git
+    argocd-image-updater.argoproj.io/git-branch: main
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/illMadeCoder/illm-k8s-ai-labs.git
+    targetRevision: HEAD
+    path: experiments/components/apps/cicd-sample/k8s
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: cicd-sample
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
