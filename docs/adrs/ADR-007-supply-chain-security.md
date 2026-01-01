@@ -265,27 +265,37 @@ spec:
 cosign verify \
   --certificate-oidc-issuer="https://token.actions.githubusercontent.com" \
   --certificate-identity-regexp="github.com/illMadeCoder/illm-k8s-ai-labs" \
-  ghcr.io/illmadecoder/cicd-sample:latest
+  ghcr.io/illmadecoder/hello-app:latest
+
+# Verify SLSA provenance
+gh attestation verify ghcr.io/illmadecoder/hello-app:latest --owner illMadeCoder
 
 # Verify SBOM attestation
 cosign verify-attestation \
   --type spdxjson \
   --certificate-oidc-issuer="https://token.actions.githubusercontent.com" \
   --certificate-identity-regexp="github.com/illMadeCoder/illm-k8s-ai-labs" \
-  ghcr.io/illmadecoder/cicd-sample:latest
+  ghcr.io/illmadecoder/hello-app:latest
 ```
 
 ## Files
 
 ```
 .github/workflows/
-└── cicd-sample.yaml              # CI pipeline with signing
+├── build-components.yaml         # Auto-detection CI with signing
+└── auto-merge.yaml               # Auto-merge dependency PRs
+
+experiments/components/apps/hello-app/
+├── Dockerfile                    # Multi-stage build
+├── hello-app.yaml                # ArgoCD Application with Image Updater
+└── k8s/
+    ├── kustomization.yaml        # Required for Image Updater
+    ├── deployment.yaml
+    └── service.yaml
 
 hub/app-of-apps/kind/
 ├── kyverno.yaml                  # Kyverno Helm deployment
 ├── kyverno-policies.yaml         # Policy deployment
-├── values/
-│   └── kyverno.yaml              # Kyverno Helm values
 └── manifests/kyverno-policies/
     └── verify-image-signature.yaml  # ClusterPolicy
 ```

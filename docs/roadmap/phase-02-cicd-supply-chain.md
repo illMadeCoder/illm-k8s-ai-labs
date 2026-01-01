@@ -1,6 +1,28 @@
 ## Phase 2: CI/CD & Supply Chain Security
 
+**Status: Complete** (2026-01-01)
+
 *You need to build and deploy images before anything else. Supply chain security is baked in from day one.*
+
+### Implementation Summary
+
+| Section | Status | Notes |
+|---------|--------|-------|
+| 2.1 CI/CD Fundamentals | ✅ Done | Auto-detection workflow, Image Updater, ADR-006 |
+| 2.2 Image Security | ✅ Done | Trivy (gated), Syft SBOM, Renovate |
+| 2.3 Signing & Verification | ✅ Done | Cosign, SLSA L2, Kyverno, ADR-007 |
+| 2.4 Registry Management | ⏭️ Skipped | GHCR sufficient for lab |
+| 2.5 Testing Strategies | ⏭️ Skipped | Experiments are the tests; not needed for lab |
+
+**Key artifacts:**
+- `.github/workflows/build-components.yaml` - Auto-detection CI
+- `.github/workflows/auto-merge.yaml` - Dependency auto-merge
+- `renovate.json` - Dependency updates
+- `docs/adrs/ADR-006-cicd-pipeline.md`
+- `docs/adrs/ADR-007-supply-chain-security.md`
+- `docs/roadmap/appendix-slsa.md` - SLSA deep dive
+
+---
 
 ### 2.1 CI/CD Pipeline Fundamentals
 
