@@ -1,0 +1,71 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended",
+    ":semanticCommits",
+    ":separateMajorMinor",
+    "schedule:weekly"
+  ],
+  "labels": ["dependencies"],
+  "prHourlyLimit": 5,
+  "prConcurrentLimit": 10,
+  "packageRules": [
+    {
+      "description": "Docker base images - all Dockerfiles",
+      "matchManagers": ["dockerfile"],
+      "matchFileNames": ["**/Dockerfile"],
+      "groupName": "docker base images",
+      "labels": ["dependencies", "docker"]
+    },
+    {
+      "description": "GitHub Actions",
+      "matchManagers": ["github-actions"],
+      "groupName": "github actions",
+      "labels": ["dependencies", "github-actions"],
+      "automerge": true,
+      "automergeType": "pr"
+    },
+    {
+      "description": "Go modules",
+      "matchManagers": ["gomod"],
+      "groupName": "go dependencies",
+      "labels": ["dependencies", "go"]
+    },
+    {
+      "description": "Helm chart versions in ArgoCD Applications",
+      "matchManagers": ["regex"],
+      "matchFileNames": ["hub/app-of-apps/**/*.yaml"],
+      "labels": ["dependencies", "helm"]
+    },
+    {
+      "description": "Minor and patch updates - automerge",
+      "matchUpdateTypes": ["minor", "patch"],
+      "automerge": true,
+      "automergeType": "pr"
+    }
+  ],
+  "customManagers": [
+    {
+      "customType": "regex",
+      "description": "Helm chart versions in ArgoCD Applications",
+      "fileMatch": ["hub/app-of-apps/.*\\.yaml$"],
+      "matchStrings": [
+        "chart:\\s*(?<depName>[^\\s]+)\\s+targetRevision:\\s*(?<currentValue>[^\\s]+)"
+      ],
+      "datasourceTemplate": "helm"
+    },
+    {
+      "customType": "regex",
+      "description": "Helm chart versions (repoURL + targetRevision pattern)",
+      "fileMatch": ["hub/app-of-apps/.*\\.yaml$"],
+      "matchStrings": [
+        "repoURL:\\s*https://(?<registryUrl>[^/]+)/(?<depName>[^\\s]+)\\s+chart:\\s*[^\\s]+\\s+targetRevision:\\s*(?<currentValue>[^\\s]+)"
+      ],
+      "datasourceTemplate": "helm"
+    }
+  ],
+  "vulnerabilityAlerts": {
+    "enabled": true,
+    "labels": ["security"]
+  }
+}
