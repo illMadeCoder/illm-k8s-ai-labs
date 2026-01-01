@@ -106,6 +106,7 @@ Validate            Platform Engineering     Synthesis
 - [J: Database Internals](docs/roadmap/appendix-database-internals.md) - Storage engines, indexing, query optimization, replication, sharding
 - [K: SRE Practices & Incident Management](docs/roadmap/appendix-sre-practices.md) - SLOs, on-call, incident response, post-mortems, toil reduction
 - [L: Multi-Cloud & Disaster Recovery](docs/roadmap/appendix-multicloud-dr.md) - Multi-cloud strategy, DR planning, failover, geographic distribution
+- [M: SLSA Framework Deep Dive](docs/roadmap/appendix-slsa.md) - SLSA Levels 1-4, provenance, attestations, Sigstore, verification
 
 ---
 

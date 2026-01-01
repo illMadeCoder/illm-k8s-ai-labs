@@ -153,6 +153,44 @@ Production recommendation: `Enforce` after validation.
 | Traditional keys | Yes | Yes | None |
 | Notation | Yes | Yes | Optional |
 
+### Why SLSA Level 2, Not Level 3
+
+We implement SLSA Level 2 provenance rather than Level 3. Here's the reasoning:
+
+**SLSA Level 3 requires `slsa-github-generator`:**
+```yaml
+# SLSA 3: Reusable workflow (isolated provenance generation)
+provenance:
+  uses: slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@v2.0.0
+```
+
+**Problem: Incompatible with matrix builds.**
+
+Our auto-detection workflow builds multiple apps in parallel via matrix strategy. Reusable workflows cannot be called within a matrix, requiring either:
+- One workflow per app (defeats auto-detection)
+- Complex dynamic workflow generation
+- Separate release workflow for SLSA 3
+
+**Cosign Keyless Already Provides Non-Falsifiable Provenance:**
+
+| Property | SLSA 2 + Cosign/Rekor | SLSA 3 |
+|----------|----------------------|--------|
+| Identity proof (repo, workflow) | ✅ OIDC claims in Fulcio cert | ✅ |
+| Immutable audit log | ✅ Rekor transparency log | ✅ |
+| Can't falsify provenance | ✅ GitHub controls OIDC issuance | ✅ |
+| Isolated provenance generation | ❌ Workflow controls | ✅ |
+| Rich build metadata | ❌ Identity only | ✅ |
+| Standardized format | ❌ Sigstore-specific | ✅ in-toto |
+
+The core security property—non-falsifiable proof of origin—is already achieved via Cosign keyless signing. The OIDC token is issued by GitHub (not user-controlled), recorded immutably in Rekor, and contains repo/workflow/commit claims.
+
+**When to upgrade to SLSA 3:**
+- Tagged releases for production deployment
+- Compliance requirements explicitly requiring "SLSA Level 3"
+- Apps leaving the lab for external consumption
+
+See [Appendix M: SLSA Deep Dive](../roadmap/appendix-slsa.md) for detailed exploration of SLSA Levels 1-4.
+
 ## Implementation
 
 ### CI Pipeline Steps
