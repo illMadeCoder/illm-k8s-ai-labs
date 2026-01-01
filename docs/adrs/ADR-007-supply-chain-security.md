@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted
+Accepted (Updated 2026-01-01)
 
 ## Context
 
@@ -44,9 +44,10 @@ Container supply chain attacks are increasing. We need a defense-in-depth strate
 │                         │                                         │
 │                         ▼                                         │
 │  5. Scan with Trivy → GitHub Security tab                        │
+│     (Fails build on CRITICAL vulnerabilities)                    │
 │                         │                                         │
 │                         ▼                                         │
-│  6. Push to GHCR                                                 │
+│  6. Generate SLSA provenance attestation                         │
 │                                                                   │
 └─────────────────────────────────────────────────────────────────┘
                           │
@@ -73,7 +74,8 @@ Container supply chain attacks are increasing. We need a defense-in-depth strate
 | CA | Fulcio (public) | Free, managed, short-lived certificates |
 | Transparency | Rekor (public) | Immutable audit trail, free |
 | SBOM | Syft | Open source, SPDX/CycloneDX support, good catalogers |
-| Scanning | Trivy | SARIF output, GitHub Security integration |
+| Scanning | Trivy | SARIF output, GitHub Security integration, build gating |
+| Provenance | GitHub Attestations | SLSA Level 2, native GitHub integration |
 | Admission | Kyverno | Native K8s CRDs, image verification built-in |
 
 ### Keyless Signing Flow
@@ -157,20 +159,39 @@ Production recommendation: `Enforce` after validation.
 
 ```yaml
 permissions:
-  id-token: write  # OIDC for keyless signing
+  id-token: write     # OIDC for keyless signing
+  attestations: write # GitHub provenance attestations
 
 steps:
-  - name: Sign image with Cosign (keyless)
-    run: cosign sign --yes ${IMAGE}@${DIGEST}
+  # 1. Build and push image
+  - uses: docker/build-push-action@v6
 
-  - name: Generate SBOM with Syft
-    uses: anchore/sbom-action@v0
+  # 2. SLSA provenance attestation
+  - name: Attest build provenance (SLSA)
+    uses: actions/attest-build-provenance@v2
+    with:
+      subject-name: ${IMAGE}
+      subject-digest: ${DIGEST}
+      push-to-registry: true
+
+  # 3. Sign image with Cosign (keyless)
+  - run: cosign sign --yes ${IMAGE}@${DIGEST}
+
+  # 4. Generate SBOM with Syft
+  - uses: anchore/sbom-action@v0
     with:
       image: ${IMAGE}
       format: spdx-json
 
-  - name: Attest SBOM to image
-    run: cosign attest --yes --predicate sbom.spdx.json --type spdxjson ${IMAGE}@${DIGEST}
+  # 5. Attest SBOM to image
+  - run: cosign attest --yes --predicate sbom.spdx.json --type spdxjson ${IMAGE}@${DIGEST}
+
+  # 6. Scan for vulnerabilities (fails on CRITICAL)
+  - uses: aquasecurity/trivy-action@0.28.0
+    with:
+      exit-code: '1'
+      severity: 'CRITICAL'
+      ignore-unfixed: true
 ```
 
 ### Kyverno Policy
@@ -233,11 +254,11 @@ hub/app-of-apps/kind/
 
 ## Future Enhancements
 
-1. **Enforce mode**: Switch policy to block unsigned images
-2. **SLSA provenance**: Add build provenance attestations
-3. **Vulnerability attestations**: Attest Trivy scan results
-4. **Policy exceptions**: Allow system images (kube-system)
-5. **Self-hosted Sigstore**: For air-gapped environments
+1. **Enforce mode**: Switch Kyverno policy to block unsigned images
+2. **Vulnerability attestations**: Attest Trivy scan results to image
+3. **Policy exceptions**: Allow system images (kube-system)
+4. **Self-hosted Sigstore**: For air-gapped environments
+5. **SLSA Level 3**: Use slsa-github-generator for isolated builds
 
 ## References
 
@@ -245,8 +266,9 @@ hub/app-of-apps/kind/
 - [Cosign Keyless Signing](https://docs.sigstore.dev/cosign/keyless/)
 - [Kyverno Image Verification](https://kyverno.io/docs/writing-policies/verify-images/)
 - [SLSA Framework](https://slsa.dev/)
+- [GitHub Artifact Attestations](https://docs.github.com/en/actions/security-guides/using-artifact-attestations-to-establish-provenance-for-builds)
 - [SPDX Specification](https://spdx.dev/)
 
 ## Decision Date
 
-2026-01-01
+2026-01-01 (Updated with SLSA provenance and Trivy gating)

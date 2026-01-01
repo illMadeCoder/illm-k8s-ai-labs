@@ -78,9 +78,11 @@ jobs:
         app: ${{ fromJson(needs.detect.outputs.apps) }}
 
     permissions:
+      contents: read
       packages: write
       security-events: write
       id-token: write
+      attestations: write
 
     steps:
       - name: Checkout
@@ -144,6 +146,13 @@ jobs:
           echo "short_sha=$(echo ${{ github.sha }} | cut -c1-7)" >> $GITHUB_OUTPUT
           echo "owner_lc=$(echo ${{ github.repository_owner }} | tr '[:upper:]' '[:lower:]')" >> $GITHUB_OUTPUT
 
+      - name: Attest build provenance (SLSA)
+        uses: actions/attest-build-provenance@v2
+        with:
+          subject-name: ${{ env.REGISTRY }}/${{ steps.vars.outputs.owner_lc }}/${{ matrix.app }}
+          subject-digest: ${{ steps.build.outputs.digest }}
+          push-to-registry: true
+
       - name: Sign image with Cosign (keyless)
         env:
           DIGEST: ${{ steps.build.outputs.digest }}
@@ -169,14 +178,17 @@ jobs:
             ${{ env.REGISTRY }}/${{ steps.vars.outputs.owner_lc }}/${{ matrix.app }}@${{ steps.build.outputs.digest }}
 
       - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@master
+        uses: aquasecurity/trivy-action@0.28.0
         with:
           image-ref: ${{ env.REGISTRY }}/${{ steps.vars.outputs.owner_lc }}/${{ matrix.app }}:${{ steps.vars.outputs.short_sha }}
           format: 'sarif'
           output: 'trivy-results.sarif'
           severity: 'CRITICAL,HIGH'
+          exit-code: '1'
+          ignore-unfixed: true
 
       - name: Upload Trivy scan results to GitHub Security
+        if: always()
         uses: github/codeql-action/upload-sarif@v4
         with:
           sarif_file: 'trivy-results.sarif'
