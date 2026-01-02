@@ -718,6 +718,12 @@ tasks:
           CLUSTER_IP=$(docker inspect "$CONTAINER_NAME" | jq -r '.[0].NetworkSettings.Networks.kind.IPAddress')
           CLUSTER_SERVER="https://${CLUSTER_IP}:6443"
 
+          # Remove any stale CLI-based cluster registration (prevents duplicates)
+          if argocd cluster get "$cluster" >/dev/null 2>&1; then
+            echo "    Removing stale CLI registration..."
+            echo "y" | argocd cluster rm "$cluster" >/dev/null 2>&1 || true
+          fi
+
           kubectl --context "$CLUSTER_CONTEXT" create serviceaccount argocd-manager -n kube-system 2>/dev/null || true
           kubectl --context "$CLUSTER_CONTEXT" create clusterrolebinding argocd-manager --clusterrole=cluster-admin --serviceaccount=kube-system:argocd-manager 2>/dev/null || true
 
@@ -775,11 +781,18 @@ tasks:
           if [ -d "$argocd_dir" ] && [ -f "$argocd_dir/app.yaml" ]; then
             echo "  Applying: app.yaml -> $full_name"
             kubectl --context "$ARGOCD_CONTEXT" apply -f "$argocd_dir/app.yaml"
+
+            # Force sync the app (picks up new cluster credentials)
+            APP_NAME=$(grep 'name:' "$argocd_dir/app.yaml" | head -1 | awk '{print $2}')
+            if [ -n "$APP_NAME" ]; then
+              echo "  Syncing: $APP_NAME"
+              argocd app sync "$APP_NAME" --force --timeout 180 2>/dev/null || true
+            fi
           fi
         done
 
-        echo "  Waiting for sync..."
-        sleep 15
+        echo "  Waiting for workloads..."
+        sleep 30
       - task: _update-dns
       - |
         EXP_NAME="{{.CLI_ARGS}}"
@@ -798,14 +811,15 @@ tasks:
 
           # Wait for LoadBalancer IPs to be assigned
           echo "Waiting for services to get LoadBalancer IPs..."
-          for i in $(seq 1 60); do
+          for i in $(seq 1 90); do
             PROM_IP=$(kubectl --context "$TARGET_CONTEXT" get svc -n observability kube-prometheus-stack-prometheus -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null)
             GRAFANA_IP=$(kubectl --context "$TARGET_CONTEXT" get svc -n observability kube-prometheus-stack-grafana -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null)
 
             if [ -n "$PROM_IP" ] && [ -n "$GRAFANA_IP" ]; then
               break
             fi
-            sleep 2
+            echo "  Waiting... ($i/90)"
+            sleep 3
           done
 
           if [ -z "$PROM_IP" ] || [ -z "$GRAFANA_IP" ]; then
