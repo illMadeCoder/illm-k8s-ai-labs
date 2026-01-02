@@ -8,6 +8,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: station-monitor
+  namespace: station
   labels:
     app: station-monitor
 spec:
