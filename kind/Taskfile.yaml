@@ -763,6 +763,17 @@ tasks:
         ENDOFFILE
           kubectl --context "$ARGOCD_CONTEXT" apply -f /tmp/cluster-secret.yaml
           echo "    Registered: $cluster -> $CLUSTER_SERVER"
+
+          # Wait for ArgoCD to recognize the cluster
+          echo "    Waiting for cluster to be ready in ArgoCD..."
+          for i in $(seq 1 30); do
+            STATUS=$(argocd cluster get "$cluster" -o json 2>/dev/null | jq -r '.connectionState.status // "Unknown"')
+            if [ "$STATUS" = "Successful" ]; then
+              echo "    Cluster ready!"
+              break
+            fi
+            sleep 2
+          done
         done
 
         # Step 5: Deploy ArgoCD apps
@@ -782,17 +793,32 @@ tasks:
             echo "  Applying: app.yaml -> $full_name"
             kubectl --context "$ARGOCD_CONTEXT" apply -f "$argocd_dir/app.yaml"
 
-            # Force sync the app (picks up new cluster credentials)
             APP_NAME=$(grep 'name:' "$argocd_dir/app.yaml" | head -1 | awk '{print $2}')
             if [ -n "$APP_NAME" ]; then
+              # Hard refresh to pick up new git commits
+              echo "  Refreshing: $APP_NAME"
+              argocd app get "$APP_NAME" --hard-refresh >/dev/null 2>&1 || true
+              sleep 3
+
+              # Sync the app
               echo "  Syncing: $APP_NAME"
-              argocd app sync "$APP_NAME" --force --timeout 180 2>/dev/null || true
+              argocd app sync "$APP_NAME" --force --prune --timeout 300 2>&1 | tail -5 || true
+
+              # Wait for app to be healthy
+              echo "  Waiting for app to be healthy..."
+              for i in $(seq 1 60); do
+                HEALTH=$(argocd app get "$APP_NAME" -o json 2>/dev/null | jq -r '.status.health.status // "Unknown"')
+                SYNC=$(argocd app get "$APP_NAME" -o json 2>/dev/null | jq -r '.status.sync.status // "Unknown"')
+                if [ "$HEALTH" = "Healthy" ] && [ "$SYNC" = "Synced" ]; then
+                  echo "  App is Healthy and Synced!"
+                  break
+                fi
+                echo "    Status: $SYNC / $HEALTH ($i/60)"
+                sleep 5
+              done
             fi
           fi
         done
-
-        echo "  Waiting for workloads..."
-        sleep 30
       - task: _update-dns
       - |
         EXP_NAME="{{.CLI_ARGS}}"
@@ -846,37 +872,29 @@ tasks:
           echo ""
           echo "----------------------------------------------"
           echo ""
-          echo "Press Ctrl+C when you're done exploring..."
+          echo "Press ENTER when you're done exploring to clean up..."
+          echo "(Or Ctrl+C to exit without cleanup)"
           echo ""
 
-          # Cleanup function
-          cleanup() {
-            echo ""
-            echo ""
-            echo "=== Cleaning up experiment clusters ==="
-            for cluster_dir in "$EXP_PATH"/*/; do
-              if [ -f "$cluster_dir/cluster.yaml" ]; then
-                cluster=$(basename "$cluster_dir")
-                full_name="${EXP_NAME}-${cluster}"
-                echo "  Deleting cluster: $full_name"
-                kind delete cluster --name "$full_name"
-              fi
-            done
-            kubectl config use-context kind-{{.HUB_CLUSTER}} 2>/dev/null || true
-            echo ""
-            echo "=============================================="
-            echo "  TUTORIAL COMPLETE"
-            echo "=============================================="
-            exit 0
-          }
+          # Wait for user input
+          read -r DUMMY
 
-          # Trap Ctrl+C
-          trap cleanup INT TERM
-
-          # Wait forever until user presses Ctrl+C
-          while true; do
-            sleep 1
+          # Cleanup
+          echo ""
+          echo "=== Cleaning up experiment clusters ==="
+          for cluster_dir in "$EXP_PATH"/*/; do
+            if [ -f "$cluster_dir/cluster.yaml" ]; then
+              cluster=$(basename "$cluster_dir")
+              full_name="${EXP_NAME}-${cluster}"
+              echo "  Deleting cluster: $full_name"
+              kind delete cluster --name "$full_name"
+            fi
           done
+          kubectl config use-context kind-{{.HUB_CLUSTER}} 2>/dev/null || true
+          echo ""
+          echo "=============================================="
+          echo "  TUTORIAL COMPLETE"
+          echo "=============================================="
 
         else
           # Automated workflow mode
