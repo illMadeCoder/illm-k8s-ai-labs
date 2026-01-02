@@ -1,0 +1,200 @@
+---
+apiVersion: monitoring.coreos.com/v1
+kind: PrometheusRule
+metadata:
+  name: cloudbreak-station-alerts
+  namespace: observability
+  labels:
+    app: station-monitor
+    release: kube-prometheus-stack
+spec:
+  groups:
+    # =========================================================================
+    # CREW SAFETY ALERTS
+    # =========================================================================
+    - name: cloudbreak.crew
+      rules:
+        - alert: CrewComplementDeclining
+          expr: |
+            station_crew_complement < 2840
+          for: 1m
+          labels:
+            severity: warning
+            sector: station-wide
+          annotations:
+            summary: "Crew complement below expected levels"
+            description: "Station crew count is {{ $value }} (expected: 2847). Investigate personnel logs."
+            runbook: "Check station_crew_complement metric history. Cross-reference with sector access logs."
+
+        - alert: CrewComplementCritical
+          expr: |
+            station_crew_complement < 2820
+          for: 1m
+          labels:
+            severity: critical
+            sector: station-wide
+          annotations:
+            summary: "CRITICAL: Significant crew loss detected"
+            description: "Station crew count is {{ $value }}. Significant personnel loss detected."
+            runbook: "Initiate station-wide personnel audit. Check Sector 12 access logs immediately."
+
+        - alert: CrewDecliningRapidly
+          expr: |
+            deriv(station_crew_complement[5m]) < -0.5
+          for: 2m
+          labels:
+            severity: critical
+            sector: station-wide
+          annotations:
+            summary: "Crew count declining rapidly"
+            description: "Crew complement decreasing at {{ $value | printf \"%.2f\" }} per second."
+            runbook: "Emergency protocol. Locate source of crew loss. Lock down affected sectors."
+
+    # =========================================================================
+    # CONTAINMENT ALERTS
+    # =========================================================================
+    - name: cloudbreak.containment
+      rules:
+        - alert: ContainmentIntegrityDegraded
+          expr: |
+            station_containment_integrity < 0.95
+          for: 1m
+          labels:
+            severity: warning
+            sector: "12"
+          annotations:
+            summary: "Sector 12 containment field degrading"
+            description: "Containment integrity at {{ $value | printf \"%.1f\" }}% (threshold: 95%)"
+            runbook: "Check Sector 12 power systems. Do NOT enter sector. Notify security."
+
+        - alert: ContainmentIntegrityCritical
+          expr: |
+            station_containment_integrity < 0.80
+          for: 30s
+          labels:
+            severity: critical
+            sector: "12"
+          annotations:
+            summary: "CRITICAL: Containment field failing"
+            description: "Containment at {{ $value | printf \"%.1f\" }}%. Breach imminent."
+            runbook: "Evacuate adjacent sectors (11, 13, 14). Seal bulkheads. Alert command."
+
+        - alert: ContainmentBreach
+          expr: |
+            station_containment_integrity < 0.50
+          for: 10s
+          labels:
+            severity: critical
+            sector: "12"
+          annotations:
+            summary: "CONTAINMENT BREACH - SECTOR 12"
+            description: "Containment integrity at {{ $value | printf \"%.1f\" }}%. BREACH CONFIRMED."
+            runbook: "EMERGENCY: Execute Protocol Omega. Abandon station if necessary."
+
+    # =========================================================================
+    # BEACON ANOMALY ALERTS
+    # =========================================================================
+    - name: cloudbreak.beacon
+      rules:
+        - alert: BeaconSignalDetected
+          expr: |
+            station_beacon_signal_strength > 0.01
+          for: 30s
+          labels:
+            severity: warning
+            sector: "12"
+          annotations:
+            summary: "Anomalous beacon signal detected"
+            description: "Beacon signal strength: {{ $value | printf \"%.3f\" }}. This beacon should be offline."
+            runbook: "Verify beacon hardware status. Check for unauthorized transmissions."
+
+        - alert: BeaconSignalStrong
+          expr: |
+            station_beacon_signal_strength > 0.1
+          for: 1m
+          labels:
+            severity: critical
+            sector: "12"
+          annotations:
+            summary: "Strong beacon signal from Sector 12"
+            description: "Beacon signal at {{ $value | printf \"%.2f\" }}. Something is transmitting."
+            runbook: "Triangulate signal source. Do NOT respond to transmissions. Log all frequencies."
+
+        - alert: BeaconSignalMaximum
+          expr: |
+            station_beacon_signal_strength > 0.5
+          for: 30s
+          labels:
+            severity: critical
+            sector: "12"
+          annotations:
+            summary: "BEACON SIGNAL AT MAXIMUM - THEY ARE CALLING"
+            description: "Beacon signal: {{ $value | printf \"%.2f\" }}. The signal is beautiful."
+            runbook: "DO NOT LISTEN. Disable audio systems. Evacuate monitoring personnel."
+
+    # =========================================================================
+    # SECTOR 12 OPERATIONAL ALERTS
+    # =========================================================================
+    - name: cloudbreak.sector12
+      rules:
+        - alert: Sector12HighErrorRate
+          expr: |
+            sum(rate(station_sector_requests_total{sector="12", status="500"}[5m]))
+            /
+            sum(rate(station_sector_requests_total{sector="12"}[5m])) > 0.5
+          for: 2m
+          labels:
+            severity: warning
+            sector: "12"
+          annotations:
+            summary: "Sector 12 systems experiencing high error rate"
+            description: "Error rate: {{ $value | printf \"%.1f\" }}%. Systems unstable."
+            runbook: "Normal for Sector 12. Document anomalies. Do not investigate in person."
+
+        - alert: Sector12LifeSupportCritical
+          expr: |
+            station_life_support_efficiency{sector="12"} < 0.3
+          for: 1m
+          labels:
+            severity: critical
+            sector: "12"
+          annotations:
+            summary: "Life support failing in Sector 12"
+            description: "Life support efficiency: {{ $value | printf \"%.1f\" }}%"
+            runbook: "Sector 12 is not rated for human occupancy. This is expected. Or is it?"
+
+        - alert: AdjacentSectorsDegrading
+          expr: |
+            station_life_support_efficiency{sector=~"13|14"} < 0.7
+          for: 2m
+          labels:
+            severity: warning
+            sector: "{{ $labels.sector }}"
+          annotations:
+            summary: "Sectors adjacent to 12 showing degradation"
+            description: "Sector {{ $labels.sector }} life support at {{ $value | printf \"%.1f\" }}%"
+            runbook: "Containment effect spreading. Consider evacuation of sectors 13-14."
+
+        - alert: Sector12HighLatency
+          expr: |
+            histogram_quantile(0.99, rate(station_sector_response_seconds_bucket{sector="12"}[5m])) > 10
+          for: 2m
+          labels:
+            severity: warning
+            sector: "12"
+          annotations:
+            summary: "Sector 12 systems responding slowly"
+            description: "P99 latency: {{ $value | printf \"%.1f\" }}s. Something is consuming resources."
+            runbook: "Processing delays may indicate... activity. Monitor closely."
+
+        - alert: AnomalyDetectionSpike
+          expr: |
+            rate(station_anomaly_detections_total[5m]) > 0.1
+          for: 1m
+          labels:
+            severity: warning
+            sector: "12"
+          annotations:
+            summary: "High rate of anomaly detections"
+            description: "Detecting {{ $value | printf \"%.2f\" }} anomalies per second."
+            runbook: "Increased monitoring activity. Ensure all technicians are accounted for."

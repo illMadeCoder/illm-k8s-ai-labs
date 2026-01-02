@@ -1,0 +1,564 @@
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cloudbreak-station-dashboard
+  namespace: observability
+  labels:
+    grafana_dashboard: "1"
+    app: station-monitor
+data:
+  cloudbreak-station.json: |
+    {
+      "annotations": {
+        "list": [
+          {
+            "builtIn": 1,
+            "datasource": { "type": "grafana", "uid": "-- Grafana --" },
+            "enable": true,
+            "hide": true,
+            "iconColor": "rgba(0, 211, 255, 1)",
+            "name": "Annotations & Alerts",
+            "type": "dashboard"
+          }
+        ]
+      },
+      "editable": true,
+      "fiscalYearStartMonth": 0,
+      "graphTooltip": 1,
+      "id": null,
+      "links": [],
+      "panels": [
+        {
+          "gridPos": { "h": 2, "w": 24, "x": 0, "y": 0 },
+          "id": 100,
+          "options": {
+            "code": { "language": "plaintext", "showLineNumbers": false },
+            "content": "# CLOUDBREAK STATION - SYSTEMS MONITORING TERMINAL\n**Weyland-Ishimura Corp. | Cycle 2847 | Deep Space Operations**",
+            "mode": "markdown"
+          },
+          "type": "text"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "thresholds" },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "red", "value": null },
+                  { "color": "orange", "value": 2820 },
+                  { "color": "yellow", "value": 2835 },
+                  { "color": "green", "value": 2845 }
+                ]
+              },
+              "unit": "none"
+            }
+          },
+          "gridPos": { "h": 4, "w": 6, "x": 0, "y": 2 },
+          "id": 1,
+          "options": {
+            "colorMode": "value",
+            "graphMode": "area",
+            "justifyMode": "auto",
+            "orientation": "auto",
+            "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+            "textMode": "auto"
+          },
+          "title": "Crew Complement",
+          "type": "stat",
+          "targets": [
+            {
+              "expr": "station_crew_complement",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "thresholds" },
+              "mappings": [],
+              "max": 1,
+              "min": 0,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "red", "value": null },
+                  { "color": "orange", "value": 0.7 },
+                  { "color": "yellow", "value": 0.9 },
+                  { "color": "green", "value": 0.95 }
+                ]
+              },
+              "unit": "percentunit"
+            }
+          },
+          "gridPos": { "h": 4, "w": 6, "x": 6, "y": 2 },
+          "id": 2,
+          "options": {
+            "colorMode": "value",
+            "graphMode": "area",
+            "justifyMode": "auto",
+            "orientation": "auto",
+            "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+            "textMode": "auto"
+          },
+          "title": "Containment Integrity",
+          "type": "stat",
+          "targets": [
+            {
+              "expr": "station_containment_integrity",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "thresholds" },
+              "mappings": [
+                { "options": { "from": 0, "result": { "color": "green", "text": "SILENT" }, "to": 0.01 }, "type": "range" },
+                { "options": { "from": 0.01, "result": { "color": "yellow", "text": "DETECTED" }, "to": 0.1 }, "type": "range" },
+                { "options": { "from": 0.1, "result": { "color": "orange", "text": "STRONG" }, "to": 0.5 }, "type": "range" },
+                { "options": { "from": 0.5, "result": { "color": "red", "text": "MAXIMUM" }, "to": 1 }, "type": "range" }
+              ],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "green", "value": null },
+                  { "color": "yellow", "value": 0.01 },
+                  { "color": "orange", "value": 0.1 },
+                  { "color": "red", "value": 0.5 }
+                ]
+              },
+              "unit": "none"
+            }
+          },
+          "gridPos": { "h": 4, "w": 6, "x": 12, "y": 2 },
+          "id": 3,
+          "options": {
+            "colorMode": "background",
+            "graphMode": "area",
+            "justifyMode": "auto",
+            "orientation": "auto",
+            "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+            "textMode": "auto"
+          },
+          "title": "Beacon Signal",
+          "type": "stat",
+          "targets": [
+            {
+              "expr": "station_beacon_signal_strength",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "thresholds" },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "green", "value": null },
+                  { "color": "yellow", "value": 10 },
+                  { "color": "red", "value": 50 }
+                ]
+              },
+              "unit": "none"
+            }
+          },
+          "gridPos": { "h": 4, "w": 6, "x": 18, "y": 2 },
+          "id": 4,
+          "options": {
+            "colorMode": "value",
+            "graphMode": "area",
+            "justifyMode": "auto",
+            "orientation": "auto",
+            "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+            "textMode": "auto"
+          },
+          "title": "Anomaly Detections",
+          "type": "stat",
+          "targets": [
+            {
+              "expr": "station_anomaly_detections_total",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "palette-classic" },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "line",
+                "fillOpacity": 20,
+                "gradientMode": "opacity",
+                "hideFrom": { "legend": false, "tooltip": false, "viz": false },
+                "insertNulls": false,
+                "lineInterpolation": "smooth",
+                "lineWidth": 2,
+                "pointSize": 5,
+                "scaleDistribution": { "type": "linear" },
+                "showPoints": "never",
+                "spanNulls": false,
+                "stacking": { "group": "A", "mode": "none" },
+                "thresholdsStyle": { "mode": "line" }
+              },
+              "mappings": [],
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "green", "value": null },
+                  { "color": "yellow", "value": 2835 },
+                  { "color": "red", "value": 2820 }
+                ]
+              },
+              "unit": "none"
+            }
+          },
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 6 },
+          "id": 5,
+          "options": {
+            "legend": { "calcs": ["min", "max", "last"], "displayMode": "table", "placement": "bottom" },
+            "tooltip": { "mode": "single", "sort": "none" }
+          },
+          "title": "Crew Complement Over Time",
+          "type": "timeseries",
+          "targets": [
+            {
+              "expr": "station_crew_complement",
+              "legendFormat": "Crew Count",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "palette-classic" },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "line",
+                "fillOpacity": 20,
+                "gradientMode": "opacity",
+                "hideFrom": { "legend": false, "tooltip": false, "viz": false },
+                "insertNulls": false,
+                "lineInterpolation": "smooth",
+                "lineWidth": 2,
+                "pointSize": 5,
+                "scaleDistribution": { "type": "linear" },
+                "showPoints": "never",
+                "spanNulls": false,
+                "stacking": { "group": "A", "mode": "none" },
+                "thresholdsStyle": { "mode": "line" }
+              },
+              "mappings": [],
+              "max": 1,
+              "min": 0,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "green", "value": null },
+                  { "color": "yellow", "value": 0.8 },
+                  { "color": "red", "value": 0.5 }
+                ]
+              },
+              "unit": "percentunit"
+            }
+          },
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 6 },
+          "id": 6,
+          "options": {
+            "legend": { "calcs": ["min", "last"], "displayMode": "table", "placement": "bottom" },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          },
+          "title": "Containment & Beacon Signal",
+          "type": "timeseries",
+          "targets": [
+            {
+              "expr": "station_containment_integrity",
+              "legendFormat": "Containment Integrity",
+              "refId": "A"
+            },
+            {
+              "expr": "station_beacon_signal_strength",
+              "legendFormat": "Beacon Signal",
+              "refId": "B"
+            }
+          ]
+        },
+        {
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 14 },
+          "id": 50,
+          "title": "SECTOR STATUS",
+          "type": "row"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "thresholds" },
+              "mappings": [],
+              "max": 1,
+              "min": 0,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "red", "value": null },
+                  { "color": "orange", "value": 0.5 },
+                  { "color": "yellow", "value": 0.8 },
+                  { "color": "green", "value": 0.95 }
+                ]
+              },
+              "unit": "percentunit"
+            }
+          },
+          "gridPos": { "h": 6, "w": 12, "x": 0, "y": 15 },
+          "id": 7,
+          "options": {
+            "displayMode": "gradient",
+            "maxVizHeight": 300,
+            "minVizHeight": 16,
+            "minVizWidth": 8,
+            "namePlacement": "auto",
+            "orientation": "horizontal",
+            "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+            "showUnfilled": true,
+            "sizing": "auto",
+            "valueMode": "color"
+          },
+          "title": "Life Support Efficiency by Sector",
+          "type": "bargauge",
+          "targets": [
+            {
+              "expr": "station_life_support_efficiency",
+              "legendFormat": "Sector {{ sector }}",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "thresholds" },
+              "mappings": [],
+              "max": 1,
+              "min": 0,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "red", "value": null },
+                  { "color": "orange", "value": 0.5 },
+                  { "color": "yellow", "value": 0.8 },
+                  { "color": "green", "value": 0.95 }
+                ]
+              },
+              "unit": "percentunit"
+            }
+          },
+          "gridPos": { "h": 6, "w": 12, "x": 12, "y": 15 },
+          "id": 8,
+          "options": {
+            "displayMode": "gradient",
+            "maxVizHeight": 300,
+            "minVizHeight": 16,
+            "minVizWidth": 8,
+            "namePlacement": "auto",
+            "orientation": "horizontal",
+            "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+            "showUnfilled": true,
+            "sizing": "auto",
+            "valueMode": "color"
+          },
+          "title": "Sector Status",
+          "type": "bargauge",
+          "targets": [
+            {
+              "expr": "station_sector_status",
+              "legendFormat": "Sector {{ sector }}",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 21 },
+          "id": 51,
+          "title": "SECTOR 12 - [RESTRICTED ACCESS]",
+          "type": "row"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "palette-classic" },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "line",
+                "fillOpacity": 30,
+                "gradientMode": "opacity",
+                "hideFrom": { "legend": false, "tooltip": false, "viz": false },
+                "insertNulls": false,
+                "lineInterpolation": "smooth",
+                "lineWidth": 2,
+                "pointSize": 5,
+                "scaleDistribution": { "type": "linear" },
+                "showPoints": "never",
+                "spanNulls": false,
+                "stacking": { "group": "A", "mode": "none" },
+                "thresholdsStyle": { "mode": "off" }
+              },
+              "mappings": [],
+              "unit": "reqps"
+            }
+          },
+          "gridPos": { "h": 7, "w": 8, "x": 0, "y": 22 },
+          "id": 9,
+          "options": {
+            "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom" },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          },
+          "title": "Sector 12 Request Rate",
+          "type": "timeseries",
+          "targets": [
+            {
+              "expr": "sum(rate(station_sector_requests_total{sector=\"12\"}[1m])) by (status)",
+              "legendFormat": "{{ status }}",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "thresholds" },
+              "mappings": [],
+              "max": 1,
+              "min": 0,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  { "color": "green", "value": null },
+                  { "color": "yellow", "value": 0.3 },
+                  { "color": "orange", "value": 0.5 },
+                  { "color": "red", "value": 0.7 }
+                ]
+              },
+              "unit": "percentunit"
+            }
+          },
+          "gridPos": { "h": 7, "w": 8, "x": 8, "y": 22 },
+          "id": 10,
+          "options": {
+            "minVizHeight": 75,
+            "minVizWidth": 75,
+            "orientation": "auto",
+            "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false },
+            "showThresholdLabels": false,
+            "showThresholdMarkers": true,
+            "sizing": "auto"
+          },
+          "title": "Sector 12 Error Rate",
+          "type": "gauge",
+          "targets": [
+            {
+              "expr": "sum(rate(station_sector_requests_total{sector=\"12\", status=\"500\"}[5m])) / sum(rate(station_sector_requests_total{sector=\"12\"}[5m]))",
+              "legendFormat": "Error Rate",
+              "refId": "A"
+            }
+          ]
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "palette-classic" },
+              "custom": {
+                "axisBorderShow": false,
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "line",
+                "fillOpacity": 20,
+                "gradientMode": "opacity",
+                "hideFrom": { "legend": false, "tooltip": false, "viz": false },
+                "insertNulls": false,
+                "lineInterpolation": "smooth",
+                "lineWidth": 2,
+                "pointSize": 5,
+                "scaleDistribution": { "type": "linear" },
+                "showPoints": "never",
+                "spanNulls": false,
+                "stacking": { "group": "A", "mode": "none" },
+                "thresholdsStyle": { "mode": "off" }
+              },
+              "mappings": [],
+              "unit": "s"
+            }
+          },
+          "gridPos": { "h": 7, "w": 8, "x": 16, "y": 22 },
+          "id": 11,
+          "options": {
+            "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom" },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          },
+          "title": "Sector 12 Response Time",
+          "type": "timeseries",
+          "targets": [
+            {
+              "expr": "histogram_quantile(0.50, rate(station_sector_response_seconds_bucket{sector=\"12\"}[5m]))",
+              "legendFormat": "p50",
+              "refId": "A"
+            },
+            {
+              "expr": "histogram_quantile(0.95, rate(station_sector_response_seconds_bucket{sector=\"12\"}[5m]))",
+              "legendFormat": "p95",
+              "refId": "B"
+            },
+            {
+              "expr": "histogram_quantile(0.99, rate(station_sector_response_seconds_bucket{sector=\"12\"}[5m]))",
+              "legendFormat": "p99",
+              "refId": "C"
+            }
+          ]
+        }
+      ],
+      "schemaVersion": 39,
+      "tags": ["cloudbreak", "station-monitor", "prometheus-tutorial"],
+      "templating": { "list": [] },
+      "time": { "from": "now-30m", "to": "now" },
+      "timepicker": {},
+      "timezone": "browser",
+      "title": "Cloudbreak Station Monitor",
+      "uid": "cloudbreak-station",
+      "version": 1
+    }

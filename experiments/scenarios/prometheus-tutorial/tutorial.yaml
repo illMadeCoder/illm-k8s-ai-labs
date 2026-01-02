@@ -16,75 +16,159 @@ instructions: |
 
   ## Quick Start
 
-  Set your endpoint IPs:
+  Set your endpoint IPs (copy the IPs shown above):
   ```bash
-  export METRICS_IP=<metrics-app-ip-shown-above>     # Training simulator
-  export STATION_IP=<station-monitor-ip-shown-above> # Live station feed
+  export METRICS_IP=<metrics-app-ip>      # Training simulator
+  export STATION_IP=<station-monitor-ip>  # Live station feed
+  export PROM_IP=<prometheus-ip>          # Prometheus array
+  export GRAFANA_IP=<grafana-ip>          # Grafana terminal
   ```
 
-  Access monitoring terminals:
-  - Prometheus Array (URL shown above)
-  - Grafana Terminal (URL shown above) - Access code: admin / admin
+  ═══════════════════════════════════════════════════════════════════════
+  CHECKPOINT 1: VERIFY SYSTEMS ONLINE
+  ═══════════════════════════════════════════════════════════════════════
 
-  ## Two Monitoring Systems
+  Run these commands. All should return data:
 
-  **Metrics App** (demo namespace) - Standard training simulator
-  **Station Monitor** (station namespace) - Live Cloudbreak telemetry
+  ```bash
+  # Training simulator responds
+  curl -s http://$METRICS_IP/ | head -1
+  # Expected: "Hello from metrics-app! Pod: metrics-app-xxxxx"
 
-  ## Simulate Station Activity (Become The Threat)
+  # Station monitor responds
+  curl -s http://$STATION_IP/ | head -3
+  # Expected: "CLOUDBREAK STATION STATUS" header
 
-  ### Training Mode (metrics-app)
+  # Prometheus has targets
+  curl -s "http://$PROM_IP:9090/api/v1/targets" | jq '.data.activeTargets | length'
+  # Expected: 11 (should be 11 active targets)
+
+  # Grafana is healthy
+  curl -s "http://$GRAFANA_IP/api/health" | jq '.database'
+  # Expected: "ok"
+  ```
+
+  If all four checks pass, proceed to Checkpoint 2.
+
+  ═══════════════════════════════════════════════════════════════════════
+  CHECKPOINT 2: VERIFY METRICS COLLECTION
+  ═══════════════════════════════════════════════════════════════════════
+
+  Generate some traffic:
+  ```bash
+  for i in {1..10}; do curl -s http://$METRICS_IP/ > /dev/null; done
+  for i in {1..5}; do curl -s http://$STATION_IP/sector12 > /dev/null; done
+  ```
+
+  Verify Prometheus collected the metrics:
+  ```bash
+  # Check request counter increased
+  curl -s "http://$PROM_IP:9090/api/v1/query?query=http_requests_total" | \
+    jq '.data.result | length'
+  # Expected: > 0 (should see multiple time series)
+
+  # Check station metrics exist
+  curl -s "http://$PROM_IP:9090/api/v1/query?query=station_crew_complement" | \
+    jq '.data.result[0].value[1]'
+  # Expected: ~2847 (crew count, may be slightly lower)
+  ```
+
+  ═══════════════════════════════════════════════════════════════════════
+  CHECKPOINT 3: EXPLORE GRAFANA DASHBOARDS
+  ═══════════════════════════════════════════════════════════════════════
+
+  Open Grafana in your browser:
+  - URL: http://<grafana-ip>:80
+  - Login: admin / admin (skip password change)
+
+  Find the pre-built dashboards:
+  1. Click the hamburger menu (☰) → Dashboards
+  2. You should see:
+     - "Cloudbreak Station Monitor" - Station telemetry
+     - "RED Metrics - metrics-app" - Request/Error/Duration
+
+  Open "Cloudbreak Station Monitor" and verify:
+  - [ ] Crew Complement shows ~2847
+  - [ ] Containment Integrity shows ~100%
+  - [ ] Beacon Signal shows "SILENT" (green)
+  - [ ] Life Support bars are mostly green
+
+  ═══════════════════════════════════════════════════════════════════════
+  CHECKPOINT 4: WATCH THE STATION DEGRADE
+  ═══════════════════════════════════════════════════════════════════════
+
+  Generate Sector 12 activity (this accelerates degradation):
   ```bash
   for i in {1..50}; do
-    curl -s http://$METRICS_IP/           # Normal operations
-    curl -s http://$METRICS_IP/slow &     # Overloaded systems
-    curl -s http://$METRICS_IP/error      # Cascade failures
-    sleep 0.2
+    curl -s http://$STATION_IP/sector12 > /dev/null
+    sleep 0.5
   done
   ```
 
-  ### SECTOR 12 INVESTIGATION (station-monitor)
+  While that runs, watch the Grafana dashboard. You should see:
+  - [ ] Crew Complement slowly decreasing
+  - [ ] Containment Integrity dropping below 100%
+  - [ ] Beacon Signal changing from SILENT to DETECTED
+  - [ ] Sector 12 showing high error rate (~70%)
+
+  Check Prometheus for alerts:
   ```bash
-  # Access Sector 12 monitoring (70% failure rate)
-  for i in {1..20}; do curl -s http://$STATION_IP/sector12; done
+  curl -s "http://$PROM_IP:9090/api/v1/alerts" | jq '.data.alerts[] | .labels.alertname'
+  ```
+  # Expected: You may see alerts like "CrewComplementDeclining" or "BeaconSignalDetected"
 
-  # Check the beacon signal (something is transmitting...)
+  ═══════════════════════════════════════════════════════════════════════
+  CHECKPOINT 5: INVESTIGATE THE ANOMALY
+  ═══════════════════════════════════════════════════════════════════════
+
+  Something is wrong in Sector 12. Use PromQL to investigate:
+
+  ```bash
+  # What is the current crew count?
+  curl -s "http://$PROM_IP:9090/api/v1/query?query=station_crew_complement" | \
+    jq '.data.result[0].value[1]'
+
+  # How fast is containment degrading?
+  curl -s "http://$PROM_IP:9090/api/v1/query?query=deriv(station_containment_integrity[5m])" | \
+    jq '.data.result[0].value[1]'
+
+  # What is the Sector 12 error rate?
+  curl -s "http://$PROM_IP:9090/api/v1/query?query=sum(rate(station_sector_requests_total{sector=\"12\",status=\"500\"}[5m]))/sum(rate(station_sector_requests_total{sector=\"12\"}[5m]))" | \
+    jq '.data.result[0].value[1]'
+
+  # What is the beacon transmitting?
   curl http://$STATION_IP/beacon
-
-  # Compare with normal sectors
-  curl http://$STATION_IP/sectors/1
-  curl http://$STATION_IP/sectors/2
-  curl http://$STATION_IP/sectors/3
   ```
 
-  ## Station Metrics (PromQL)
+  The answers tell a story. The crew is disappearing. The containment is failing.
+  Something in Sector 12 is transmitting. And it knows you're watching.
 
-  Crew complement (this number should not decrease):
-  ```
-  station_crew_complement
-  ```
+  ═══════════════════════════════════════════════════════════════════════
+  EXPLORATION: RED METRICS DASHBOARD
+  ═══════════════════════════════════════════════════════════════════════
 
-  Sector 12 anomaly count:
-  ```
-  station_anomaly_detections_total
-  ```
+  Open "RED Metrics - metrics-app" dashboard in Grafana.
 
-  Containment integrity (should be 1.0):
-  ```
-  station_containment_integrity
-  ```
-
-  Beacon signal strength (what is transmitting?):
-  ```
-  station_beacon_signal_strength
+  Generate varied traffic:
+  ```bash
+  for i in {1..30}; do
+    curl -s http://$METRICS_IP/ > /dev/null        # Fast requests
+    curl -s http://$METRICS_IP/slow > /dev/null    # Slow requests
+    curl -s http://$METRICS_IP/error > /dev/null   # Some will fail
+    sleep 0.3
+  done
   ```
 
-  Life support by sector:
-  ```
-  station_life_support_efficiency
-  ```
+  Observe the RED metrics:
+  - **Rate**: Request throughput by endpoint
+  - **Errors**: Error rate (should be ~30% for /error endpoint)
+  - **Duration**: Latency percentiles (p50, p90, p95, p99)
 
-  ## Full Orientation Materials
+  Notice how /slow has higher latency than / in the percentile charts.
+
+  ═══════════════════════════════════════════════════════════════════════
+  FULL ORIENTATION MATERIALS
+  ═══════════════════════════════════════════════════════════════════════
 
   The complete training covers 16 modules across 6 sections:
   - Part 1: Foundations (routine systems check)
@@ -99,7 +183,9 @@ instructions: |
   cat experiments/scenarios/prometheus-tutorial/README.md | less
   ```
 
-  ## End Session
+  ═══════════════════════════════════════════════════════════════════════
+  END SESSION
+  ═══════════════════════════════════════════════════════════════════════
 
   Press ENTER when your shift is complete.
 

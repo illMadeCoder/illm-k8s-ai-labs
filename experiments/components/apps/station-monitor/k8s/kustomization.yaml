@@ -5,3 +5,5 @@ resources:
   - deployment.yaml
   - service.yaml
   - servicemonitor.yaml
+  - prometheusrules.yaml
+  - grafana-dashboard.yaml
