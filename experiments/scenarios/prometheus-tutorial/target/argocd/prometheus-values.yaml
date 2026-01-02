@@ -2,6 +2,10 @@
 # Minimal footprint for Kind cluster tutorial
 
 prometheus:
+  # Expose Prometheus UI via NodePort for browser access
+  service:
+    type: NodePort
+    nodePort: 30090
   prometheusSpec:
     retention: 2h  # Short retention for tutorial
     storageSpec: {}  # EmptyDir for ephemeral clusters

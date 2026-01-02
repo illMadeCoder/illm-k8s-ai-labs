@@ -385,6 +385,166 @@ tasks:
     cmds:
       - tree experiments/scenarios -L 1 -d --noreport 2>/dev/null || ls -d experiments/scenarios/*/
 
+  deploy:
+    desc: "Deploy experiment for interactive exploration: task kind:deploy -- <name>"
+    cmds:
+      - task: _ensure-cloud-provider-kind
+      - task: _ensure-dnsmasq
+      - |
+        if [ -z "{{.CLI_ARGS}}" ]; then
+          echo "Usage: task kind:deploy -- <experiment-name>"
+          echo ""
+          echo "Deploys experiment clusters and apps for interactive exploration."
+          echo "Use 'task kind:teardown -- <name>' to clean up when done."
+          exit 1
+        fi
+
+        EXP_NAME="{{.CLI_ARGS}}"
+        EXP_PATH="experiments/scenarios/$EXP_NAME"
+
+        if [ ! -d "$EXP_PATH" ]; then
+          echo "ERROR: Experiment not found at $EXP_PATH"
+          exit 1
+        fi
+
+        echo "=============================================="
+        echo "  DEPLOYING EXPERIMENT: $EXP_NAME"
+        echo "=============================================="
+        echo ""
+
+        # Step 1: Discover clusters
+        echo "=== Step 1/4: Discovering clusters ==="
+        CLUSTERS=""
+        for cluster_dir in "$EXP_PATH"/*/; do
+          if [ -f "$cluster_dir/cluster.yaml" ]; then
+            cluster_name=$(basename "$cluster_dir")
+            CLUSTERS="$CLUSTERS $cluster_name"
+            echo "  Found: $cluster_name"
+          fi
+        done
+
+        if [ -z "$CLUSTERS" ]; then
+          echo "ERROR: No clusters found (no */cluster.yaml files)"
+          exit 1
+        fi
+
+        # Step 2: Create kind clusters
+        echo ""
+        echo "=== Step 2/4: Creating experiment clusters ==="
+        PIDS=""
+        for cluster in $CLUSTERS; do
+          full_name="${EXP_NAME}-${cluster}"
+          if kind get clusters 2>/dev/null | grep -q "^${full_name}$"; then
+            echo "  Cluster '$full_name' already exists"
+          else
+            echo "  Creating cluster '$full_name'..."
+            kind create cluster --name "$full_name" --wait 60s &
+            PIDS="$PIDS $!"
+          fi
+        done
+
+        if [ -n "$PIDS" ]; then
+          echo "  Waiting for cluster creation..."
+          for pid in $PIDS; do
+            wait $pid || { echo "ERROR: Cluster creation failed"; exit 1; }
+          done
+          echo "  All clusters created!"
+        fi
+
+        # Step 3: Register clusters with hub ArgoCD
+        echo ""
+        echo "=== Step 3/4: Registering clusters with ArgoCD ==="
+        for cluster in $CLUSTERS; do
+          full_name="${EXP_NAME}-${cluster}"
+          echo "  Registering: $full_name"
+
+          # Update kubeconfig to use container IP (required for ArgoCD access)
+          CONTAINER_NAME="${full_name}-control-plane"
+          CLUSTER_IP=$(docker inspect "$CONTAINER_NAME" | jq -r '.[0].NetworkSettings.Networks.kind.IPAddress')
+          kubectl config set-cluster "kind-${full_name}" --server="https://${CLUSTER_IP}:6443" >/dev/null
+
+          # Create service account on target cluster
+          kubectl --context "kind-${full_name}" create serviceaccount argocd-manager -n kube-system 2>/dev/null || true
+          kubectl --context "kind-${full_name}" create clusterrolebinding argocd-manager \
+            --clusterrole=cluster-admin --serviceaccount=kube-system:argocd-manager 2>/dev/null || true
+
+          # Create token secret
+          cat <<EOF | kubectl --context "kind-${full_name}" apply -f -
+        apiVersion: v1
+        kind: Secret
+        metadata:
+          name: argocd-manager-token
+          namespace: kube-system
+          annotations:
+            kubernetes.io/service-account.name: argocd-manager
+        type: kubernetes.io/service-account-token
+        EOF
+          sleep 2
+
+          # Add cluster to ArgoCD using CLI
+          argocd cluster add "kind-${full_name}" --name "$cluster" \
+            --kubeconfig ~/.kube/config --insecure --yes 2>/dev/null || \
+            echo "    (cluster may already be registered)"
+        done
+
+        # Step 4: Deploy ArgoCD apps
+        echo ""
+        echo "=== Step 4/4: Deploying apps via ArgoCD ==="
+        for cluster in $CLUSTERS; do
+          cluster_dir="$EXP_PATH/$cluster"
+          argocd_dir="$cluster_dir/argocd"
+
+          if [ -d "$argocd_dir" ] && [ -f "$argocd_dir/app.yaml" ]; then
+            echo "  Applying: $cluster/argocd/app.yaml"
+            kubectl --context kind-{{.HUB_CLUSTER}} apply -f "$argocd_dir/app.yaml"
+          fi
+        done
+
+        echo ""
+        echo "  Waiting for apps to sync..."
+        sleep 30
+      - task: _update-dns
+      - |
+        EXP_NAME="{{.CLI_ARGS}}"
+        EXP_PATH="experiments/scenarios/$EXP_NAME"
+
+        echo ""
+        echo "=============================================="
+        echo "  EXPERIMENT DEPLOYED: $EXP_NAME"
+        echo "=============================================="
+
+        # Show access information
+        for cluster_dir in "$EXP_PATH"/*/; do
+          if [ -f "$cluster_dir/cluster.yaml" ]; then
+            cluster=$(basename "$cluster_dir")
+            full_name="${EXP_NAME}-${cluster}"
+            CONTAINER_NAME="${full_name}-control-plane"
+            CLUSTER_IP=$(docker inspect "$CONTAINER_NAME" 2>/dev/null | jq -r '.[0].NetworkSettings.Networks.kind.IPAddress')
+
+            echo ""
+            echo "Cluster: $full_name"
+            echo "  Context: kind-${full_name}"
+            echo "  API: https://${CLUSTER_IP}:6443"
+
+            # Check for common NodePort services
+            GRAFANA_PORT=$(kubectl --context "kind-${full_name}" get svc -A -o json 2>/dev/null | \
+              jq -r '.items[] | select(.metadata.name | contains("grafana")) | .spec.ports[0].nodePort // empty' | head -1)
+            PROM_PORT=$(kubectl --context "kind-${full_name}" get svc -A -o json 2>/dev/null | \
+              jq -r '.items[] | select(.metadata.name | contains("prometheus") and (.metadata.name | contains("operator") | not)) | select(.spec.type=="NodePort") | .spec.ports[0].nodePort // empty' | head -1)
+
+            if [ -n "$GRAFANA_PORT" ]; then
+              echo "  Grafana: http://${CLUSTER_IP}:${GRAFANA_PORT} (admin/admin)"
+            fi
+            if [ -n "$PROM_PORT" ]; then
+              echo "  Prometheus: http://${CLUSTER_IP}:${PROM_PORT}"
+            fi
+          fi
+        done
+
+        echo ""
+        echo "To clean up: task kind:teardown -- $EXP_NAME"
+        echo ""
+
   conduct:
     desc: "Run experiment: task kind:conduct -- <name> [USERS=10] [DURATION=60s]"
     cmds:

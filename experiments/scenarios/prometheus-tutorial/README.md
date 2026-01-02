@@ -46,8 +46,30 @@ The `metrics-app` provides these endpoints:
 
 ## Running the Experiment
 
+### Interactive Mode (Recommended for Learning)
+
+Deploy the experiment for hands-on exploration:
+
 ```bash
-# From repo root
+# From repo root - deploys and leaves running for you to explore
+task kind:deploy -- prometheus-tutorial
+```
+
+This deploys the full stack and outputs access URLs. The cluster stays running so you can:
+- Explore Prometheus UI and try PromQL queries
+- Build dashboards in Grafana
+- Experiment with the metrics-app endpoints
+
+When done:
+```bash
+task kind:destroy -- prometheus-tutorial
+```
+
+### Automated Mode
+
+Run the full experiment workflow (deploys, tests, tears down):
+
+```bash
 task kind:conduct -- prometheus-tutorial
 ```
 
@@ -57,20 +79,37 @@ The workflow will:
 3. Generate load across all endpoints using k6
 4. Validate that metrics are being scraped
 5. Output sample PromQL query results
+6. Tear down the cluster
 
 ## Accessing Services
 
-After the experiment deploys (or if you want to explore manually):
+After deploying with `kind:deploy`, get the target cluster node IP:
 
 ```bash
-# Get target cluster context
+# Get cluster node IP
+CLUSTER_IP=$(kubectl get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}' --context kind-prometheus-tutorial-target)
+echo "Cluster IP: $CLUSTER_IP"
+```
+
+### Browser Access (NodePort)
+
+| Service | URL | Credentials |
+|---------|-----|-------------|
+| **Prometheus** | `http://${CLUSTER_IP}:30090` | None |
+| **Grafana** | `http://${CLUSTER_IP}:30030` | admin / admin |
+
+### Port-Forward Alternative
+
+If NodePort isn't accessible:
+
+```bash
+# Switch to target cluster context
 kubectl config use-context kind-prometheus-tutorial-target
 
 # Access Prometheus
 kubectl port-forward -n observability svc/kube-prometheus-stack-prometheus 9090:9090
 
-# Access Grafana (NodePort: 30030)
-# Default credentials: admin / admin
+# Access Grafana
 kubectl port-forward -n observability svc/kube-prometheus-stack-grafana 3000:80
 ```
 
