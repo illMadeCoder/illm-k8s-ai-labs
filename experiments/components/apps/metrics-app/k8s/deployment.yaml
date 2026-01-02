@@ -1,4 +1,9 @@
 ---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: demo
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -56,6 +61,8 @@ spec:
             allowPrivilegeEscalation: false
             readOnlyRootFilesystem: true
             runAsNonRoot: true
+            runAsUser: 65532
+            runAsGroup: 65532
             capabilities:
               drop:
                 - ALL
