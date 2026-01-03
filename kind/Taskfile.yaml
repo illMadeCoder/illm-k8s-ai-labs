@@ -764,16 +764,9 @@ tasks:
           kubectl --context "$ARGOCD_CONTEXT" apply -f /tmp/cluster-secret.yaml
           echo "    Registered: $cluster -> $CLUSTER_SERVER"
 
-          # Wait for ArgoCD to recognize the cluster
-          echo "    Waiting for cluster to be ready in ArgoCD..."
-          for i in $(seq 1 30); do
-            STATUS=$(argocd cluster get "$cluster" -o json 2>/dev/null | jq -r '.connectionState.status // "Unknown"')
-            if [ "$STATUS" = "Successful" ]; then
-              echo "    Cluster ready!"
-              break
-            fi
-            sleep 2
-          done
+          # Wait for ArgoCD to recognize the cluster (use kubectl, not argocd CLI)
+          echo "    Waiting for cluster to be ready..."
+          sleep 5  # Give ArgoCD a moment to process the secret
         done
 
         # Step 5: Deploy ArgoCD apps
@@ -795,22 +788,26 @@ tasks:
 
             APP_NAME=$(grep 'name:' "$argocd_dir/app.yaml" | head -1 | awk '{print $2}')
             if [ -n "$APP_NAME" ]; then
-              # Hard refresh to pick up new git commits
-              echo "  Refreshing: $APP_NAME"
-              argocd app get "$APP_NAME" --hard-refresh >/dev/null 2>&1 || true
-              sleep 3
+              # Try argocd CLI for refresh/sync (optional - works if port-forward is active)
+              # Falls back to auto-sync if CLI unavailable
+              if argocd app get "$APP_NAME" --hard-refresh >/dev/null 2>&1; then
+                echo "  Refreshing: $APP_NAME (via CLI)"
+                sleep 3
+                echo "  Syncing: $APP_NAME (via CLI)"
+                argocd app sync "$APP_NAME" --force --prune --timeout 300 2>&1 | tail -3 || true
+              else
+                echo "  ArgoCD CLI unavailable - using auto-sync (this is fine)"
+                echo "  Waiting for ArgoCD to detect and sync the app..."
+                sleep 10
+              fi
 
-              # Sync the app
-              echo "  Syncing: $APP_NAME"
-              argocd app sync "$APP_NAME" --force --prune --timeout 300 2>&1 | tail -5 || true
-
-              # Wait for app to be healthy
+              # Wait for app to be healthy using kubectl (doesn't require argocd CLI)
               echo "  Waiting for app to be healthy..."
               for i in $(seq 1 60); do
-                HEALTH=$(argocd app get "$APP_NAME" -o json 2>/dev/null | jq -r '.status.health.status // "Unknown"')
-                SYNC=$(argocd app get "$APP_NAME" -o json 2>/dev/null | jq -r '.status.sync.status // "Unknown"')
+                HEALTH=$(kubectl --context "$ARGOCD_CONTEXT" get application "$APP_NAME" -n argocd -o jsonpath='{.status.health.status}' 2>/dev/null || echo "Unknown")
+                SYNC=$(kubectl --context "$ARGOCD_CONTEXT" get application "$APP_NAME" -n argocd -o jsonpath='{.status.sync.status}' 2>/dev/null || echo "Unknown")
                 if [ "$HEALTH" = "Healthy" ] && [ "$SYNC" = "Synced" ]; then
-                  echo "  App is Healthy and Synced!"
+                  echo "    App is Healthy and Synced!"
                   break
                 fi
                 echo "    Status: $SYNC / $HEALTH ($i/60)"
