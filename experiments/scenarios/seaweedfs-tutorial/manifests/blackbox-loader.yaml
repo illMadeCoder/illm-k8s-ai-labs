@@ -140,17 +140,17 @@ spec:
     spec:
       containers:
         - name: loader
-          image: curlimages/curl:8.5.0
+          image: alpine:3.19
           command: ["/bin/sh", "-c"]
           args:
             - |
-              apk add --no-cache bash bc
-              /scripts/loader.sh
+              apk add --no-cache bash curl bc
+              bash /scripts/loader.sh
           env:
             - name: SEAWEED_FILER
               value: "seaweedfs-filer:8888"
             - name: SENSOR_COUNT
-              value: "100000"
+              value: "10000"
           volumeMounts:
             - name: scripts
               mountPath: /scripts
