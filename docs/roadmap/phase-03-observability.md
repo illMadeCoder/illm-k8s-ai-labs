@@ -38,6 +38,12 @@
   - [ ] Alertmanager routing and silences
   - [ ] Alert grouping and inhibition
 - [ ] Document PromQL patterns and anti-patterns
+- [x] **Explore TSDB alternatives:** (see ADR-009, `experiments/scenarios/tsdb-comparison/`)
+  - [x] Victoria Metrics (drop-in replacement, better compression)
+  - [x] Compare resource usage (Prometheus vs Victoria Metrics vs Mimir)
+  - [x] Mimir architecture overview (Grafana's distributed TSDB)
+  - [ ] InfluxDB comparison (different query language, use cases)
+  - [x] **ADR:** Document TSDB selection criteria (ADR-009)
 
 ---
 
@@ -59,17 +65,17 @@
 - Lower resource usage
 
 **Tasks:**
-- [ ] Create `experiments/scenarios/seaweedfs-tutorial/`
-- [ ] Deploy SeaweedFS (master + volume servers)
-- [ ] Understand the architecture:
-  - [ ] Master server (metadata, volume allocation)
-  - [ ] Volume servers (32GB volumes containing millions of files)
-  - [ ] Filer (optional filesystem layer)
-  - [ ] S3 Gateway (S3 API compatibility)
-- [ ] **Haystack demo: "Needle in a Haystack"**
-  - [ ] Store 100,000 small sensor readings
-  - [ ] Demonstrate O(1) lookup time (constant regardless of file count)
-  - [ ] Compare to filesystem degradation
+- [x] Create `experiments/scenarios/seaweedfs-tutorial/`
+- [x] Deploy SeaweedFS (master + volume servers)
+- [x] Understand the architecture:
+  - [x] Master server (metadata, volume allocation)
+  - [x] Volume servers (32GB volumes containing millions of files)
+  - [x] Filer (optional filesystem layer)
+  - [x] S3 Gateway (S3 API compatibility)
+- [x] **Haystack demo: "Needle in a Haystack"**
+  - [x] Store 10,000 small sensor readings (scaled down for Kind)
+  - [x] Demonstrate O(1) lookup time (constant regardless of file count)
+  - [x] Compare to filesystem degradation (LOSF benchmark)
   - [ ] Visualize volume packing
 - [ ] Configure S3 gateway:
   - [ ] Create buckets for observability
@@ -80,7 +86,7 @@
   - [ ] SeaweedFS metrics in Prometheus
   - [ ] Volume capacity dashboards
   - [ ] Alert on disk usage
-- [ ] Document object storage patterns
+- [x] Document object storage patterns (ADR-008)
 
 ---
 

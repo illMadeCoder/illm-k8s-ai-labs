@@ -1,0 +1,273 @@
+# TSDB Comparison Dashboard - Side-by-side resource usage
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: tsdb-comparison-dashboard
+  namespace: monitoring
+  labels:
+    grafana_dashboard: "1"
+data:
+  tsdb-comparison.json: |
+    {
+      "annotations": {
+        "list": []
+      },
+      "description": "Compare Prometheus vs Victoria Metrics vs Mimir resource usage",
+      "editable": true,
+      "fiscalYearStartMonth": 0,
+      "graphTooltip": 1,
+      "id": null,
+      "links": [],
+      "liveNow": false,
+      "panels": [
+        {
+          "gridPos": { "h": 2, "w": 24, "x": 0, "y": 0 },
+          "id": 1,
+          "options": {
+            "code": { "language": "plaintext", "showLineNumbers": false },
+            "content": "# TSDB Comparison: The Cardinality Crisis\n\nCompare resource usage across three time-series databases under identical workload.\nUse the cardinality-generator to scale from 1k to 50k series and observe the differences.",
+            "mode": "markdown"
+          },
+          "title": "",
+          "type": "text"
+        },
+        {
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 2 },
+          "id": 2,
+          "title": "Memory Usage",
+          "type": "row"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "palette-classic" },
+              "unit": "bytes"
+            }
+          },
+          "gridPos": { "h": 8, "w": 8, "x": 0, "y": 3 },
+          "id": 3,
+          "options": { "legend": { "displayMode": "list" } },
+          "targets": [
+            {
+              "expr": "container_memory_working_set_bytes{namespace=\"monitoring\", container=\"prometheus\"}",
+              "legendFormat": "Prometheus"
+            }
+          ],
+          "title": "Prometheus Memory",
+          "type": "timeseries"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "palette-classic" },
+              "unit": "bytes"
+            }
+          },
+          "gridPos": { "h": 8, "w": 8, "x": 8, "y": 3 },
+          "id": 4,
+          "options": { "legend": { "displayMode": "list" } },
+          "targets": [
+            {
+              "expr": "container_memory_working_set_bytes{namespace=\"victoria-metrics\", container=~\".*server.*\"}",
+              "legendFormat": "Victoria Metrics"
+            }
+          ],
+          "title": "Victoria Metrics Memory",
+          "type": "timeseries"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "palette-classic" },
+              "unit": "bytes"
+            }
+          },
+          "gridPos": { "h": 8, "w": 8, "x": 16, "y": 3 },
+          "id": 5,
+          "options": { "legend": { "displayMode": "list" } },
+          "targets": [
+            {
+              "expr": "sum(container_memory_working_set_bytes{namespace=\"mimir\"})",
+              "legendFormat": "Mimir (total)"
+            }
+          ],
+          "title": "Mimir Memory",
+          "type": "timeseries"
+        },
+        {
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 11 },
+          "id": 6,
+          "title": "CPU Usage",
+          "type": "row"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "palette-classic" },
+              "unit": "percentunit"
+            }
+          },
+          "gridPos": { "h": 8, "w": 8, "x": 0, "y": 12 },
+          "id": 7,
+          "targets": [
+            {
+              "expr": "rate(container_cpu_usage_seconds_total{namespace=\"monitoring\", container=\"prometheus\"}[5m])",
+              "legendFormat": "Prometheus"
+            }
+          ],
+          "title": "Prometheus CPU",
+          "type": "timeseries"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "palette-classic" },
+              "unit": "percentunit"
+            }
+          },
+          "gridPos": { "h": 8, "w": 8, "x": 8, "y": 12 },
+          "id": 8,
+          "targets": [
+            {
+              "expr": "rate(container_cpu_usage_seconds_total{namespace=\"victoria-metrics\", container=~\".*server.*\"}[5m])",
+              "legendFormat": "Victoria Metrics"
+            }
+          ],
+          "title": "Victoria Metrics CPU",
+          "type": "timeseries"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "palette-classic" },
+              "unit": "percentunit"
+            }
+          },
+          "gridPos": { "h": 8, "w": 8, "x": 16, "y": 12 },
+          "id": 9,
+          "targets": [
+            {
+              "expr": "sum(rate(container_cpu_usage_seconds_total{namespace=\"mimir\"}[5m]))",
+              "legendFormat": "Mimir (total)"
+            }
+          ],
+          "title": "Mimir CPU",
+          "type": "timeseries"
+        },
+        {
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 20 },
+          "id": 10,
+          "title": "Active Time Series",
+          "type": "row"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "palette-classic" },
+              "unit": "short"
+            }
+          },
+          "gridPos": { "h": 8, "w": 8, "x": 0, "y": 21 },
+          "id": 11,
+          "targets": [
+            {
+              "expr": "prometheus_tsdb_head_series",
+              "legendFormat": "Prometheus"
+            }
+          ],
+          "title": "Prometheus Active Series",
+          "type": "stat"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "VictoriaMetrics" },
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "palette-classic" },
+              "unit": "short"
+            }
+          },
+          "gridPos": { "h": 8, "w": 8, "x": 8, "y": 21 },
+          "id": 12,
+          "targets": [
+            {
+              "expr": "vm_rows{type=\"indexdb\"}",
+              "legendFormat": "Victoria Metrics"
+            }
+          ],
+          "title": "Victoria Metrics Active Series",
+          "type": "stat"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "Mimir" },
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "palette-classic" },
+              "unit": "short"
+            }
+          },
+          "gridPos": { "h": 8, "w": 8, "x": 16, "y": 21 },
+          "id": 13,
+          "targets": [
+            {
+              "expr": "cortex_ingester_active_series",
+              "legendFormat": "Mimir"
+            }
+          ],
+          "title": "Mimir Active Series",
+          "type": "stat"
+        },
+        {
+          "gridPos": { "h": 1, "w": 24, "x": 0, "y": 29 },
+          "id": 14,
+          "title": "Architecture Comparison",
+          "type": "row"
+        },
+        {
+          "gridPos": { "h": 10, "w": 8, "x": 0, "y": 30 },
+          "id": 15,
+          "options": {
+            "content": "## Prometheus\n\n**Architecture**: Single-node, local TSDB\n\n**Storage**: 2-hour blocks on local disk\n\n**Strengths**:\n- Simple to operate\n- Industry standard\n- Huge ecosystem\n\n**Weaknesses**:\n- Vertical scaling only\n- No native HA\n- Needs Thanos for long-term",
+            "mode": "markdown"
+          },
+          "title": "Prometheus",
+          "type": "text"
+        },
+        {
+          "gridPos": { "h": 10, "w": 8, "x": 8, "y": 30 },
+          "id": 16,
+          "options": {
+            "content": "## Victoria Metrics\n\n**Architecture**: Merge-tree storage engine\n\n**Storage**: Compressed blocks, efficient encoding\n\n**Strengths**:\n- 5-10x better compression\n- Lower memory usage\n- Drop-in Prometheus replacement\n- MetricsQL extensions\n\n**Weaknesses**:\n- Smaller community\n- Eventual consistency",
+            "mode": "markdown"
+          },
+          "title": "Victoria Metrics",
+          "type": "text"
+        },
+        {
+          "gridPos": { "h": 10, "w": 8, "x": 16, "y": 30 },
+          "id": 17,
+          "options": {
+            "content": "## Mimir\n\n**Architecture**: Distributed, multi-tenant\n\n**Storage**: Object storage (S3) backend\n\n**Strengths**:\n- Horizontally scalable\n- Multi-tenant\n- Unlimited retention\n- Grafana integration\n\n**Weaknesses**:\n- More complex to operate\n- Requires object storage\n- Higher baseline resources",
+            "mode": "markdown"
+          },
+          "title": "Mimir",
+          "type": "text"
+        }
+      ],
+      "refresh": "10s",
+      "schemaVersion": 38,
+      "tags": ["tsdb", "comparison", "tutorial"],
+      "templating": { "list": [] },
+      "time": { "from": "now-15m", "to": "now" },
+      "timepicker": {},
+      "timezone": "browser",
+      "title": "TSDB Comparison",
+      "uid": "tsdb-comparison",
+      "version": 1
+    }

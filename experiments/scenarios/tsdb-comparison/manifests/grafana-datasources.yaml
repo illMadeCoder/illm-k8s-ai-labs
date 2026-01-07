@@ -1,0 +1,34 @@
+# Additional Grafana datasources for Victoria Metrics and Mimir
+# Prometheus datasource is configured by kube-prometheus-stack
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: grafana-datasources-tsdb
+  namespace: monitoring
+  labels:
+    grafana_datasource: "1"
+data:
+  datasources.yaml: |
+    apiVersion: 1
+    datasources:
+      # Victoria Metrics - efficient single-node TSDB
+      - name: VictoriaMetrics
+        type: prometheus
+        access: proxy
+        url: http://victoria-metrics-victoria-metrics-single-server.victoria-metrics.svc:8428
+        isDefault: false
+        editable: true
+        jsonData:
+          httpMethod: POST
+          timeInterval: "15s"
+
+      # Mimir - distributed, horizontally-scalable TSDB
+      - name: Mimir
+        type: prometheus
+        access: proxy
+        url: http://mimir-gateway.mimir.svc:80/prometheus
+        isDefault: false
+        editable: true
+        jsonData:
+          httpMethod: POST
+          timeInterval: "15s"

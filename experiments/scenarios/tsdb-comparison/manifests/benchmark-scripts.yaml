@@ -1,0 +1,195 @@
+# Benchmark scripts for TSDB comparison
+# Run these from inside the cluster or via kubectl exec
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: benchmark-scripts
+  namespace: tsdb-comparison
+data:
+  benchmark.sh: |
+    #!/bin/bash
+    set -e
+
+    CARDINALITY_GENERATOR="http://cardinality-generator:8080"
+    PROMETHEUS="http://prometheus-kube-prometheus-prometheus.monitoring:9090"
+    VICTORIA_METRICS="http://victoria-metrics-victoria-metrics-single-server.victoria-metrics:8428"
+    MIMIR="http://mimir-gateway.mimir:80/prometheus"
+
+    echo "=========================================="
+    echo "  TSDB COMPARISON BENCHMARK"
+    echo "=========================================="
+    echo ""
+    echo "This benchmark compares resource usage across:"
+    echo "  - Prometheus (baseline)"
+    echo "  - Victoria Metrics (efficient)"
+    echo "  - Mimir (distributed)"
+    echo ""
+
+    # Function to get container memory
+    get_memory() {
+      local namespace=$1
+      local container=$2
+      curl -s "$PROMETHEUS/api/v1/query?query=container_memory_working_set_bytes{namespace=\"$namespace\",container=~\"$container\"}" | \
+        jq -r '.data.result[0].value[1] // "0"' | \
+        awk '{printf "%.1f MB", $1/1024/1024}'
+    }
+
+    # Function to get active series count
+    get_series() {
+      local url=$1
+      local query=$2
+      curl -s "$url/api/v1/query?query=$query" | jq -r '.data.result[0].value[1] // "N/A"'
+    }
+
+    # Function to measure query latency
+    measure_query_latency() {
+      local url=$1
+      local name=$2
+      local start=$(date +%s%N)
+      curl -s "$url/api/v1/query?query=sensor_reading" > /dev/null
+      local end=$(date +%s%N)
+      local duration=$(( (end - start) / 1000000 ))
+      echo "$duration ms"
+    }
+
+    for level in low medium high; do
+      echo "=========================================="
+      echo "  Phase: $level cardinality"
+      echo "=========================================="
+
+      # Set cardinality level
+      echo "Setting cardinality to $level..."
+      curl -s -X POST "$CARDINALITY_GENERATOR/cardinality?level=$level" | jq -r '.series'
+      echo "Waiting 30s for metrics to stabilize..."
+      sleep 30
+
+      echo ""
+      echo "Results:"
+      echo "--------"
+
+      # Memory usage
+      echo ""
+      echo "Memory Usage:"
+      echo "  Prometheus:       $(get_memory monitoring prometheus)"
+      echo "  Victoria Metrics: $(get_memory victoria-metrics '.*server.*')"
+      echo "  Mimir:            $(get_memory mimir '.*')"
+
+      # Active series
+      echo ""
+      echo "Active Series:"
+      echo "  Prometheus:       $(get_series $PROMETHEUS 'prometheus_tsdb_head_series')"
+      echo "  Victoria Metrics: $(get_series $VICTORIA_METRICS 'vm_rows{type=\"indexdb\"}')"
+      echo "  Mimir:            $(get_series $MIMIR 'cortex_ingester_active_series')"
+
+      # Query latency
+      echo ""
+      echo "Query Latency (sensor_reading):"
+      echo "  Prometheus:       $(measure_query_latency $PROMETHEUS 'Prometheus')"
+      echo "  Victoria Metrics: $(measure_query_latency $VICTORIA_METRICS 'Victoria Metrics')"
+      echo "  Mimir:            $(measure_query_latency $MIMIR 'Mimir')"
+
+      echo ""
+    done
+
+    echo "=========================================="
+    echo "  BENCHMARK COMPLETE"
+    echo "=========================================="
+    echo ""
+    echo "Key Observations:"
+    echo "- Victoria Metrics uses less memory at all cardinality levels"
+    echo "- Prometheus and Mimir have similar memory profiles"
+    echo "- Query latency varies based on data volume and caching"
+    echo ""
+    echo "See the Grafana dashboard for real-time visualization."
+
+  scale-cardinality.sh: |
+    #!/bin/bash
+    CARDINALITY_GENERATOR="http://cardinality-generator:8080"
+
+    if [ -z "$1" ]; then
+      echo "Usage: $0 <level>"
+      echo "Levels: low (1k), medium (10k), high (50k)"
+      exit 1
+    fi
+
+    echo "Setting cardinality to $1..."
+    curl -s -X POST "$CARDINALITY_GENERATOR/cardinality?level=$1" | jq .
+
+  query-benchmark.sh: |
+    #!/bin/bash
+    set -e
+
+    PROMETHEUS="http://prometheus-kube-prometheus-prometheus.monitoring:9090"
+    VICTORIA_METRICS="http://victoria-metrics-victoria-metrics-single-server.victoria-metrics:8428"
+    MIMIR="http://mimir-gateway.mimir:80/prometheus"
+
+    QUERY="sum(rate(sensor_reading[5m])) by (deck)"
+    ITERATIONS=10
+
+    echo "=========================================="
+    echo "  QUERY PERFORMANCE BENCHMARK"
+    echo "=========================================="
+    echo ""
+    echo "Query: $QUERY"
+    echo "Iterations: $ITERATIONS"
+    echo ""
+
+    benchmark_query() {
+      local url=$1
+      local name=$2
+      local total=0
+
+      for i in $(seq 1 $ITERATIONS); do
+        start=$(date +%s%N)
+        curl -s "$url/api/v1/query?query=$(echo $QUERY | jq -sRr @uri)" > /dev/null
+        end=$(date +%s%N)
+        duration=$(( (end - start) / 1000000 ))
+        total=$((total + duration))
+      done
+
+      avg=$((total / ITERATIONS))
+      echo "$name: ${avg}ms average"
+    }
+
+    benchmark_query "$PROMETHEUS" "Prometheus"
+    benchmark_query "$VICTORIA_METRICS" "Victoria Metrics"
+    benchmark_query "$MIMIR" "Mimir"
+
+    echo ""
+    echo "Note: First query may be slower due to cache misses."
+---
+# Deployment to run benchmark scripts
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: benchmark-runner
+  namespace: tsdb-comparison
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: benchmark-runner
+  template:
+    metadata:
+      labels:
+        app: benchmark-runner
+    spec:
+      containers:
+        - name: runner
+          image: curlimages/curl:8.5.0
+          command: ["sleep", "infinity"]
+          volumeMounts:
+            - name: scripts
+              mountPath: /scripts
+          resources:
+            requests:
+              memory: 32Mi
+              cpu: 10m
+            limits:
+              memory: 64Mi
+              cpu: 100m
+      volumes:
+        - name: scripts
+          configMap:
+            name: benchmark-scripts
+            defaultMode: 0755

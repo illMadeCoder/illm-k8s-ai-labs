@@ -1,0 +1,107 @@
+# kube-prometheus-stack values for TSDB comparison tutorial
+# Minimal configuration to run alongside Victoria Metrics and Mimir
+
+# Prometheus configuration
+prometheus:
+  prometheusSpec:
+    # Same retention as other TSDBs
+    retention: 2h
+
+    # Resources - baseline for comparison
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+
+    # Ephemeral storage
+    storageSpec: {}
+
+    # Discover ServiceMonitors in all namespaces
+    serviceMonitorSelectorNilUsesHelmValues: false
+    podMonitorSelectorNilUsesHelmValues: false
+    ruleSelectorNilUsesHelmValues: false
+
+    # Scrape interval - same as other TSDBs
+    scrapeInterval: 15s
+    evaluationInterval: 15s
+
+  service:
+    type: LoadBalancer
+
+# Grafana - shared across all TSDBs
+grafana:
+  enabled: true
+  adminPassword: admin
+
+  service:
+    type: LoadBalancer
+
+  # Will add additional datasources via ConfigMap
+  additionalDataSources: []
+
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+
+# Alertmanager - minimal
+alertmanager:
+  enabled: true
+  alertmanagerSpec:
+    resources:
+      requests:
+        cpu: 10m
+        memory: 32Mi
+      limits:
+        cpu: 100m
+        memory: 128Mi
+
+# Prometheus Operator
+prometheusOperator:
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+
+  # Disable TLS for simplicity in tutorial
+  tls:
+    enabled: false
+  admissionWebhooks:
+    enabled: false
+
+# Node exporter - for cluster metrics
+nodeExporter:
+  enabled: true
+
+# kube-state-metrics - for Kubernetes object metrics
+kubeStateMetrics:
+  enabled: true
+
+# Disable components not needed for TSDB comparison
+kubeApiServer:
+  enabled: false
+kubelet:
+  enabled: false
+kubeControllerManager:
+  enabled: false
+coreDns:
+  enabled: false
+kubeEtcd:
+  enabled: false
+kubeScheduler:
+  enabled: false
+kubeProxy:
+  enabled: false
+
+# Default rules - disable to reduce noise
+defaultRules:
+  create: false

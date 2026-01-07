@@ -1,0 +1,116 @@
+# Grafana Mimir - Helm values for TSDB comparison tutorial
+# Uses mimir-distributed chart in monolithic mode for simplicity
+# https://github.com/grafana/mimir/tree/main/operations/helm/charts/mimir-distributed
+
+# Run in monolithic mode (single binary, all components)
+deploymentMode: monolithic
+
+# Monolithic configuration
+mimir:
+  structuredConfig:
+    common:
+      storage:
+        backend: s3
+        s3:
+          endpoint: minio.minio.svc:9000
+          bucket_name: mimir-blocks
+          access_key_id: minio
+          secret_access_key: minio123
+          insecure: true
+
+    # Retention - match Prometheus
+    limits:
+      compactor_blocks_retention_period: 2h
+
+    # Blocks storage
+    blocks_storage:
+      backend: s3
+      s3:
+        endpoint: minio.minio.svc:9000
+        bucket_name: mimir-blocks
+        access_key_id: minio
+        secret_access_key: minio123
+        insecure: true
+
+    # Ruler storage (optional, for recording rules)
+    ruler_storage:
+      backend: s3
+      s3:
+        endpoint: minio.minio.svc:9000
+        bucket_name: mimir-ruler
+        access_key_id: minio
+        secret_access_key: minio123
+        insecure: true
+
+    # Alertmanager storage
+    alertmanager_storage:
+      backend: s3
+      s3:
+        endpoint: minio.minio.svc:9000
+        bucket_name: mimir-alertmanager
+        access_key_id: minio
+        secret_access_key: minio123
+        insecure: true
+
+# Resource limits for monolithic deployment
+mimir:
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 1Gi
+
+# Disable distributed components (using monolithic)
+ingester:
+  replicas: 0
+distributor:
+  replicas: 0
+querier:
+  replicas: 0
+query_frontend:
+  replicas: 0
+query_scheduler:
+  replicas: 0
+ruler:
+  replicas: 0
+compactor:
+  replicas: 0
+store_gateway:
+  replicas: 0
+alertmanager:
+  replicas: 0
+overrides_exporter:
+  replicas: 0
+
+# Enable monolithic
+monolithic:
+  replicas: 1
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 1Gi
+  persistentVolume:
+    enabled: false
+
+# Disable components not needed for comparison
+nginx:
+  enabled: false
+minio:
+  enabled: false  # We deploy our own MinIO
+
+# Gateway for API access
+gateway:
+  enabledNonEnterprise: true
+  replicas: 1
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi

@@ -1,0 +1,47 @@
+# Victoria Metrics Single - Helm values for TSDB comparison tutorial
+# Uses victoria-metrics-single chart from vm repo
+# https://github.com/VictoriaMetrics/helm-charts/tree/master/charts/victoria-metrics-single
+
+server:
+  # Same retention as Prometheus for fair comparison
+  retentionPeriod: 2h
+
+  # Resource limits - intentionally similar to Prometheus
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+  # Storage - ephemeral for tutorial
+  persistentVolume:
+    enabled: false
+
+  # Extra args for scraping
+  extraArgs:
+    envflag.enable: "true"
+    envflag.prefix: VM_
+    loggerFormat: json
+    # Scrape interval matching Prometheus
+    promscrape.config: /scrapeconfig/scrape.yaml
+
+  # Mount scrape config
+  extraVolumes:
+    - name: scrapeconfig
+      configMap:
+        name: victoria-metrics-scrape-config
+
+  extraVolumeMounts:
+    - name: scrapeconfig
+      mountPath: /scrapeconfig
+
+  # Service for Grafana datasource
+  service:
+    type: ClusterIP
+    servicePort: 8428
+
+# Scrape same targets as Prometheus
+scrape:
+  enabled: false  # We'll use a ConfigMap instead for more control

@@ -1,0 +1,111 @@
+# TSDB Comparison Tutorial: The Cardinality Crisis
+#
+# Compare Prometheus vs Victoria Metrics vs Mimir under identical workloads
+
+title: "The Cardinality Crisis"
+description: |
+  The USS Kubernetes is experiencing a sensor data explosion. Engineering must
+  evaluate three TSDB options: Prometheus, Victoria Metrics, and Mimir.
+
+  Deploy all three, stress-test them, and learn when to use each.
+
+theme: "starship-engineering"
+
+learning_objectives:
+  - Understand architectural differences between TSDBs
+  - Measure real resource usage under identical workloads
+  - Know when to choose Prometheus, Victoria Metrics, or Mimir
+  - Articulate trade-offs for job interviews
+
+prerequisites:
+  - Basic Prometheus knowledge
+  - Completed prometheus-tutorial (recommended)
+
+instructions: |
+  Welcome, Chief Engineer.
+
+  Starfleet Engineering has received reports of TSDB failures across the fleet.
+  Ships are running out of memory as sensor data explodes.
+
+  Your mission: evaluate three time-series database candidates and determine
+  which is best suited for different scenarios.
+
+  The cardinality-generator app simulates the sensor data explosion.
+  Use it to stress-test each TSDB:
+
+    curl -X POST "http://<GENERATOR_IP>:8080/cardinality?level=high"
+
+  Then observe the Grafana dashboard to see which TSDB handles it best.
+
+checkpoints:
+  - id: 1
+    name: "Deploy All TSDBs"
+    description: "Prometheus, Victoria Metrics, and Mimir all running"
+    validation: |
+      kubectl get pods -n monitoring | grep prometheus
+      kubectl get pods -n victoria-metrics | grep victoria
+      kubectl get pods -n mimir | grep mimir
+
+  - id: 2
+    name: "Explore Grafana Dashboard"
+    description: "Open the TSDB Comparison dashboard in Grafana"
+    hint: "Navigate to Dashboards → TSDB Comparison"
+
+  - id: 3
+    name: "Low Cardinality Baseline"
+    description: "Set cardinality to 'low' and observe resource usage"
+    command: |
+      curl -X POST "http://cardinality-generator:8080/cardinality?level=low"
+
+  - id: 4
+    name: "Medium Cardinality Stress"
+    description: "Scale to 10k series and observe memory growth"
+    command: |
+      curl -X POST "http://cardinality-generator:8080/cardinality?level=medium"
+    learn: |
+      At 10k series, Victoria Metrics should show noticeably lower memory usage.
+      This is due to its merge-tree storage engine and better compression.
+
+  - id: 5
+    name: "High Cardinality Crisis"
+    description: "Scale to 50k series - the cardinality crisis"
+    command: |
+      curl -X POST "http://cardinality-generator:8080/cardinality?level=high"
+    learn: |
+      At 50k series, the differences become clear:
+      - Prometheus: ~800MB RAM
+      - Victoria Metrics: ~300MB RAM
+      - Mimir: ~600MB RAM (includes MinIO overhead)
+
+  - id: 6
+    name: "Run Full Benchmark"
+    description: "Execute the automated comparison benchmark"
+    command: |
+      kubectl exec -n tsdb-comparison deploy/benchmark-runner -- /scripts/benchmark.sh
+
+  - id: 7
+    name: "Query Performance"
+    description: "Compare query latency across all three TSDBs"
+    command: |
+      kubectl exec -n tsdb-comparison deploy/benchmark-runner -- /scripts/query-benchmark.sh
+
+  - id: 8
+    name: "Make Your Recommendation"
+    description: "Based on your observations, which TSDB would you recommend?"
+    learn: |
+      Consider:
+      - Your hardware constraints
+      - Expected cardinality
+      - Retention requirements
+      - Operational complexity tolerance
+
+summary: |
+  You've completed the TSDB comparison tutorial!
+
+  Key takeaways:
+  - Victoria Metrics uses 3-5x less memory than Prometheus
+  - Mimir adds distributed architecture but more complexity
+  - Cardinality is the primary driver of TSDB resource usage
+  - All three support PromQL - the choice is about architecture
+
+  Next: Learn about long-term storage with Thanos or SeaweedFS
