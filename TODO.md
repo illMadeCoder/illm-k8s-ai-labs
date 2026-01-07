@@ -115,7 +115,7 @@ Complexity          Validate                 Synthesis
 ## Current Focus
 
 **Phase 1: Platform Bootstrap**
-- [x] Create `hub/` directory structure
+- [x] Create `platforms/hub/` directory structure
 - [x] Create ArgoCD bootstrap values with app-of-apps reference
 - [x] Create Kind app-of-apps with ArgoCD self-management
 - [x] Add MetalLB to Kind app-of-apps

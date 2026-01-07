@@ -23,7 +23,7 @@ spec:
   source:
     repoURL: https://github.com/illMadeCoder/illm-k8s-ai-labs.git
     targetRevision: HEAD
-    path: hub/app-of-apps/kind/manifests/metallb-config
+    path: platforms/hub/app-of-apps/kind/manifests/metallb-config
   destination:
     server: https://kubernetes.default.svc
     namespace: metallb-system

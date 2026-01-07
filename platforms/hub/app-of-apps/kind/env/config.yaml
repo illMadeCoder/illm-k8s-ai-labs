@@ -25,7 +25,7 @@
 # ArgoCD LoadBalancer IP
 # Files:
 #   - values/argocd.yaml (loadBalancerIP)
-#   - hub/bootstrap/argocd-values-kind.yaml (loadBalancerIP)
+#   - platforms/hub/bootstrap/argocd-values-kind.yaml (loadBalancerIP)
 # Value: 172.19.255.201
 
 # ============================================================================

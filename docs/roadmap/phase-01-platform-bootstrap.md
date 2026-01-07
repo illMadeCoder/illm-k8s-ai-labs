@@ -119,21 +119,21 @@ git push → GitHub webhook → Cloudflare Tunnel → ArgoCD → sync
 
 **Directory Structure:**
 ```
-hub/
-├── bootstrap/
-│   ├── argocd-values-kind.yaml        # ArgoCD + app-of-apps reference
-│   └── hub-application.yaml           # Root app-of-apps
-└── app-of-apps/
-    ├── kind/                          # Kind hub services
-    │   ├── argocd.yaml                # ArgoCD self-manages
-    │   ├── argo-workflows.yaml        # Experiment orchestration
-    │   ├── metallb.yaml               # LoadBalancer
-    │   ├── dns-stack.yaml             # k8s_gateway for DNS
-    │   └── values/
-    └── talos/                         # Talos hub services (future)
-
-kind/
-└── Taskfile.yaml                      # task kind:bootstrap, kind:conduct, etc.
+platforms/
+├── hub/
+│   ├── bootstrap/
+│   │   ├── argocd-values-kind.yaml    # ArgoCD + app-of-apps reference
+│   │   └── hub-application.yaml       # Root app-of-apps
+│   └── app-of-apps/
+│       ├── kind/                      # Kind hub services
+│       │   ├── argocd.yaml            # ArgoCD self-manages
+│       │   ├── argo-workflows.yaml    # Experiment orchestration
+│       │   ├── metallb.yaml           # LoadBalancer
+│       │   ├── dns-stack.yaml         # k8s_gateway for DNS
+│       │   └── values/
+│       └── talos/                     # Talos hub services (future)
+└── kind/
+    └── Taskfile.yaml                  # task kind:bootstrap, kind:conduct, etc.
 
 experiments/scenarios/<experiment-name>/
 ├── orchestrator/                      # Orchestrator cluster config
@@ -156,7 +156,7 @@ task talos:bootstrap
 ```
 
 **Tasks (in order):**
-1. [x] Create `hub/` directory structure
+1. [x] Create `platforms/hub/` directory structure
 2. [x] Create ArgoCD bootstrap values with app-of-apps reference
 3. [x] Create Kind app-of-apps with ArgoCD self-management
 4. [x] Add MetalLB to Kind app-of-apps

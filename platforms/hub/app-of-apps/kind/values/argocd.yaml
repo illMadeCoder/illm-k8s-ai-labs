@@ -6,7 +6,7 @@
 # ENVIRONMENT CONFIG: If changing Kind network, also update:
 #   - manifests/metallb-config/kustomization.yaml (POOL_RANGE)
 #   - values/dns-stack.yaml (loadBalancerIP)
-#   - hub/bootstrap/argocd-values-kind.yaml (loadBalancerIP)
+#   - platforms/hub/bootstrap/argocd-values-kind.yaml (loadBalancerIP)
 #   - platforms/kind/Taskfile.yaml (DNS_IP)
 
 server:

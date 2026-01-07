@@ -44,10 +44,12 @@ task kind:delete
 ## Project Structure
 
 ```
-├── hub/                    # Hub cluster configuration
-│   ├── app-of-apps/        # ArgoCD application-of-apps pattern
-│   │   └── kind/           # Kind-specific apps and values
-│   └── bootstrap/          # Initial cluster setup
+├── platforms/
+│   ├── hub/                # Hub cluster configuration (GitOps root)
+│   │   ├── app-of-apps/    # ArgoCD application-of-apps pattern
+│   │   │   └── kind/       # Kind-specific apps and values
+│   │   └── bootstrap/      # Initial cluster setup
+│   └── kind/               # Kind cluster tasks and config
 │
 ├── experiments/
 │   ├── scenarios/          # Runnable experiments
@@ -58,9 +60,6 @@ task kind:delete
 │       ├── observability/  # Prometheus, Grafana, Loki
 │       ├── testing/        # k6, Argo Workflows
 │       └── ...
-│
-├── platforms/
-│   └── kind/               # Kind cluster tasks and config
 │
 └── docs/
     ├── adrs/               # Architecture Decision Records

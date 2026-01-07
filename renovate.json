@@ -37,7 +37,7 @@
     {
       "description": "Helm chart versions in ArgoCD Applications",
       "matchManagers": ["regex"],
-      "matchFileNames": ["hub/app-of-apps/**/*.yaml"],
+      "matchFileNames": ["platforms/hub/app-of-apps/**/*.yaml"],
       "labels": ["dependencies", "helm"]
     },
     {
@@ -51,7 +51,7 @@
     {
       "customType": "regex",
       "description": "Helm chart versions in ArgoCD Applications",
-      "fileMatch": ["hub/app-of-apps/.*\\.yaml$"],
+      "fileMatch": ["platforms/hub/app-of-apps/.*\\.yaml$"],
       "matchStrings": [
         "chart:\\s*(?<depName>[^\\s]+)\\s+targetRevision:\\s*(?<currentValue>[^\\s]+)"
       ],
@@ -60,7 +60,7 @@
     {
       "customType": "regex",
       "description": "Helm chart versions (repoURL + targetRevision pattern)",
-      "fileMatch": ["hub/app-of-apps/.*\\.yaml$"],
+      "fileMatch": ["platforms/hub/app-of-apps/.*\\.yaml$"],
       "matchStrings": [
         "repoURL:\\s*https://(?<registryUrl>[^/]+)/(?<depName>[^\\s]+)\\s+chart:\\s*[^\\s]+\\s+targetRevision:\\s*(?<currentValue>[^\\s]+)"
       ],

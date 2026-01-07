@@ -17,10 +17,10 @@ vars:
   HUB_CLUSTER: hub
   ARGOCD_NAMESPACE: argocd
   # ENVIRONMENT CONFIG: If changing Kind network, also update:
-  #   - hub/app-of-apps/kind/manifests/metallb-config/kustomization.yaml (POOL_RANGE)
-  #   - hub/app-of-apps/kind/values/dns-stack.yaml (loadBalancerIP)
-  #   - hub/app-of-apps/kind/values/argocd.yaml (loadBalancerIP)
-  #   - hub/bootstrap/argocd-values-kind.yaml (loadBalancerIP)
+  #   - platforms/hub/app-of-apps/kind/manifests/metallb-config/kustomization.yaml (POOL_RANGE)
+  #   - platforms/hub/app-of-apps/kind/values/dns-stack.yaml (loadBalancerIP)
+  #   - platforms/hub/app-of-apps/kind/values/argocd.yaml (loadBalancerIP)
+  #   - platforms/hub/bootstrap/argocd-values-kind.yaml (loadBalancerIP)
   DNS_IP: 172.19.255.200
   # OpenBao persistence (use $HOME instead of ~ for reliable expansion)
   OPENBAO_KEYS_FILE: $HOME/.illmlab/openbao-keys.json
@@ -51,10 +51,10 @@ tasks:
         helm repo update argo
         helm upgrade --install argocd argo/argo-cd \
           -n {{.ARGOCD_NAMESPACE}} --create-namespace \
-          -f hub/bootstrap/argocd-values-kind.yaml
+          -f platforms/hub/bootstrap/argocd-values-kind.yaml
       - |
         echo "=== Applying hub application ==="
-        kubectl apply -f hub/bootstrap/hub-application.yaml
+        kubectl apply -f platforms/hub/bootstrap/hub-application.yaml
       - |
         echo "=== Waiting for services ==="
         echo "Waiting for dns-stack to be healthy..."

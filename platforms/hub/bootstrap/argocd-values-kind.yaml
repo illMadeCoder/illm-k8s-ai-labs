@@ -1,0 +1,15 @@
+# ArgoCD values for Kind hub cluster (bootstrap only)
+#
+# Used by: task kind:bootstrap
+# After bootstrap, ArgoCD manages itself via platforms/hub/app-of-apps/kind/values/argocd.yaml
+#
+# ENVIRONMENT CONFIG: If changing Kind network, also update:
+#   - platforms/hub/app-of-apps/kind/manifests/metallb-config/kustomization.yaml (POOL_RANGE)
+#   - platforms/hub/app-of-apps/kind/values/argocd.yaml (loadBalancerIP)
+#   - platforms/hub/app-of-apps/kind/values/dns-stack.yaml (loadBalancerIP)
+#   - platforms/kind/Taskfile.yaml (DNS_IP)
+
+server:
+  service:
+    type: LoadBalancer
+    loadBalancerIP: 172.19.255.201  # ArgoCD gets .201, DNS gets .200

@@ -27,7 +27,7 @@ spec:
   source:
     repoURL: https://github.com/illMadeCoder/illm-k8s-ai-labs.git
     targetRevision: HEAD
-    path: hub/app-of-apps/kind/manifests/webhook-relay
+    path: platforms/hub/app-of-apps/kind/manifests/webhook-relay
   destination:
     server: https://kubernetes.default.svc
     namespace: argocd

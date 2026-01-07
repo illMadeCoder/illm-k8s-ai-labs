@@ -1,18 +1,13 @@
-# Kyverno Policies - Supply Chain Security
+# Hub root Application
 #
-# Deploys ClusterPolicies for:
-# - Image signature verification (keyless Cosign)
+# Applied after ArgoCD install to bootstrap GitOps.
+# ArgoCD syncs this, which creates all child Applications.
 
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: kyverno-policies
+  name: hub
   namespace: argocd
-  labels:
-    app.kubernetes.io/part-of: hub
-    environment: kind
-  annotations:
-    argocd.argoproj.io/sync-wave: "3"  # After Kyverno
   finalizers:
     - resources-finalizer.argocd.argoproj.io
 spec:
@@ -20,10 +15,12 @@ spec:
   source:
     repoURL: https://github.com/illMadeCoder/illm-k8s-ai-labs.git
     targetRevision: HEAD
-    path: hub/app-of-apps/kind/manifests/kyverno-policies
+    path: platforms/hub/app-of-apps/kind
+    directory:
+      recurse: false
   destination:
     server: https://kubernetes.default.svc
-    namespace: kyverno
+    namespace: argocd
   syncPolicy:
     automated:
       prune: true
