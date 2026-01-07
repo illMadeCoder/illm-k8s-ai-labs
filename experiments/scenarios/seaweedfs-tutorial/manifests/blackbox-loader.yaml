@@ -91,23 +91,7 @@ data:
     # Store a "needle" - the critical reading from Sector 12 incident
     NEEDLE_STARDATE="47634.44"
     echo "Storing the 'needle' - critical Sector 12 reading..."
-    cat > /tmp/needle.json <<EOF
-{
-  "stardate": "$NEEDLE_STARDATE",
-  "sensor_id": "SEN-CRITICAL",
-  "sector": 12,
-  "alert": "ANOMALY DETECTED",
-  "readings": {
-    "temperature": 9999,
-    "radiation": 50000,
-    "hull_integrity": 45,
-    "warp_field": 0.00,
-    "beacon_signal": "STRONG"
-  },
-  "message": "You found the needle in the haystack!",
-  "timestamp": "2377-05-23T14:32:00Z"
-}
-EOF
+    printf '{"stardate":"%s","sensor_id":"SEN-CRITICAL","sector":12,"alert":"ANOMALY DETECTED","readings":{"temperature":9999,"radiation":50000,"hull_integrity":45,"warp_field":0.00,"beacon_signal":"STRONG"},"message":"You found the needle in the haystack!","timestamp":"2377-05-23T14:32:00Z"}' "$NEEDLE_STARDATE" > /tmp/needle.json
     curl -s -F "file=@/tmp/needle.json" "http://$SEAWEED_FILER/blackbox/sensors/${NEEDLE_STARDATE}.json"
 
     echo ""

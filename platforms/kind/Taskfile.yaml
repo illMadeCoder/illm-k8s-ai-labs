@@ -8,8 +8,9 @@ version: '3'
 #   task kind:status                 # Show hub status
 #   task kind:password               # Get ArgoCD password
 #   task kind:list                   # List experiments
-#   task kind:conduct -- <name>      # Run experiment
-#   task kind:teardown -- <name>     # Destroy experiment clusters
+#   task kind:conduct -- <name>      # Run experiment (interactive)
+#   task kind:up -- <name>           # Deploy experiment
+#   task kind:down -- <name>         # Destroy experiment clusters
 
 silent: true
 
@@ -385,17 +386,17 @@ tasks:
     cmds:
       - tree experiments/scenarios -L 1 -d --noreport 2>/dev/null || ls -d experiments/scenarios/*/
 
-  deploy:
-    desc: "Deploy experiment for interactive exploration: task kind:deploy -- <name>"
+  up:
+    desc: "Deploy experiment: task kind:up -- <name>"
     cmds:
       - task: _ensure-cloud-provider-kind
       - task: _ensure-dnsmasq
       - |
         if [ -z "{{.CLI_ARGS}}" ]; then
-          echo "Usage: task kind:deploy -- <experiment-name>"
+          echo "Usage: task kind:up -- <experiment-name>"
           echo ""
-          echo "Deploys experiment clusters and apps for interactive exploration."
-          echo "Use 'task kind:teardown -- <name>' to clean up when done."
+          echo "Deploys experiment clusters and apps."
+          echo "Use 'task kind:down -- <name>' to clean up when done."
           exit 1
         fi
 
@@ -565,7 +566,7 @@ tasks:
         done
 
         echo ""
-        echo "To clean up: task kind:teardown -- $EXP_NAME"
+        echo "To clean up: task kind:down -- $EXP_NAME"
         echo ""
 
   conduct:
@@ -971,12 +972,12 @@ tasks:
           echo "=============================================="
         fi
 
-  teardown:
-    desc: "Destroy experiment clusters: task kind:teardown -- <name>"
+  down:
+    desc: "Destroy experiment clusters: task kind:down -- <name>"
     cmds:
       - |
         if [ -z "{{.CLI_ARGS}}" ]; then
-          echo "Usage: task kind:teardown -- <experiment-name>"
+          echo "Usage: task kind:down -- <experiment-name>"
           exit 1
         fi
 
