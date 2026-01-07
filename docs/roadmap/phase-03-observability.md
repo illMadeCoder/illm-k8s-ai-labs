@@ -2,7 +2,9 @@
 
 *You need to see what's happening before you can improve it. These skills are used in every subsequent experiment.*
 
-### 4.1 Prometheus & Grafana Deep Dive
+*Section order follows the "three pillars" pattern: metrics → logs → traces, then SLOs once you understand what you're measuring.*
+
+### 3.1 Prometheus & Grafana Deep Dive
 
 **Goal:** Master metrics collection, PromQL, alerting, and dashboards
 
@@ -13,78 +15,37 @@
 - Configure alerting pipelines
 
 **Tasks:**
-- [ ] Create `experiments/scenarios/prometheus-tutorial/`
-- [ ] Deploy kube-prometheus-stack via ArgoCD
-- [ ] Build sample app with custom metrics:
-  - [ ] Counter (http_requests_total)
-  - [ ] Gauge (active_connections)
-  - [ ] Histogram (request_duration_seconds)
+- [x] Create `experiments/scenarios/prometheus-tutorial/`
+- [x] Deploy kube-prometheus-stack via ArgoCD
+- [x] Build sample app with custom metrics:
+  - [x] Counter (http_requests_total)
+  - [x] Gauge (active_connections)
+  - [x] Histogram (request_duration_seconds)
   - [ ] Summary (response_size_bytes)
-- [ ] Create ServiceMonitor for scrape discovery
-- [ ] Write PromQL tutorial queries:
-  - [ ] rate() and irate() for counters
-  - [ ] Aggregations (sum, avg, max by labels)
-  - [ ] histogram_quantile() for percentiles
+- [x] Create ServiceMonitor for scrape discovery
+- [x] Write PromQL tutorial queries:
+  - [x] rate() and irate() for counters
+  - [x] Aggregations (sum, avg, max by labels)
+  - [x] histogram_quantile() for percentiles
   - [ ] absent() for missing metric alerts
   - [ ] predict_linear() for capacity planning
-- [ ] Build Grafana dashboards:
-  - [ ] RED metrics (Rate, Errors, Duration)
+- [x] Build Grafana dashboards:
+  - [x] RED metrics (Rate, Errors, Duration)
   - [ ] USE metrics (Utilization, Saturation, Errors)
   - [ ] Dashboard variables and templating
 - [ ] Configure alerting:
-  - [ ] PrometheusRule CRDs
+  - [x] PrometheusRule CRDs
   - [ ] Alertmanager routing and silences
   - [ ] Alert grouping and inhibition
 - [ ] Document PromQL patterns and anti-patterns
 
 ---
 
-### 4.2 SLOs & Error Budgets
-
-**Goal:** Implement Service Level Objectives for reliability-driven operations
-
-*SLOs are taught early because they're used throughout: canary analysis, deployment decisions, capacity planning.*
-
-**Learning objectives:**
-- Understand SLI/SLO/SLA hierarchy
-- Implement error budget tracking
-- Use SLOs to drive architectural decisions
-
-**Tasks:**
-- [ ] Create `experiments/scenarios/slo-tutorial/`
-- [ ] Deploy SLO tooling:
-  - [ ] Sloth (SLO generator for Prometheus)
-  - [ ] Pyrra (SLO dashboards and alerts)
-- [ ] Define SLIs for demo application:
-  - [ ] Availability SLI (successful requests / total requests)
-  - [ ] Latency SLI (requests < threshold / total requests)
-  - [ ] Throughput SLI (if applicable)
-- [ ] Create SLO specifications:
-  - [ ] 99.9% availability (43.8 min/month error budget)
-  - [ ] 99% latency < 200ms
-  - [ ] Multi-window, multi-burn-rate alerts
-- [ ] Error budget tracking:
-  - [ ] Error budget remaining dashboard
-  - [ ] Burn rate visualization
-  - [ ] Budget depletion forecasting
-- [ ] SLO-driven alerting:
-  - [ ] Fast burn alerts (immediate action)
-  - [ ] Slow burn alerts (trending toward breach)
-  - [ ] Error budget exhaustion alerts
-- [ ] Operational integration:
-  - [ ] SLO review process
-  - [ ] Error budget policy (freeze deploys when exhausted)
-  - [ ] SLO-based incident prioritization
-- [ ] Document SLO patterns and anti-patterns
-- [ ] **ADR:** Document SLO strategy and target selection
-
----
-
-### 4.3 MinIO Object Storage
+### 3.2 MinIO Object Storage
 
 **Goal:** Deploy S3-compatible object storage as foundation for observability backends
 
-*MinIO is taught here because Loki, Thanos, Tempo, Velero, and Argo Workflows all need object storage.*
+*MinIO is taught early because Loki, Thanos, Tempo, Velero, and Argo Workflows all need object storage.*
 
 **Learning objectives:**
 - Understand MinIO architecture
@@ -106,7 +67,7 @@
   - [ ] `loki-chunks` - for log storage
   - [ ] `thanos-blocks` - for metrics long-term storage
   - [ ] `tempo-traces` - for trace storage
-  - [ ] `velero-backups` - for cluster backups (Phase 10)
+  - [ ] `velero-backups` - for cluster backups (Phase 6)
   - [ ] `argo-artifacts` - for workflow artifacts (Phase 13)
 - [ ] Monitoring:
   - [ ] MinIO metrics in Prometheus
@@ -116,11 +77,11 @@
 
 ---
 
-### 4.4 Loki & Log Aggregation
+### 3.3 Loki & Log Aggregation
 
 **Goal:** Centralized logging with Loki and LogQL
 
-*Requires: Phase 4.3 (MinIO) for log chunk storage*
+*Requires: Section 3.2 (MinIO) for log chunk storage*
 
 **Learning objectives:**
 - Understand Loki's label-based architecture (vs full-text indexing)
@@ -131,7 +92,7 @@
 - [ ] Create `experiments/scenarios/loki-tutorial/`
 - [ ] Deploy Loki stack (Loki + Promtail)
 - [ ] Configure Loki storage:
-  - [ ] Point to MinIO bucket from Phase 4.3
+  - [ ] Point to MinIO bucket from Section 3.2
   - [ ] Configure retention policies
 - [ ] Build app with structured JSON logging
 - [ ] Configure Promtail pipelines:
@@ -155,7 +116,7 @@
 
 ---
 
-### 4.4b ELK Stack (Alternative to Loki)
+### 3.3b ELK Stack (Alternative to Loki)
 
 **Goal:** Centralized logging with Elasticsearch, Logstash/Fluentd, and Kibana
 
@@ -221,11 +182,11 @@
 
 ---
 
-### 4.5 OpenTelemetry & Distributed Tracing
+### 3.4 OpenTelemetry & Distributed Tracing
 
 **Goal:** End-to-end observability with traces, connecting metrics and logs
 
-*Requires: Phase 4.1 (Prometheus), Phase 4.3 (MinIO), Phase 4.4 (Loki)*
+*Requires: Section 3.1 (Prometheus), Section 3.2 (MinIO). Optional: Section 3.3 (Loki) for log correlation.*
 
 **Learning objectives:**
 - Understand OpenTelemetry architecture (SDK, Collector, backends)
@@ -260,11 +221,52 @@
 
 ---
 
-### 4.6 Thanos for Multi-Cluster Metrics
+### 3.5 SLOs & Error Budgets
+
+**Goal:** Implement Service Level Objectives for reliability-driven operations
+
+*SLOs come after the three pillars so you understand what you're measuring. Used throughout: canary analysis, deployment decisions, capacity planning.*
+
+**Learning objectives:**
+- Understand SLI/SLO/SLA hierarchy
+- Implement error budget tracking
+- Use SLOs to drive architectural decisions
+
+**Tasks:**
+- [ ] Create `experiments/scenarios/slo-tutorial/`
+- [ ] Deploy SLO tooling:
+  - [ ] Sloth (SLO generator for Prometheus)
+  - [ ] Pyrra (SLO dashboards and alerts)
+- [ ] Define SLIs for demo application:
+  - [ ] Availability SLI (successful requests / total requests)
+  - [ ] Latency SLI (requests < threshold / total requests)
+  - [ ] Throughput SLI (if applicable)
+- [ ] Create SLO specifications:
+  - [ ] 99.9% availability (43.8 min/month error budget)
+  - [ ] 99% latency < 200ms
+  - [ ] Multi-window, multi-burn-rate alerts
+- [ ] Error budget tracking:
+  - [ ] Error budget remaining dashboard
+  - [ ] Burn rate visualization
+  - [ ] Budget depletion forecasting
+- [ ] SLO-driven alerting:
+  - [ ] Fast burn alerts (immediate action)
+  - [ ] Slow burn alerts (trending toward breach)
+  - [ ] Error budget exhaustion alerts
+- [ ] Operational integration:
+  - [ ] SLO review process
+  - [ ] Error budget policy (freeze deploys when exhausted)
+  - [ ] SLO-based incident prioritization
+- [ ] Document SLO patterns and anti-patterns
+- [ ] **ADR:** Document SLO strategy and target selection
+
+---
+
+### 3.6 Thanos for Multi-Cluster Metrics
 
 **Goal:** Long-term metrics storage and global query view across clusters
 
-*Requires: Phase 4.1 (Prometheus), Phase 4.3 (MinIO)*
+*Requires: Section 3.1 (Prometheus), Section 3.2 (MinIO)*
 
 **Learning objectives:**
 - Understand Thanos architecture (Sidecar, Store, Query, Compactor)
@@ -279,7 +281,7 @@
   - [ ] Query (global query layer)
   - [ ] Compactor (downsampling and retention)
 - [ ] Configure object storage:
-  - [ ] Use MinIO bucket from Phase 4.3
+  - [ ] Use MinIO bucket from Section 3.2
   - [ ] Retention policies (raw, 5m, 1h downsampling)
 - [ ] Multi-cluster setup:
   - [ ] Prometheus + Sidecar per cluster
@@ -300,7 +302,7 @@
 
 ---
 
-### 4.7 Observability Cost Management
+### 3.7 Observability Cost Management
 
 **Goal:** Understand and optimize the cost of observability systems
 
@@ -338,4 +340,3 @@
 - [ ] **ADR:** Document observability retention and sampling strategy
 
 ---
-
