@@ -32,9 +32,9 @@ instructions: |
 
   Your mission: Find the anomaly. The reading with radiation levels off the charts.
 
-  Hint: The incident occurred on a stardate starting with 47634...
+  Hint: The incident occurred on a stardate starting with 47634.XX
 
-  Try:  curl http://<FILER_IP>:8888/blackbox/sensors/47634.44.json
+  Try:  curl http://<FILER_IP>:8888/blackbox/sensors/<stardate>.json
 
 checkpoints:
   - id: 1
