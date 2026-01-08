@@ -38,16 +38,23 @@ tests:
   enabled: false
 
 # Configure Elasticsearch via elasticsearch.yml
-# This avoids duplicate env var issues
+# Note: discovery.type must be set via env var (extraEnvs) not esConfig
+# because the chart also sets cluster.initial_master_nodes which conflicts
 esConfig:
   elasticsearch.yml: |
     cluster.name: logging-comparison
     network.host: 0.0.0.0
-    discovery.type: single-node
     xpack.security.enabled: false
     xpack.security.enrollment.enabled: false
     xpack.security.http.ssl.enabled: false
     xpack.security.transport.ssl.enabled: false
+
+# Single-node discovery via env var (overrides chart's cluster.initial_master_nodes)
+extraEnvs:
+  - name: discovery.type
+    value: single-node
+  - name: cluster.initial_master_nodes
+    value: ""
 
 # Ephemeral storage (no persistence for tutorial)
 persistence:
