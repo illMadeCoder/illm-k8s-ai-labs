@@ -8,7 +8,6 @@ loki:
 
   commonConfig:
     replication_factor: 1
-    path_prefix: /tmp/loki
 
   storage:
     type: filesystem
@@ -23,13 +22,6 @@ loki:
         index:
           prefix: index_
           period: 24h
-
-  # Ruler storage config
-  rulerConfig:
-    storage:
-      type: local
-      local:
-        directory: /tmp/loki/rules
 
   # Limits
   limits_config:
@@ -52,11 +44,11 @@ singleBinary:
   persistence:
     enabled: false
   extraVolumes:
-    - name: tmp
+    - name: data
       emptyDir: {}
   extraVolumeMounts:
-    - name: tmp
-      mountPath: /tmp/loki
+    - name: data
+      mountPath: /var/loki
 
 # Disable other components for single binary mode
 backend:
