@@ -82,10 +82,10 @@
   - [ ] `loki-chunks` - log storage
   - [ ] `thanos-blocks` - metrics long-term storage
   - [ ] `tempo-traces` - trace storage
-- [ ] Monitoring:
-  - [ ] SeaweedFS metrics in Prometheus
-  - [ ] Volume capacity dashboards
-  - [ ] Alert on disk usage
+- [x] Monitoring:
+  - [x] SeaweedFS metrics in Prometheus (ServiceMonitors)
+  - [x] Volume capacity dashboards (Grafana)
+  - [x] Alert on disk usage (PrometheusRules)
 - [x] Document object storage patterns (ADR-008)
 
 ---
