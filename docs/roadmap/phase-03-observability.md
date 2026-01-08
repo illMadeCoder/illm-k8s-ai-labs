@@ -185,13 +185,18 @@
   - [ ] JVM heap sizing
   - [ ] Bulk indexing optimization
   - [ ] Query performance analysis
-- [ ] Compare with Loki:
-  - [ ] Resource usage comparison
-  - [ ] Query performance comparison
+- [x] Compare with Loki: (see `experiments/scenarios/logging-comparison/`)
+  - [x] Resource usage comparison dashboard
+  - [x] Query performance benchmark scripts
   - [ ] Operational complexity comparison
   - [ ] Cost analysis (storage, compute)
 - [ ] Document ELK patterns and anti-patterns
-- [ ] **ADR:** Document logging stack selection criteria
+- [x] **ADR:** Document logging stack selection criteria (ADR-010)
+
+**Note:** The `logging-comparison` tutorial deploys both stacks side-by-side. Known issues:
+- Elasticsearch helm chart 8.5.1 has duplicate env var issues with security disabled
+- Kibana pre-install hook requires manual skip when security is disabled
+- Loki stack works correctly; ES stack needs config fixes before next run
 
 ---
 
