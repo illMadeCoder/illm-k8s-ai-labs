@@ -7,7 +7,6 @@ import (
 	"math/rand"
 	"net/http"
 	"os"
-	"strconv"
 	"sync"
 	"time"
 
@@ -35,6 +34,12 @@ type Config struct {
 	LogsPerSec  int    `json:"logs_per_sec"`
 	Services    int    `json:"services"`
 	mu          sync.RWMutex
+}
+
+// weightedItem for weighted random selection
+type weightedItem struct {
+	name   string
+	weight int
 }
 
 var (
@@ -69,10 +74,7 @@ var (
 	)
 
 	// Log levels with weights
-	levels = []struct {
-		name   string
-		weight int
-	}{
+	levels = []weightedItem{
 		{"debug", 40},
 		{"info", 40},
 		{"warn", 15},
@@ -80,10 +82,7 @@ var (
 	}
 
 	// HTTP methods with weights
-	methods = []struct {
-		name   string
-		weight int
-	}{
+	methods = []weightedItem{
 		{"GET", 60},
 		{"POST", 25},
 		{"PUT", 10},
@@ -256,10 +255,7 @@ func generateLogEntry(services int) LogEntry {
 	}
 }
 
-func weightedChoice[T any](items []struct {
-	name   string
-	weight int
-}) string {
+func weightedChoice(items []weightedItem) string {
 	total := 0
 	for _, item := range items {
 		total += item.weight

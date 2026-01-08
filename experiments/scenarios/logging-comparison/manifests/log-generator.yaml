@@ -37,8 +37,8 @@ spec:
     spec:
       containers:
         - name: log-generator
-          image: ghcr.io/illmadecoder/log-generator:latest
-          imagePullPolicy: IfNotPresent
+          image: log-generator:latest
+          imagePullPolicy: Never
           ports:
             - name: http
               containerPort: 8080
