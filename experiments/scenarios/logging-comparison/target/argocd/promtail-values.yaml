@@ -35,6 +35,6 @@ resources:
 tolerations:
   - operator: Exists
 
-# Service monitor for Prometheus
+# Service monitor for Prometheus (disabled - no CRDs in this cluster)
 serviceMonitor:
-  enabled: true
+  enabled: false

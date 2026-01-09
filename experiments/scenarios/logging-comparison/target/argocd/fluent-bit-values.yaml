@@ -78,6 +78,6 @@ resources:
 tolerations:
   - operator: Exists
 
-# Service monitor
+# Service monitor (disabled - no CRDs in this cluster)
 serviceMonitor:
-  enabled: true
+  enabled: false
