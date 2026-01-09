@@ -35,7 +35,7 @@ data:
         type: elasticsearch
         uid: elasticsearch
         access: proxy
-        url: http://elasticsearch-master.elasticsearch.svc:9200
+        url: http://elasticsearch.elasticsearch.svc:9200
         isDefault: false
         jsonData:
           index: "logs-*"

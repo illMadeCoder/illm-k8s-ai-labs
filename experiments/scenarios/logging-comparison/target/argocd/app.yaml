@@ -88,7 +88,7 @@ spec:
         maxDuration: 3m
 
 ---
-# Elasticsearch
+# Elasticsearch + Kibana (using manifests instead of Helm - simpler for single-node)
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -103,17 +103,12 @@ metadata:
     - resources-finalizer.argocd.argoproj.io
 spec:
   project: default
-  sources:
-    - repoURL: https://helm.elastic.co
-      chart: elasticsearch
-      targetRevision: 8.5.1
-      helm:
-        releaseName: elasticsearch
-        valueFiles:
-          - $values/experiments/scenarios/logging-comparison/target/argocd/elasticsearch-values.yaml
-    - repoURL: https://github.com/illMadeCoder/illm-k8s-ai-labs.git
-      targetRevision: HEAD
-      ref: values
+  source:
+    repoURL: https://github.com/illMadeCoder/illm-k8s-ai-labs.git
+    targetRevision: HEAD
+    path: experiments/scenarios/logging-comparison/manifests
+    directory:
+      include: '{elasticsearch.yaml,kibana.yaml}'
   destination:
     name: target
     namespace: elasticsearch
@@ -123,7 +118,6 @@ spec:
       selfHeal: true
     syncOptions:
       - CreateNamespace=true
-      - ServerSideApply=true
     retry:
       limit: 5
       backoff:
@@ -155,49 +149,6 @@ spec:
         releaseName: fluent-bit
         valueFiles:
           - $values/experiments/scenarios/logging-comparison/target/argocd/fluent-bit-values.yaml
-    - repoURL: https://github.com/illMadeCoder/illm-k8s-ai-labs.git
-      targetRevision: HEAD
-      ref: values
-  destination:
-    name: target
-    namespace: elasticsearch
-  syncPolicy:
-    automated:
-      prune: true
-      selfHeal: true
-    syncOptions:
-      - CreateNamespace=true
-    retry:
-      limit: 5
-      backoff:
-        duration: 5s
-        factor: 2
-        maxDuration: 3m
-
----
-# Kibana (Elasticsearch UI)
-apiVersion: argoproj.io/v1alpha1
-kind: Application
-metadata:
-  name: logging-comparison-kibana
-  namespace: argocd
-  labels:
-    experiment: logging-comparison
-    cluster: target
-  annotations:
-    argocd.argoproj.io/sync-wave: "2"
-  finalizers:
-    - resources-finalizer.argocd.argoproj.io
-spec:
-  project: default
-  sources:
-    - repoURL: https://helm.elastic.co
-      chart: kibana
-      targetRevision: 8.5.1
-      helm:
-        releaseName: kibana
-        valueFiles:
-          - $values/experiments/scenarios/logging-comparison/target/argocd/kibana-values.yaml
     - repoURL: https://github.com/illMadeCoder/illm-k8s-ai-labs.git
       targetRevision: HEAD
       ref: values

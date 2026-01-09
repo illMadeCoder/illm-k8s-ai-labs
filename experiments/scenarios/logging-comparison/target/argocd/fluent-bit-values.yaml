@@ -47,7 +47,7 @@ config:
     [OUTPUT]
         Name es
         Match kube.*
-        Host elasticsearch-master.elasticsearch.svc
+        Host elasticsearch.elasticsearch.svc
         Port 9200
         Logstash_Format On
         Logstash_Prefix logs
