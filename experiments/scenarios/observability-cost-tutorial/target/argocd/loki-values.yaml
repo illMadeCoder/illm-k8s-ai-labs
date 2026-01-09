@@ -60,3 +60,9 @@ gateway:
 
 test:
   enabled: false
+
+# Disable caches for Kind (memory constrained)
+chunksCache:
+  enabled: false
+resultsCache:
+  enabled: false
