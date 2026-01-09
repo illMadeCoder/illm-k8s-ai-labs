@@ -193,10 +193,10 @@
 - [ ] Document ELK patterns and anti-patterns
 - [x] **ADR:** Document logging stack selection criteria (ADR-010)
 
-**Note:** The `logging-comparison` tutorial deploys both stacks side-by-side. Known issues:
-- Elasticsearch helm chart 8.5.1 has duplicate env var issues with security disabled
-- Kibana pre-install hook requires manual skip when security is disabled
-- Loki stack works correctly; ES stack needs config fixes before next run
+**Note:** The `logging-comparison` tutorial deploys both stacks side-by-side.
+- Uses plain K8s manifests for ES/Kibana (Helm chart has single-node conflicts)
+- Loki + Promtail via Helm charts
+- Grafana with both datasources and comparison dashboard
 
 ---
 
