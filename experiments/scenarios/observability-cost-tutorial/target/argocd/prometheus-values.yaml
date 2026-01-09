@@ -1,0 +1,89 @@
+# kube-prometheus-stack values for observability cost tutorial
+# Includes cardinality analysis and cost metrics
+
+prometheus:
+  enabled: true
+  prometheusSpec:
+    # Enable TSDB status endpoint for cardinality analysis
+    enableFeatures:
+      - exemplar-storage
+    # Lower retention for tutorial (cost-conscious)
+    retention: 3d
+    retentionSize: 5GB
+    resources:
+      requests:
+        cpu: 100m
+        memory: 512Mi
+      limits:
+        cpu: 500m
+        memory: 1Gi
+
+alertmanager:
+  enabled: false
+
+kubeStateMetrics:
+  enabled: true  # For cluster cost metrics
+
+nodeExporter:
+  enabled: true  # For node resource metrics
+
+kubeApiServer:
+  enabled: false
+
+kubelet:
+  enabled: true  # For container metrics
+
+kubeControllerManager:
+  enabled: false
+
+coreDns:
+  enabled: false
+
+kubeScheduler:
+  enabled: false
+
+kubeProxy:
+  enabled: false
+
+kubeEtcd:
+  enabled: false
+
+prometheusOperator:
+  enabled: true
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+
+grafana:
+  enabled: true
+  adminPassword: admin
+
+  service:
+    type: LoadBalancer
+
+  # Loki datasource for log cost analysis
+  additionalDataSources:
+    - name: Loki
+      type: loki
+      url: http://loki.observability-cost.svc:3100
+      access: proxy
+      isDefault: false
+
+  sidecar:
+    dashboards:
+      enabled: true
+      label: grafana_dashboard
+      labelValue: "1"
+      searchNamespace: ALL
+
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi

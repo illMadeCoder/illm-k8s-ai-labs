@@ -45,8 +45,12 @@ By the end of this tutorial, you will:
 ## Prerequisites
 
 - Completed: Kind cluster basics
-- Recommended: Prometheus tutorial (for understanding metrics)
+- **Recommended**: [loki-tutorial](../loki-tutorial/) - Learn LogQL basics first
+- **Recommended**: [elk-tutorial](../elk-tutorial/) - Learn KQL/Lucene basics first
 - ~6GB RAM available (Elasticsearch needs 2GB+)
+
+> **Note**: This tutorial focuses on comparing the two stacks, not teaching query basics.
+> Complete the individual tutorials first for the best learning experience.
 
 ## Part 1: Deploy the Tutorial
 

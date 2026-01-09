@@ -217,7 +217,11 @@ See [Phase 1](docs/roadmap/phase-01-platform-bootstrap.md) for full details.
 
 ---
 
-## Phase 3.1: Prometheus & Grafana (In Progress)
+## Phase 3: Observability (In Progress)
+
+**Architecture:** See [ADR-011: Observability Architecture](docs/adrs/ADR-011-observability-architecture.md) for the holistic view of how metrics, logs, traces, and storage integrate.
+
+### Phase 3.1: Prometheus & Grafana
 
 ### Observability Foundation
 
@@ -226,8 +230,8 @@ See [Phase 1](docs/roadmap/phase-01-platform-bootstrap.md) for full details.
 - [x] Create ServiceMonitor for scrape discovery
 - [x] Create `prometheus-tutorial` experiment scenario
 - [x] Document PromQL patterns in experiment README
-- [ ] Test experiment end-to-end with `task kind:conduct -- prometheus-tutorial`
-- [ ] Build Grafana RED dashboard for metrics-app
+- [x] Test experiment end-to-end with `task kind:conduct -- prometheus-tutorial`
+- [x] Build Grafana RED dashboard for metrics-app
 
 ### TSDB Comparison (Phase 3.1 addition)
 
@@ -240,7 +244,23 @@ See [Phase 1](docs/roadmap/phase-01-platform-bootstrap.md) for full details.
 
 - [x] Re-enable Let's Encrypt after rate limit reset (issuers ready)
 - [ ] Set up Talos home lab cluster
-- [ ] Phase 3.2: SeaweedFS Object Storage
-- [ ] Phase 3.3: Loki & Log Aggregation
-- [ ] Phase 3.4: OpenTelemetry & Distributed Tracing
-- [ ] Phase 3.5: SLOs & Error Budgets (Sloth/Pyrra)
+- [x] Phase 3.2: SeaweedFS Object Storage
+- [x] Phase 3.3: Logging Comparison (Loki vs ELK)
+  - [x] Create `loki-tutorial` experiment (Loki + Promtail + Grafana)
+  - [x] Create `elk-tutorial` experiment (Elasticsearch + Kibana + Fluent Bit)
+  - [x] Create `logging-comparison` tutorial experiment
+  - [ ] **BACKLOG**: Play through loki-tutorial, elk-tutorial, logging-comparison
+- [x] Phase 3.4: OpenTelemetry & Distributed Tracing
+  - [x] Create Tempo component (ArgoCD app + Helm values)
+  - [x] Create Jaeger component (ArgoCD app + Helm values)
+  - [x] Create `otel-demo` multi-service app (user → order → payment)
+  - [x] Create `otel-tutorial` experiment (OTel Collector + Tempo + Grafana)
+  - [x] Create `tracing-comparison` experiment (Tempo vs Jaeger)
+  - [ ] **BACKLOG**: Play through otel-tutorial, tracing-comparison
+- [x] Phase 3.5: SLOs & Error Budgets (Pyrra)
+  - [x] Create Pyrra component (ArgoCD app + Helm values)
+  - [x] Create `slo-tutorial` experiment (Pyrra + error budgets + multi-burn-rate alerts)
+  - [ ] **BACKLOG**: Play through slo-tutorial
+- [x] Phase 3.6: Observability Cost Management
+  - [x] Create `observability-cost-tutorial` experiment (cardinality, log volume, retention)
+  - [ ] **BACKLOG**: Play through observability-cost-tutorial

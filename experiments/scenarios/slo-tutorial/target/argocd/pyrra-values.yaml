@@ -1,0 +1,32 @@
+# Pyrra values for SLO tutorial
+# SLO management with built-in UI
+
+# API server configuration
+pyrra:
+  # Prometheus URL (within same namespace)
+  prometheusUrl: http://kube-prometheus-stack-prometheus.slo-tutorial.svc:9090
+
+  # Enable generic recording rules
+  genericRules:
+    enabled: true
+
+# Web UI service
+service:
+  type: LoadBalancer
+  port: 9099
+
+# Resource limits
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 200m
+    memory: 256Mi
+
+# Install CRDs
+installCRDs: true
+
+# Kubernetes operator mode
+kubernetesOperator:
+  enabled: true

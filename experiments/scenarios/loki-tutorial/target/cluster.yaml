@@ -1,0 +1,8 @@
+# Target cluster for Loki tutorial
+# Runs Loki, Promtail, Grafana, and log-generator
+size: small
+provider: kind
+
+# Loki single-binary mode is lightweight
+# nodes: 1
+# memory: 2Gi

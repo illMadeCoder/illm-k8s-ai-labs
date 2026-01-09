@@ -1,0 +1,8 @@
+# Target cluster for observability cost tutorial
+# Runs Prometheus, Loki, and cost analysis tools
+size: medium
+provider: kind
+
+# Medium cluster for observability cost analysis
+# nodes: 2
+# memory: 4Gi

@@ -1,0 +1,8 @@
+# Target cluster for tracing comparison
+# Runs both Tempo and Jaeger for side-by-side comparison
+size: medium
+provider: kind
+
+# Medium cluster for dual tracing backends
+# nodes: 2
+# memory: 4Gi

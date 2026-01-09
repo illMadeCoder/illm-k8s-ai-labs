@@ -1,0 +1,97 @@
+# kube-prometheus-stack values for SLO tutorial
+# Prometheus + Grafana with Pyrra datasource
+
+prometheus:
+  enabled: true
+  prometheusSpec:
+    # Enable rule selectors for Pyrra-generated rules
+    ruleSelector: {}
+    ruleNamespaceSelector: {}
+    ruleSelectorNilUsesHelmValues: false
+    resources:
+      requests:
+        cpu: 100m
+        memory: 512Mi
+      limits:
+        cpu: 500m
+        memory: 1Gi
+    # Retention for SLO windows (need 30 days ideally, but 7d for tutorial)
+    retention: 7d
+
+alertmanager:
+  enabled: true
+  alertmanagerSpec:
+    resources:
+      requests:
+        cpu: 25m
+        memory: 64Mi
+      limits:
+        cpu: 100m
+        memory: 128Mi
+
+kubeStateMetrics:
+  enabled: false
+
+nodeExporter:
+  enabled: false
+
+kubeApiServer:
+  enabled: false
+
+kubelet:
+  enabled: false
+
+kubeControllerManager:
+  enabled: false
+
+coreDns:
+  enabled: false
+
+kubeScheduler:
+  enabled: false
+
+kubeProxy:
+  enabled: false
+
+kubeEtcd:
+  enabled: false
+
+prometheusOperator:
+  enabled: true
+  resources:
+    requests:
+      cpu: 50m
+      memory: 64Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+
+grafana:
+  enabled: true
+  adminPassword: admin
+
+  service:
+    type: LoadBalancer
+
+  # Configure datasources
+  additionalDataSources:
+    - name: Pyrra
+      type: prometheus
+      url: http://pyrra.slo-tutorial.svc:9099
+      access: proxy
+      isDefault: false
+
+  sidecar:
+    dashboards:
+      enabled: true
+      label: grafana_dashboard
+      labelValue: "1"
+      searchNamespace: ALL
+
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi

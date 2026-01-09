@@ -1,0 +1,69 @@
+# Jaeger - All-in-one deployment for tutorials
+# Collector + Query + UI in single pod with in-memory storage
+
+# Use all-in-one deployment (simple, no external dependencies)
+provisionDataStore:
+  cassandra: false
+  elasticsearch: false
+  kafka: false
+
+allInOne:
+  enabled: true
+  replicas: 1
+
+  image:
+    repository: jaegertracing/all-in-one
+    tag: "1.62"
+
+  # Enable OTLP receiver
+  extraEnv:
+    - name: COLLECTOR_OTLP_ENABLED
+      value: "true"
+
+  resources:
+    requests:
+      cpu: 50m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+# Disable separate components (using all-in-one)
+collector:
+  enabled: false
+
+query:
+  enabled: false
+
+agent:
+  enabled: false
+
+# Storage - in-memory for tutorial simplicity
+storage:
+  type: memory
+
+# Jaeger UI service
+service:
+  collector:
+    type: ClusterIP
+    otlp:
+      grpc:
+        name: otlp-grpc
+        port: 4317
+      http:
+        name: otlp-http
+        port: 4318
+  query:
+    type: LoadBalancer
+
+# Ingester disabled (not using Kafka)
+ingester:
+  enabled: false
+
+# Spark dependencies disabled
+spark:
+  enabled: false
+
+# Hotrod example app disabled
+hotrod:
+  enabled: false

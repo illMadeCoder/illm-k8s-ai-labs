@@ -1,0 +1,90 @@
+# Log Generator - Simulates various log volumes and patterns
+# Used to demonstrate log cost impact
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: log-generator-verbose
+  namespace: observability-cost
+  labels:
+    app: log-generator
+    log-level: verbose
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: log-generator
+      log-level: verbose
+  template:
+    metadata:
+      labels:
+        app: log-generator
+        log-level: verbose
+    spec:
+      containers:
+        - name: logger
+          image: busybox:latest
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              i=0
+              while true; do
+                i=$((i+1))
+                # Verbose logging - generates ~1KB per second
+                echo "{\"timestamp\":\"$(date -Iseconds)\",\"level\":\"DEBUG\",\"message\":\"Processing request $i\",\"request_id\":\"req-$RANDOM\",\"user_id\":\"user-$((RANDOM % 100))\",\"action\":\"process\",\"details\":\"This is a verbose debug log entry with lots of unnecessary details that could be summarized or dropped in production\"}"
+                echo "{\"timestamp\":\"$(date -Iseconds)\",\"level\":\"DEBUG\",\"message\":\"Database query executed\",\"query_id\":\"q-$RANDOM\",\"duration_ms\":$((RANDOM % 100))}"
+                echo "{\"timestamp\":\"$(date -Iseconds)\",\"level\":\"INFO\",\"message\":\"Request completed\",\"request_id\":\"req-$RANDOM\",\"status\":200}"
+                sleep 0.5
+              done
+          resources:
+            requests:
+              cpu: 5m
+              memory: 16Mi
+            limits:
+              cpu: 50m
+              memory: 32Mi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: log-generator-efficient
+  namespace: observability-cost
+  labels:
+    app: log-generator
+    log-level: efficient
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: log-generator
+      log-level: efficient
+  template:
+    metadata:
+      labels:
+        app: log-generator
+        log-level: efficient
+    spec:
+      containers:
+        - name: logger
+          image: busybox:latest
+          command: ["/bin/sh", "-c"]
+          args:
+            - |
+              i=0
+              while true; do
+                i=$((i+1))
+                # Efficient logging - only INFO and above, concise
+                echo "{\"ts\":\"$(date -Iseconds)\",\"lvl\":\"INFO\",\"msg\":\"req_done\",\"rid\":\"$i\",\"ms\":$((RANDOM % 100))}"
+                # Only log errors occasionally
+                if [ $((RANDOM % 20)) -eq 0 ]; then
+                  echo "{\"ts\":\"$(date -Iseconds)\",\"lvl\":\"ERROR\",\"msg\":\"req_failed\",\"rid\":\"$i\",\"err\":\"timeout\"}"
+                fi
+                sleep 2
+              done
+          resources:
+            requests:
+              cpu: 5m
+              memory: 16Mi
+            limits:
+              cpu: 50m
+              memory: 32Mi

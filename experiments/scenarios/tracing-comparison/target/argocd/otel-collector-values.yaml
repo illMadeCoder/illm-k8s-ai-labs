@@ -1,0 +1,89 @@
+# OpenTelemetry Collector for tracing comparison
+# Dual-write traces to both Tempo and Jaeger
+
+mode: deployment
+
+image:
+  repository: otel/opentelemetry-collector-contrib
+  tag: "0.111.0"
+
+config:
+  receivers:
+    otlp:
+      protocols:
+        grpc:
+          endpoint: 0.0.0.0:4317
+        http:
+          endpoint: 0.0.0.0:4318
+
+  processors:
+    batch:
+      timeout: 1s
+      send_batch_size: 1024
+
+    memory_limiter:
+      check_interval: 1s
+      limit_mib: 400
+      spike_limit_mib: 100
+
+  exporters:
+    # Export to Tempo (OTLP)
+    otlp/tempo:
+      endpoint: tempo.tracing-comparison.svc:4317
+      tls:
+        insecure: true
+
+    # Export to Jaeger (OTLP)
+    otlp/jaeger:
+      endpoint: jaeger-collector.tracing-comparison.svc:4317
+      tls:
+        insecure: true
+
+    # Debug output
+    debug:
+      verbosity: basic
+
+    # Prometheus metrics from spans
+    prometheus:
+      endpoint: 0.0.0.0:9090
+      namespace: otel
+
+  service:
+    pipelines:
+      traces:
+        receivers: [otlp]
+        processors: [memory_limiter, batch]
+        exporters: [otlp/tempo, otlp/jaeger, debug]
+
+      metrics:
+        receivers: [otlp]
+        processors: [memory_limiter, batch]
+        exporters: [prometheus]
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 128Mi
+  limits:
+    cpu: 250m
+    memory: 512Mi
+
+service:
+  type: ClusterIP
+
+ports:
+  otlp:
+    enabled: true
+    containerPort: 4317
+    servicePort: 4317
+    protocol: TCP
+  otlp-http:
+    enabled: true
+    containerPort: 4318
+    servicePort: 4318
+    protocol: TCP
+  prometheus:
+    enabled: true
+    containerPort: 9090
+    servicePort: 9090
+    protocol: TCP

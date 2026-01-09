@@ -280,47 +280,7 @@
 
 ---
 
-### 3.6 Thanos for Multi-Cluster Metrics
-
-**Goal:** Long-term metrics storage and global query view across clusters
-
-*Requires: Section 3.1 (Prometheus), Section 3.2 (SeaweedFS)*
-
-**Learning objectives:**
-- Understand Thanos architecture (Sidecar, Store, Query, Compactor)
-- Implement multi-cluster metrics aggregation
-- Configure long-term retention with object storage
-
-**Tasks:**
-- [ ] Create `experiments/scenarios/thanos-tutorial/`
-- [ ] Deploy Thanos components:
-  - [ ] Sidecar (alongside Prometheus)
-  - [ ] Store Gateway (for object storage queries)
-  - [ ] Query (global query layer)
-  - [ ] Compactor (downsampling and retention)
-- [ ] Configure object storage:
-  - [ ] Use SeaweedFS bucket from Section 3.2
-  - [ ] Retention policies (raw, 5m, 1h downsampling)
-- [ ] Multi-cluster setup:
-  - [ ] Prometheus + Sidecar per cluster
-  - [ ] Central Query component
-  - [ ] External labels for cluster identification
-- [ ] Query patterns:
-  - [ ] Cross-cluster queries
-  - [ ] Historical data queries
-  - [ ] Deduplication strategies
-- [ ] Grafana integration:
-  - [ ] Thanos Query as datasource
-  - [ ] Multi-cluster dashboards
-- [ ] Compare with alternatives:
-  - [ ] Thanos vs Cortex vs Mimir
-  - [ ] Storage costs and performance
-- [ ] Document Thanos operational patterns
-- [ ] **ADR:** Document long-term metrics strategy
-
----
-
-### 3.7 Observability Cost Management
+### 3.6 Observability Cost Management
 
 **Goal:** Understand and optimize the cost of observability systems
 

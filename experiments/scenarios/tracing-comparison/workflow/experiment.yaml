@@ -1,0 +1,137 @@
+# Argo Workflow for tracing-comparison validation
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: tracing-comparison-validation-
+  namespace: argo
+spec:
+  entrypoint: validate-tracing-comparison
+  templates:
+    - name: validate-tracing-comparison
+      steps:
+        - - name: check-otel-collector
+            template: check-deployment
+            arguments:
+              parameters:
+                - name: deployment
+                  value: otel-collector-opentelemetry-collector
+                - name: namespace
+                  value: tracing-comparison
+        - - name: check-tempo
+            template: check-deployment
+            arguments:
+              parameters:
+                - name: deployment
+                  value: tempo
+                - name: namespace
+                  value: tracing-comparison
+          - name: check-jaeger
+            template: check-statefulset
+            arguments:
+              parameters:
+                - name: statefulset
+                  value: jaeger
+                - name: namespace
+                  value: tracing-comparison
+        - - name: check-grafana
+            template: check-deployment
+            arguments:
+              parameters:
+                - name: deployment
+                  value: kube-prometheus-stack-grafana
+                - name: namespace
+                  value: tracing-comparison
+        - - name: check-demo-services
+            template: check-demo-app
+        - - name: generate-traces
+            template: generate-traffic
+        - - name: verify-tempo
+            template: check-tempo-traces
+          - name: verify-jaeger
+            template: check-jaeger-traces
+
+    - name: check-deployment
+      inputs:
+        parameters:
+          - name: deployment
+          - name: namespace
+      container:
+        image: bitnami/kubectl:latest
+        command: [sh, -c]
+        args:
+          - |
+            echo "Checking deployment {{inputs.parameters.deployment}}..."
+            kubectl rollout status deployment/{{inputs.parameters.deployment}} \
+              -n {{inputs.parameters.namespace}} --timeout=120s
+
+    - name: check-statefulset
+      inputs:
+        parameters:
+          - name: statefulset
+          - name: namespace
+      container:
+        image: bitnami/kubectl:latest
+        command: [sh, -c]
+        args:
+          - |
+            echo "Checking statefulset {{inputs.parameters.statefulset}}..."
+            kubectl rollout status statefulset/{{inputs.parameters.statefulset}} \
+              -n {{inputs.parameters.namespace}} --timeout=120s
+
+    - name: check-demo-app
+      container:
+        image: bitnami/kubectl:latest
+        command: [sh, -c]
+        args:
+          - |
+            echo "Checking demo app services..."
+            for svc in user-service order-service payment-service; do
+              kubectl rollout status deployment/$svc -n tracing-comparison --timeout=60s
+            done
+
+    - name: generate-traffic
+      container:
+        image: curlimages/curl:latest
+        command: [sh, -c]
+        args:
+          - |
+            echo "Generating trace traffic..."
+            for i in $(seq 1 10); do
+              curl -s http://user-service.tracing-comparison.svc:8080/api/users/1 || true
+              curl -s -X POST http://user-service.tracing-comparison.svc:8080/api/users/1/orders \
+                -H "Content-Type: application/json" \
+                -d '{"items": [{"product_id": "prod-001", "quantity": 2}]}' || true
+              sleep 1
+            done
+
+    - name: check-tempo-traces
+      container:
+        image: curlimages/curl:latest
+        command: [sh, -c]
+        args:
+          - |
+            echo "Checking Tempo for traces..."
+            sleep 10
+            RESULT=$(curl -s "http://tempo.tracing-comparison.svc:3100/api/search?tags=service.name%3Duser-service&limit=5")
+            echo "Tempo: $RESULT"
+            if echo "$RESULT" | grep -q "traceID"; then
+              echo "SUCCESS: Traces found in Tempo"
+            else
+              echo "WARNING: No traces in Tempo yet"
+            fi
+
+    - name: check-jaeger-traces
+      container:
+        image: curlimages/curl:latest
+        command: [sh, -c]
+        args:
+          - |
+            echo "Checking Jaeger for traces..."
+            sleep 10
+            RESULT=$(curl -s "http://jaeger-query.tracing-comparison.svc:16686/api/traces?service=user-service&limit=5")
+            echo "Jaeger: $RESULT"
+            if echo "$RESULT" | grep -q "traceID"; then
+              echo "SUCCESS: Traces found in Jaeger"
+            else
+              echo "WARNING: No traces in Jaeger yet"
+            fi

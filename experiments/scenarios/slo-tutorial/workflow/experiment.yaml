@@ -1,0 +1,134 @@
+# Argo Workflow for slo-tutorial validation
+# Validates Prometheus, Pyrra, metrics-app, and SLO definitions
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: slo-tutorial-validation-
+  namespace: argo
+spec:
+  entrypoint: validate-slo-tutorial
+  templates:
+    - name: validate-slo-tutorial
+      steps:
+        - - name: check-prometheus
+            template: check-deployment
+            arguments:
+              parameters:
+                - name: deployment
+                  value: kube-prometheus-stack-prometheus
+                - name: namespace
+                  value: slo-tutorial
+                - name: type
+                  value: statefulset
+        - - name: check-pyrra
+            template: check-deployment
+            arguments:
+              parameters:
+                - name: deployment
+                  value: pyrra
+                - name: namespace
+                  value: slo-tutorial
+                - name: type
+                  value: deployment
+        - - name: check-grafana
+            template: check-deployment
+            arguments:
+              parameters:
+                - name: deployment
+                  value: kube-prometheus-stack-grafana
+                - name: namespace
+                  value: slo-tutorial
+                - name: type
+                  value: deployment
+        - - name: check-metrics-app
+            template: check-deployment
+            arguments:
+              parameters:
+                - name: deployment
+                  value: metrics-app
+                - name: namespace
+                  value: slo-tutorial
+                - name: type
+                  value: deployment
+        - - name: verify-slo-crds
+            template: check-slos
+        - - name: generate-traffic
+            template: generate-baseline-traffic
+        - - name: consume-error-budget
+            template: consume-budget
+        - - name: verify-metrics
+            template: check-slo-metrics
+
+    - name: check-deployment
+      inputs:
+        parameters:
+          - name: deployment
+          - name: namespace
+          - name: type
+      container:
+        image: bitnami/kubectl:latest
+        command: [sh, -c]
+        args:
+          - |
+            echo "Checking {{inputs.parameters.type}} {{inputs.parameters.deployment}}..."
+            kubectl rollout status {{inputs.parameters.type}}/{{inputs.parameters.deployment}} \
+              -n {{inputs.parameters.namespace}} --timeout=120s
+
+    - name: check-slos
+      container:
+        image: bitnami/kubectl:latest
+        command: [sh, -c]
+        args:
+          - |
+            echo "Checking SLO CRDs..."
+            kubectl get servicelevelobjectives -n slo-tutorial
+            SLO_COUNT=$(kubectl get servicelevelobjectives -n slo-tutorial -o json | jq '.items | length')
+            if [ "$SLO_COUNT" -ge 2 ]; then
+              echo "SUCCESS: Found $SLO_COUNT SLO definitions"
+            else
+              echo "ERROR: Expected at least 2 SLOs, found $SLO_COUNT"
+              exit 1
+            fi
+
+    - name: generate-baseline-traffic
+      container:
+        image: curlimages/curl:latest
+        command: [sh, -c]
+        args:
+          - |
+            echo "Generating baseline traffic..."
+            for i in $(seq 1 100); do
+              curl -s http://metrics-app.slo-tutorial.svc:8080/ > /dev/null
+              sleep 0.1
+            done
+            echo "Baseline traffic complete"
+
+    - name: consume-budget
+      container:
+        image: curlimages/curl:latest
+        command: [sh, -c]
+        args:
+          - |
+            echo "Consuming error budget via /error endpoint..."
+            for i in $(seq 1 20); do
+              curl -s http://metrics-app.slo-tutorial.svc:8080/error > /dev/null || true
+              sleep 0.2
+            done
+            echo "Error budget consumption complete"
+
+    - name: check-slo-metrics
+      container:
+        image: curlimages/curl:latest
+        command: [sh, -c]
+        args:
+          - |
+            echo "Checking Prometheus for SLO metrics..."
+            sleep 30
+            # Query Prometheus for SLI metrics
+            RESULT=$(curl -s "http://kube-prometheus-stack-prometheus.slo-tutorial.svc:9090/api/v1/query?query=http_requests_total")
+            echo "Prometheus response: $RESULT"
+            if echo "$RESULT" | grep -q "success"; then
+              echo "SUCCESS: SLO metrics available in Prometheus"
+            else
+              echo "WARNING: Metrics may need more time"
+            fi

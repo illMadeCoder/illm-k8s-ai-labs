@@ -1,0 +1,144 @@
+# Observability Cost Tutorial - Interactive Checkpoints
+name: observability-cost-tutorial
+title: "Observability Cost Management"
+description: |
+  Learn to analyze and optimize observability costs.
+  Understand cardinality, log volume, and storage optimization.
+duration: 45
+difficulty: intermediate
+prerequisites:
+  - prometheus-tutorial
+  - loki-tutorial
+
+modules:
+  - id: cost-drivers
+    title: "Observability Cost Drivers"
+    objectives:
+      - Understand metrics cardinality impact
+      - Understand log volume impact
+      - Identify cost optimization opportunities
+    checkpoints:
+      - name: stack-running
+        description: "Observability stack is running"
+        validation:
+          type: pod_ready
+          selector: app.kubernetes.io/name=prometheus
+          namespace: observability-cost
+
+  - id: cardinality-analysis
+    title: "Metrics Cardinality Analysis"
+    objectives:
+      - Understand what cardinality means
+      - Identify high-cardinality labels
+      - See cardinality impact on memory
+    checkpoints:
+      - name: view-cardinality
+        description: "Viewed cardinality in Prometheus"
+        validation:
+          type: manual
+          instructions: |
+            Query Prometheus for total series:
+            prometheus_tsdb_head_series
+
+            Find high-cardinality metrics:
+            topk(10, count by (__name__)({__name__=~".+"}))
+
+  - id: label-best-practices
+    title: "Label Best Practices"
+    objectives:
+      - Identify bounded vs unbounded labels
+      - Avoid cardinality explosions
+      - Design cost-effective label schemas
+    checkpoints:
+      - name: compare-metrics
+        description: "Compared good vs bad metric patterns"
+        validation:
+          type: manual
+          instructions: |
+            Compare cardinality of two metrics:
+
+            GOOD (bounded labels):
+            count(good_requests_total)
+            # Should be ~80 series (4 methods × 5 statuses × 4 endpoints)
+
+            BAD (unbounded labels):
+            count(bad_requests_total)
+            # Grows with number of users (4 × 5 × 500 = 10,000 series!)
+
+  - id: log-volume-analysis
+    title: "Log Volume Analysis"
+    objectives:
+      - Measure log ingestion rate
+      - Compare verbose vs efficient logging
+      - Implement log filtering strategies
+    checkpoints:
+      - name: compare-log-volume
+        description: "Compared verbose vs efficient log generators"
+        validation:
+          type: manual
+          instructions: |
+            In Loki, compare log volume:
+
+            Verbose logger:
+            {app="log-generator",log_level="verbose"} | count_over_time([1m])
+
+            Efficient logger:
+            {app="log-generator",log_level="efficient"} | count_over_time([1m])
+
+  - id: retention-strategies
+    title: "Retention & Sampling"
+    objectives:
+      - Configure metric retention
+      - Configure log retention
+      - Understand sampling trade-offs
+    checkpoints:
+      - name: view-retention
+        description: "Reviewed retention configurations"
+        validation:
+          type: manual
+          instructions: |
+            Check Prometheus retention:
+            kubectl get prometheus -n observability-cost -o yaml | grep retention
+
+            Check Loki retention:
+            kubectl get configmap loki -n observability-cost -o yaml | grep retention
+
+  - id: cost-dashboard
+    title: "Cost Dashboard"
+    objectives:
+      - Use the cost analysis dashboard
+      - Identify optimization opportunities
+      - Calculate cost savings
+    checkpoints:
+      - name: view-dashboard
+        description: "Explored the cost analysis dashboard"
+        validation:
+          type: manual
+          instructions: |
+            Open Grafana and navigate to:
+            "Observability Cost Analysis" dashboard
+
+            Review:
+            - Total time series count
+            - TSDB storage size
+            - Log ingestion rate
+            - Memory usage trends
+
+completion:
+  message: |
+    Congratulations! You've completed the observability cost tutorial.
+
+    Key takeaways:
+    - Cardinality (unique series) drives Prometheus memory/storage
+    - Log volume drives Loki storage/ingestion costs
+    - Bounded labels (method, status) are safe
+    - Unbounded labels (user_id, request_id) cause explosions
+    - Retention policies control storage costs
+    - Sampling reduces volume but loses detail
+
+    Cost optimization checklist:
+    1. Monitor prometheus_tsdb_head_series
+    2. Avoid high-cardinality labels
+    3. Drop debug logs in production
+    4. Set appropriate retention periods
+    5. Use recording rules for expensive queries

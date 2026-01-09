@@ -1,0 +1,178 @@
+# Cardinality Generator - Simulates high-cardinality metric explosion
+# Used to demonstrate cost impact of unbounded labels
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: cardinality-generator
+  namespace: observability-cost
+data:
+  main.go: |
+    package main
+
+    import (
+        "fmt"
+        "math/rand"
+        "net/http"
+        "os"
+        "strconv"
+        "time"
+
+        "github.com/prometheus/client_golang/prometheus"
+        "github.com/prometheus/client_golang/prometheus/promhttp"
+    )
+
+    var (
+        // GOOD: Low cardinality metric (bounded labels)
+        goodRequests = prometheus.NewCounterVec(
+            prometheus.CounterOpts{
+                Name: "good_requests_total",
+                Help: "Requests with bounded labels (method, status, endpoint)",
+            },
+            []string{"method", "status", "endpoint"},
+        )
+
+        // BAD: High cardinality metric (unbounded labels like user_id)
+        badRequests = prometheus.NewCounterVec(
+            prometheus.CounterOpts{
+                Name: "bad_requests_total",
+                Help: "Requests with unbounded labels (includes user_id) - DON'T DO THIS",
+            },
+            []string{"method", "status", "user_id"},
+        )
+
+        // Cardinality counter for visualization
+        cardinalityGauge = prometheus.NewGaugeVec(
+            prometheus.GaugeOpts{
+                Name: "cardinality_example_series_count",
+                Help: "Number of unique time series created",
+            },
+            []string{"metric_type"},
+        )
+    )
+
+    func init() {
+        prometheus.MustRegister(goodRequests)
+        prometheus.MustRegister(badRequests)
+        prometheus.MustRegister(cardinalityGauge)
+    }
+
+    func main() {
+        mode := os.Getenv("CARDINALITY_MODE")
+        if mode == "" {
+            mode = "both"
+        }
+
+        maxUsers := 1000
+        if v := os.Getenv("MAX_USERS"); v != "" {
+            maxUsers, _ = strconv.Atoi(v)
+        }
+
+        // Bounded label values
+        methods := []string{"GET", "POST", "PUT", "DELETE"}
+        statuses := []string{"200", "201", "400", "404", "500"}
+        endpoints := []string{"/api/users", "/api/orders", "/api/products", "/health"}
+
+        go func() {
+            goodSeries := 0
+            badSeries := 0
+
+            for {
+                method := methods[rand.Intn(len(methods))]
+                status := statuses[rand.Intn(len(statuses))]
+                endpoint := endpoints[rand.Intn(len(endpoints))]
+
+                if mode == "good" || mode == "both" {
+                    goodRequests.WithLabelValues(method, status, endpoint).Inc()
+                    // Max cardinality: 4 * 5 * 4 = 80 series
+                    goodSeries = len(methods) * len(statuses) * len(endpoints)
+                }
+
+                if mode == "bad" || mode == "both" {
+                    // Unbounded: user_id creates new series for every user
+                    userID := fmt.Sprintf("user-%d", rand.Intn(maxUsers))
+                    badRequests.WithLabelValues(method, status, userID).Inc()
+                    // Cardinality grows unbounded: 4 * 5 * maxUsers
+                    badSeries = len(methods) * len(statuses) * maxUsers
+                }
+
+                cardinalityGauge.WithLabelValues("good_bounded").Set(float64(goodSeries))
+                cardinalityGauge.WithLabelValues("bad_unbounded").Set(float64(badSeries))
+
+                time.Sleep(100 * time.Millisecond)
+            }
+        }()
+
+        http.Handle("/metrics", promhttp.Handler())
+        http.HandleFunc("/health", func(w http.ResponseWriter, r *http.Request) {
+            w.WriteHeader(http.StatusOK)
+        })
+
+        fmt.Println("Cardinality generator listening on :8080")
+        fmt.Printf("Mode: %s, Max Users: %d\n", mode, maxUsers)
+        http.ListenAndServe(":8080", nil)
+    }
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: cardinality-generator
+  namespace: observability-cost
+  labels:
+    app: cardinality-generator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: cardinality-generator
+  template:
+    metadata:
+      labels:
+        app: cardinality-generator
+    spec:
+      containers:
+        - name: cardinality-generator
+          image: ghcr.io/illmadecoder/metrics-app:latest
+          ports:
+            - containerPort: 8080
+          env:
+            # Simulate cardinality explosion
+            - name: CARDINALITY_MODE
+              value: "both"  # good, bad, or both
+            - name: MAX_USERS
+              value: "500"   # Number of unique user IDs
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: cardinality-generator
+  namespace: observability-cost
+  labels:
+    app: cardinality-generator
+spec:
+  selector:
+    app: cardinality-generator
+  ports:
+    - port: 8080
+      targetPort: 8080
+---
+apiVersion: monitoring.coreos.com/v1
+kind: ServiceMonitor
+metadata:
+  name: cardinality-generator
+  namespace: observability-cost
+spec:
+  selector:
+    matchLabels:
+      app: cardinality-generator
+  endpoints:
+    - port: "8080"
+      path: /metrics
+      interval: 15s

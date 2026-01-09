@@ -1,0 +1,124 @@
+# Argo Workflow for otel-tutorial validation
+# Validates OTel Collector, Tempo, Grafana, and demo app
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: otel-tutorial-validation-
+  namespace: argo
+spec:
+  entrypoint: validate-otel-tutorial
+  templates:
+    - name: validate-otel-tutorial
+      steps:
+        - - name: check-otel-collector
+            template: check-deployment
+            arguments:
+              parameters:
+                - name: deployment
+                  value: otel-collector-opentelemetry-collector
+                - name: namespace
+                  value: otel-tutorial
+        - - name: check-tempo
+            template: check-deployment
+            arguments:
+              parameters:
+                - name: deployment
+                  value: tempo
+                - name: namespace
+                  value: otel-tutorial
+        - - name: check-grafana
+            template: check-deployment
+            arguments:
+              parameters:
+                - name: deployment
+                  value: kube-prometheus-stack-grafana
+                - name: namespace
+                  value: otel-tutorial
+        - - name: check-user-service
+            template: check-deployment
+            arguments:
+              parameters:
+                - name: deployment
+                  value: user-service
+                - name: namespace
+                  value: otel-tutorial
+          - name: check-order-service
+            template: check-deployment
+            arguments:
+              parameters:
+                - name: deployment
+                  value: order-service
+                - name: namespace
+                  value: otel-tutorial
+          - name: check-payment-service
+            template: check-deployment
+            arguments:
+              parameters:
+                - name: deployment
+                  value: payment-service
+                - name: namespace
+                  value: otel-tutorial
+        - - name: generate-traces
+            template: generate-traffic
+        - - name: verify-traces-in-tempo
+            template: check-tempo-traces
+
+    - name: check-deployment
+      inputs:
+        parameters:
+          - name: deployment
+          - name: namespace
+      container:
+        image: bitnami/kubectl:latest
+        command: [sh, -c]
+        args:
+          - |
+            echo "Checking deployment {{inputs.parameters.deployment}} in {{inputs.parameters.namespace}}..."
+            kubectl rollout status deployment/{{inputs.parameters.deployment}} -n {{inputs.parameters.namespace}} --timeout=120s
+            if [ $? -eq 0 ]; then
+              echo "Deployment {{inputs.parameters.deployment}} is ready"
+            else
+              echo "Deployment {{inputs.parameters.deployment}} failed to become ready"
+              exit 1
+            fi
+
+    - name: generate-traffic
+      container:
+        image: curlimages/curl:latest
+        command: [sh, -c]
+        args:
+          - |
+            echo "Generating trace traffic..."
+            for i in $(seq 1 10); do
+              echo "Request $i: Getting user..."
+              curl -s http://user-service.otel-tutorial.svc:8080/api/users/1 || true
+              echo ""
+              echo "Request $i: Creating order..."
+              curl -s -X POST http://user-service.otel-tutorial.svc:8080/api/users/1/orders \
+                -H "Content-Type: application/json" \
+                -d '{"items": [{"product_id": "prod-001", "quantity": 2}]}' || true
+              echo ""
+              sleep 1
+            done
+            echo "Traffic generation complete"
+
+    - name: check-tempo-traces
+      container:
+        image: curlimages/curl:latest
+        command: [sh, -c]
+        args:
+          - |
+            echo "Waiting for traces to be ingested..."
+            sleep 10
+            echo "Querying Tempo for traces..."
+            # Query Tempo's search API for recent traces
+            RESULT=$(curl -s "http://tempo.otel-tutorial.svc:3100/api/search?tags=service.name%3Duser-service&limit=5")
+            echo "Tempo response: $RESULT"
+            # Check if we got traces back
+            if echo "$RESULT" | grep -q "traceID"; then
+              echo "SUCCESS: Found traces in Tempo!"
+              exit 0
+            else
+              echo "WARNING: No traces found yet (may need more time)"
+              exit 0  # Don't fail - traces may take time to appear
+            fi

@@ -1,0 +1,178 @@
+# Grafana Dashboard for Tempo vs Jaeger comparison
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: tracing-comparison-dashboard
+  namespace: tracing-comparison
+  labels:
+    grafana_dashboard: "1"
+data:
+  tracing-comparison-dashboard.json: |
+    {
+      "annotations": { "list": [] },
+      "description": "Tempo vs Jaeger - Tracing Backend Comparison",
+      "editable": true,
+      "fiscalYearStartMonth": 0,
+      "graphTooltip": 0,
+      "id": null,
+      "links": [],
+      "liveNow": false,
+      "panels": [
+        {
+          "gridPos": { "h": 3, "w": 24, "x": 0, "y": 0 },
+          "id": 1,
+          "options": {
+            "code": { "language": "plaintext", "showLineNumbers": false },
+            "content": "# Tempo vs Jaeger Comparison\n\nBoth backends receive the same traces via dual-write from OTel Collector.\n\n| Feature | Tempo | Jaeger |\n|---------|-------|--------|\n| Query Language | TraceQL | Jaeger Query |\n| Storage | Block-oriented (like Loki) | Pluggable (memory, ES, Cassandra) |\n| UI | Grafana Explore | Jaeger UI |\n| Governance | Grafana Labs | CNCF Graduated |",
+            "mode": "markdown"
+          },
+          "pluginVersion": "10.0.0",
+          "title": "",
+          "transparent": true,
+          "type": "text"
+        },
+        {
+          "gridPos": { "h": 3, "w": 12, "x": 0, "y": 3 },
+          "id": 2,
+          "options": {
+            "code": { "language": "plaintext", "showLineNumbers": false },
+            "content": "## Tempo (Grafana)\n\n**Query in Grafana Explore:**\n```\n{resource.service.name=\"user-service\"}\n```\n\n**Strengths:**\n- Native Grafana integration\n- TraceQL for complex queries\n- Block storage (efficient)\n- Logs/Metrics correlation",
+            "mode": "markdown"
+          },
+          "pluginVersion": "10.0.0",
+          "title": "",
+          "transparent": true,
+          "type": "text"
+        },
+        {
+          "gridPos": { "h": 3, "w": 12, "x": 12, "y": 3 },
+          "id": 3,
+          "options": {
+            "code": { "language": "plaintext", "showLineNumbers": false },
+            "content": "## Jaeger (CNCF)\n\n**Access Jaeger UI:**\n```bash\nkubectl port-forward svc/jaeger-query 16686:16686 -n tracing-comparison\n```\n\n**Strengths:**\n- Dedicated tracing UI\n- CNCF graduated project\n- Flexible storage backends\n- Mature ecosystem",
+            "mode": "markdown"
+          },
+          "pluginVersion": "10.0.0",
+          "title": "",
+          "transparent": true,
+          "type": "text"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "palette-classic" },
+              "custom": {
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "line",
+                "fillOpacity": 10,
+                "gradientMode": "none",
+                "hideFrom": { "legend": false, "tooltip": false, "viz": false },
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "scaleDistribution": { "type": "linear" },
+                "showPoints": "never",
+                "spanNulls": false,
+                "stacking": { "group": "A", "mode": "none" },
+                "thresholdsStyle": { "mode": "off" }
+              },
+              "mappings": [],
+              "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] },
+              "unit": "reqps"
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 8, "w": 12, "x": 0, "y": 6 },
+          "id": 4,
+          "options": {
+            "legend": { "calcs": ["mean", "max"], "displayMode": "table", "placement": "bottom" },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          },
+          "targets": [
+            {
+              "datasource": { "type": "prometheus", "uid": "prometheus" },
+              "expr": "sum(rate(otel_span_duration_count{service_name=~\".*-service\"}[1m])) by (service_name)",
+              "legendFormat": "{{service_name}}",
+              "refId": "A"
+            }
+          ],
+          "title": "Request Rate by Service (from spans)",
+          "type": "timeseries"
+        },
+        {
+          "datasource": { "type": "prometheus", "uid": "prometheus" },
+          "fieldConfig": {
+            "defaults": {
+              "color": { "mode": "palette-classic" },
+              "custom": {
+                "axisCenteredZero": false,
+                "axisColorMode": "text",
+                "axisLabel": "",
+                "axisPlacement": "auto",
+                "barAlignment": 0,
+                "drawStyle": "line",
+                "fillOpacity": 10,
+                "gradientMode": "none",
+                "hideFrom": { "legend": false, "tooltip": false, "viz": false },
+                "lineInterpolation": "linear",
+                "lineWidth": 1,
+                "pointSize": 5,
+                "scaleDistribution": { "type": "linear" },
+                "showPoints": "never",
+                "spanNulls": false,
+                "stacking": { "group": "A", "mode": "none" },
+                "thresholdsStyle": { "mode": "off" }
+              },
+              "mappings": [],
+              "thresholds": { "mode": "absolute", "steps": [{ "color": "green", "value": null }] },
+              "unit": "ms"
+            },
+            "overrides": []
+          },
+          "gridPos": { "h": 8, "w": 12, "x": 12, "y": 6 },
+          "id": 5,
+          "options": {
+            "legend": { "calcs": ["mean", "p95", "max"], "displayMode": "table", "placement": "bottom" },
+            "tooltip": { "mode": "multi", "sort": "desc" }
+          },
+          "targets": [
+            {
+              "datasource": { "type": "prometheus", "uid": "prometheus" },
+              "expr": "histogram_quantile(0.95, sum(rate(otel_span_duration_bucket{service_name=~\".*-service\"}[1m])) by (le, service_name))",
+              "legendFormat": "{{service_name}} p95",
+              "refId": "A"
+            }
+          ],
+          "title": "Latency by Service (p95)",
+          "type": "timeseries"
+        },
+        {
+          "gridPos": { "h": 6, "w": 24, "x": 0, "y": 14 },
+          "id": 6,
+          "options": {
+            "code": { "language": "plaintext", "showLineNumbers": false },
+            "content": "## Query Comparison\n\n| Task | Tempo (TraceQL) | Jaeger |\n|------|-----------------|--------|\n| Find service traces | `{resource.service.name=\"user-service\"}` | Service dropdown |\n| Find slow traces | `{duration > 500ms}` | Min Duration filter |\n| Find errors | `{status=error}` | Tags: error=true |\n| Find by operation | `{name=\"HTTP GET\"}` | Operation dropdown |\n| Structural query | `{svc=A} >> {svc=B}` | Not supported |\n\n## Try It Now\n\n1. **Tempo**: Go to Grafana → Explore → Select \"Tempo\" datasource\n2. **Jaeger**: Port-forward and open http://localhost:16686",
+            "mode": "markdown"
+          },
+          "pluginVersion": "10.0.0",
+          "title": "Query Language Comparison",
+          "type": "text"
+        }
+      ],
+      "refresh": "5s",
+      "schemaVersion": 38,
+      "style": "dark",
+      "tags": ["tracing", "comparison", "tempo", "jaeger"],
+      "templating": { "list": [] },
+      "time": { "from": "now-15m", "to": "now" },
+      "timepicker": {},
+      "timezone": "",
+      "title": "Tracing Backend Comparison",
+      "uid": "tracing-comparison",
+      "version": 1
+    }

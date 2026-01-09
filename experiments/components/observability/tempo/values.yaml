@@ -1,0 +1,82 @@
+# Tempo - Single binary mode for tutorials
+# Lightweight trace storage with OTLP receiver
+
+# Single binary deployment (like Loki single binary)
+tempo:
+  # Receivers - accept traces from various protocols
+  receivers:
+    otlp:
+      protocols:
+        grpc:
+          endpoint: "0.0.0.0:4317"
+        http:
+          endpoint: "0.0.0.0:4318"
+    jaeger:
+      protocols:
+        thrift_http:
+          endpoint: "0.0.0.0:14268"
+        grpc:
+          endpoint: "0.0.0.0:14250"
+    zipkin:
+      endpoint: "0.0.0.0:9411"
+
+  # Storage - filesystem for simplicity (can switch to S3/SeaweedFS)
+  storage:
+    trace:
+      backend: local
+      local:
+        path: /var/tempo/traces
+      wal:
+        path: /var/tempo/wal
+
+  # Query settings
+  query_frontend:
+    search:
+      duration_slo: 5s
+      throughput_bytes_slo: 1.073741824e+09
+
+  # Metrics generator - create metrics from traces
+  metrics_generator:
+    registry:
+      external_labels:
+        source: tempo
+    storage:
+      path: /var/tempo/generator/wal
+      remote_write:
+        - url: http://prometheus-kube-prometheus-prometheus.monitoring:9090/api/v1/write
+          send_exemplars: true
+
+  # Retention
+  compactor:
+    compaction:
+      block_retention: 48h
+
+  # Overrides for multi-tenant (disabled for tutorial)
+  overrides:
+    defaults:
+      ingestion:
+        rate_limit_bytes: 15000000
+        burst_size_bytes: 20000000
+      search:
+        max_duration: 0s
+
+# Service configuration
+service:
+  type: ClusterIP
+
+# Resources for Kind cluster
+resources:
+  requests:
+    cpu: 50m
+    memory: 256Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+# Persistence disabled for tutorial (ephemeral)
+persistence:
+  enabled: false
+
+# ServiceMonitor for Prometheus scraping
+serviceMonitor:
+  enabled: false

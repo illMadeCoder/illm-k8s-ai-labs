@@ -1,0 +1,70 @@
+# Elasticsearch ILM Policy - Index Lifecycle Management
+# Hot -> Delete lifecycle for tutorial logs
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: es-ilm-policy
+  namespace: elasticsearch
+spec:
+  ttlSecondsAfterFinished: 300
+  template:
+    spec:
+      restartPolicy: OnFailure
+      initContainers:
+        - name: wait-for-es
+          image: curlimages/curl:8.5.0
+          command: [sh, -c]
+          args:
+            - |
+              echo "Waiting for Elasticsearch..."
+              until curl -sf http://elasticsearch:9200/_cluster/health; do
+                echo "ES not ready, waiting..."
+                sleep 5
+              done
+              echo "Elasticsearch is ready!"
+      containers:
+        - name: create-ilm
+          image: curlimages/curl:8.5.0
+          command: [sh, -c]
+          args:
+            - |
+              echo "Creating ILM policy..."
+              curl -X PUT "http://elasticsearch:9200/_ilm/policy/logs-policy" \
+                -H 'Content-Type: application/json' \
+                -d '{
+                  "policy": {
+                    "phases": {
+                      "hot": {
+                        "min_age": "0ms",
+                        "actions": {
+                          "rollover": {
+                            "max_age": "1d",
+                            "max_primary_shard_size": "10gb"
+                          }
+                        }
+                      },
+                      "delete": {
+                        "min_age": "3d",
+                        "actions": {
+                          "delete": {}
+                        }
+                      }
+                    }
+                  }
+                }'
+              echo ""
+              echo "ILM policy created!"
+
+              echo "Creating initial index with alias..."
+              curl -X PUT "http://elasticsearch:9200/logs-000001" \
+                -H 'Content-Type: application/json' \
+                -d '{
+                  "aliases": {
+                    "logs-write": {
+                      "is_write_index": true
+                    }
+                  }
+                }'
+              echo ""
+              echo "Initial index created!"

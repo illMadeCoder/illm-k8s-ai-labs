@@ -1,0 +1,187 @@
+# OpenTelemetry Tutorial - Interactive Checkpoints
+name: otel-tutorial
+title: "OpenTelemetry & Distributed Tracing"
+description: |
+  Learn distributed tracing with OpenTelemetry, OTel Collector, and Tempo.
+  Explore trace propagation across a multi-service demo application.
+duration: 90
+difficulty: intermediate
+prerequisites:
+  - prometheus-tutorial
+  - loki-tutorial  # Optional but recommended
+
+modules:
+  - id: otel-fundamentals
+    title: "OpenTelemetry Fundamentals"
+    objectives:
+      - Understand the OTel architecture (SDK, Collector, backends)
+      - Learn about OTLP protocol
+      - Explore the three signals: traces, metrics, logs
+    checkpoints:
+      - name: otel-collector-running
+        description: "OTel Collector is receiving telemetry"
+        validation:
+          type: pod_ready
+          selector: app.kubernetes.io/name=opentelemetry-collector
+          namespace: otel-tutorial
+
+  - id: trace-anatomy
+    title: "Trace Anatomy"
+    objectives:
+      - Understand trace structure (trace → spans → events)
+      - Learn about span attributes and status
+      - Explore parent-child span relationships
+    checkpoints:
+      - name: demo-app-running
+        description: "All three demo services are running"
+        validation:
+          type: deployment_ready
+          deployments:
+            - user-service
+            - order-service
+            - payment-service
+          namespace: otel-tutorial
+
+  - id: context-propagation
+    title: "Context Propagation"
+    objectives:
+      - Understand W3C Trace Context headers
+      - See how trace IDs flow across services
+      - Learn about baggage propagation
+    checkpoints:
+      - name: generate-distributed-trace
+        description: "Generated a distributed trace across all services"
+        validation:
+          type: manual
+          instructions: |
+            Generate traffic and observe the trace:
+            curl http://localhost:8080/api/users/1/orders -X POST \
+              -H "Content-Type: application/json" \
+              -d '{"items": [{"product_id": "p1", "quantity": 1}]}'
+
+            Then check Grafana Explore > Tempo for the trace.
+
+  - id: tempo-queries
+    title: "Tempo & TraceQL"
+    objectives:
+      - Query traces using TraceQL
+      - Filter by service, duration, status
+      - Use the service graph visualization
+    checkpoints:
+      - name: tempo-receiving-traces
+        description: "Tempo is receiving and storing traces"
+        validation:
+          type: pod_ready
+          selector: app.kubernetes.io/name=tempo
+          namespace: otel-tutorial
+      - name: traceql-query
+        description: "Executed a TraceQL query in Grafana"
+        validation:
+          type: manual
+          instructions: |
+            In Grafana Explore, select Tempo datasource and run:
+            {resource.service.name="user-service"}
+
+            You should see traces from the user-service.
+
+  - id: span-analysis
+    title: "Span Analysis"
+    objectives:
+      - Analyze span waterfall views
+      - Identify latency bottlenecks
+      - Understand span breakdown
+    checkpoints:
+      - name: analyze-slow-trace
+        description: "Identified slow spans in a trace"
+        validation:
+          type: manual
+          instructions: |
+            Find a trace in Tempo and click to expand it.
+            Look at the waterfall view to identify:
+            - Which service takes the longest?
+            - Which operation within that service is slowest?
+
+  - id: error-tracing
+    title: "Error Tracing"
+    objectives:
+      - Trace error propagation across services
+      - Understand span status codes
+      - Use exception spans for debugging
+    checkpoints:
+      - name: find-error-trace
+        description: "Found and analyzed an error trace"
+        validation:
+          type: manual
+          instructions: |
+            Trigger an error (if the demo app supports it) or find
+            an existing error trace in Tempo using:
+            {status=error}
+
+  - id: metrics-from-traces
+    title: "Metrics from Traces (Span Metrics)"
+    objectives:
+      - Understand span metrics (RED metrics from traces)
+      - Configure spanmetrics processor
+      - Query span-derived metrics in Prometheus
+    checkpoints:
+      - name: span-metrics-available
+        description: "Span metrics are available in Prometheus"
+        validation:
+          type: manual
+          instructions: |
+            In Grafana, query Prometheus for:
+            otel_span_duration_count
+
+            These metrics are derived from traces by the OTel Collector.
+
+  - id: logs-traces-correlation
+    title: "Logs ↔ Traces Correlation"
+    objectives:
+      - Understand trace_id injection in logs
+      - Jump from logs to traces
+      - Use Grafana's integrated view
+    checkpoints:
+      - name: correlated-logs
+        description: "Correlated a log entry with its trace"
+        validation:
+          type: manual
+          instructions: |
+            If Loki is available, query for logs with trace_id:
+            {app="user-service"} | json | trace_id != ""
+
+            Click a log entry and use "View trace" link.
+
+  - id: service-maps
+    title: "Service Dependency Maps"
+    objectives:
+      - Understand service graph generation
+      - Visualize service dependencies
+      - Identify critical paths
+    checkpoints:
+      - name: view-service-map
+        description: "Viewed the service dependency map"
+        validation:
+          type: manual
+          instructions: |
+            In Grafana Explore > Tempo, click "Service Graph"
+            You should see: user-service → order-service → payment-service
+
+completion:
+  message: |
+    Congratulations! You've completed the OpenTelemetry tutorial.
+
+    You learned:
+    - OTel architecture and OTLP protocol
+    - Trace anatomy (spans, attributes, events)
+    - Context propagation across services
+    - TraceQL queries in Tempo
+    - Span analysis and latency debugging
+    - Error tracing
+    - Metrics from traces (span metrics)
+    - Logs-traces correlation
+    - Service dependency visualization
+
+    Next steps:
+    - Try the tracing-comparison scenario (Tempo vs Jaeger)
+    - Explore auto-instrumentation for different languages
+    - Set up sampling strategies for production

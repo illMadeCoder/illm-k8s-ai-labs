@@ -1,0 +1,46 @@
+# Jaeger for tracing comparison
+# All-in-one deployment with OTLP receiver
+
+# Use all-in-one deployment for tutorial simplicity
+provisionDataStore:
+  cassandra: false
+  elasticsearch: false
+
+allInOne:
+  enabled: true
+  replicas: 1
+  image:
+    repository: jaegertracing/all-in-one
+    tag: "1.62"
+  extraEnv:
+    # Enable OTLP receiver
+    - name: COLLECTOR_OTLP_ENABLED
+      value: "true"
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+storage:
+  type: memory  # In-memory for tutorial simplicity
+
+collector:
+  enabled: false  # Using all-in-one
+
+agent:
+  enabled: false  # Not needed with OTLP
+
+query:
+  enabled: false  # Using all-in-one
+
+# Service for OTLP ingestion
+service:
+  collector:
+    otlp:
+      grpc:
+        port: 4317
+      http:
+        port: 4318

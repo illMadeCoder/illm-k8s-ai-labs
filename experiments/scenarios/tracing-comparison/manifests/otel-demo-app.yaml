@@ -1,0 +1,162 @@
+# OTel Demo App for tracing comparison
+# Same 3-service app, traces sent to both Tempo and Jaeger
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: otel-demo-config
+  namespace: tracing-comparison
+data:
+  OTEL_EXPORTER_OTLP_ENDPOINT: "otel-collector-opentelemetry-collector.tracing-comparison.svc:4317"
+  OTEL_PROPAGATORS: "tracecontext,baggage"
+  OTEL_TRACES_SAMPLER: "always_on"
+---
+# User Service - Entry point
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: user-service
+  namespace: tracing-comparison
+  labels:
+    app: user-service
+    app.kubernetes.io/part-of: otel-demo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: user-service
+  template:
+    metadata:
+      labels:
+        app: user-service
+    spec:
+      containers:
+        - name: user-service
+          image: ghcr.io/illmadecoder/otel-demo-user-service:latest
+          ports:
+            - containerPort: 8080
+          env:
+            - name: ORDER_SERVICE_URL
+              value: "http://order-service:8080"
+          envFrom:
+            - configMapRef:
+                name: otel-demo-config
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: user-service
+  namespace: tracing-comparison
+spec:
+  type: LoadBalancer
+  selector:
+    app: user-service
+  ports:
+    - port: 8080
+      targetPort: 8080
+---
+# Order Service - Middle tier
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: order-service
+  namespace: tracing-comparison
+  labels:
+    app: order-service
+    app.kubernetes.io/part-of: otel-demo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: order-service
+  template:
+    metadata:
+      labels:
+        app: order-service
+    spec:
+      containers:
+        - name: order-service
+          image: ghcr.io/illmadecoder/otel-demo-order-service:latest
+          ports:
+            - containerPort: 8080
+          env:
+            - name: PAYMENT_SERVICE_URL
+              value: "http://payment-service:8080"
+          envFrom:
+            - configMapRef:
+                name: otel-demo-config
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: order-service
+  namespace: tracing-comparison
+spec:
+  type: ClusterIP
+  selector:
+    app: order-service
+  ports:
+    - port: 8080
+      targetPort: 8080
+---
+# Payment Service - Backend
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: payment-service
+  namespace: tracing-comparison
+  labels:
+    app: payment-service
+    app.kubernetes.io/part-of: otel-demo
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: payment-service
+  template:
+    metadata:
+      labels:
+        app: payment-service
+    spec:
+      containers:
+        - name: payment-service
+          image: ghcr.io/illmadecoder/otel-demo-payment-service:latest
+          ports:
+            - containerPort: 8080
+          envFrom:
+            - configMapRef:
+                name: otel-demo-config
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: payment-service
+  namespace: tracing-comparison
+spec:
+  type: ClusterIP
+  selector:
+    app: payment-service
+  ports:
+    - port: 8080
+      targetPort: 8080

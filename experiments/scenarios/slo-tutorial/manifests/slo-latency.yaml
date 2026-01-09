@@ -1,0 +1,28 @@
+# Latency SLO - 99% of requests under 500ms
+# Measures: fast requests / total requests
+apiVersion: pyrra.dev/v1alpha1
+kind: ServiceLevelObjective
+metadata:
+  name: metrics-app-latency
+  namespace: slo-tutorial
+  labels:
+    app: metrics-app
+    slo: latency
+spec:
+  # Target: 99% of requests under 500ms
+  target: "99"
+  # Rolling window: 30 days
+  window: 30d
+  # Service reference for grouping
+  description: "99% of requests should complete in under 500ms"
+  # SLI definition: latency histogram
+  indicator:
+    latency:
+      success:
+        metric: request_duration_seconds_bucket{job="metrics-app",le="0.5"}
+      total:
+        metric: request_duration_seconds_count{job="metrics-app"}
+  # Alert configuration
+  alerting:
+    name: MetricsAppLatency
+    burnrates: true

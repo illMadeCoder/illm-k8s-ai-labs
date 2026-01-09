@@ -1,0 +1,153 @@
+# SLO Tutorial - Interactive Checkpoints
+name: slo-tutorial
+title: "SLOs & Error Budgets"
+description: |
+  Learn Service Level Objectives (SLOs) and error budget management
+  using Pyrra for Kubernetes.
+duration: 60
+difficulty: intermediate
+prerequisites:
+  - prometheus-tutorial
+
+modules:
+  - id: slo-fundamentals
+    title: "SLO Fundamentals"
+    objectives:
+      - Understand SLI/SLO/SLA hierarchy
+      - Learn error budget concept
+      - Calculate error budget from SLO target
+    checkpoints:
+      - name: prometheus-running
+        description: "Prometheus is collecting metrics"
+        validation:
+          type: pod_ready
+          selector: app.kubernetes.io/name=prometheus
+          namespace: slo-tutorial
+
+  - id: defining-slis
+    title: "Defining SLIs"
+    objectives:
+      - Choose appropriate metrics for SLIs
+      - Understand availability vs latency SLIs
+      - Write SLI queries in PromQL
+    checkpoints:
+      - name: metrics-app-running
+        description: "metrics-app is exposing metrics"
+        validation:
+          type: deployment_ready
+          deployment: metrics-app
+          namespace: slo-tutorial
+
+  - id: pyrra-slos
+    title: "Pyrra SLO Definitions"
+    objectives:
+      - Understand ServiceLevelObjective CRD
+      - Define availability SLO
+      - Define latency SLO
+    checkpoints:
+      - name: pyrra-running
+        description: "Pyrra is managing SLOs"
+        validation:
+          type: pod_ready
+          selector: app.kubernetes.io/name=pyrra
+          namespace: slo-tutorial
+      - name: slos-created
+        description: "SLO definitions are created"
+        validation:
+          type: manual
+          instructions: |
+            Check SLO definitions:
+            kubectl get servicelevelobjectives -n slo-tutorial
+
+            You should see:
+            - metrics-app-availability (99.9% target)
+            - metrics-app-latency (99% target)
+
+  - id: error-budget-math
+    title: "Error Budget Math"
+    objectives:
+      - Calculate error budget from SLO target
+      - Understand burn rate concept
+      - Interpret budget consumption
+    checkpoints:
+      - name: view-error-budget
+        description: "Viewed error budget in dashboard"
+        validation:
+          type: manual
+          instructions: |
+            Access Grafana:
+            kubectl port-forward -n slo-tutorial svc/kube-prometheus-stack-grafana 3000:80
+
+            Open the "SLO Tutorial - Error Budget Dashboard"
+
+            Error budget calculation:
+            - 99.9% SLO = 0.1% error budget = 43.2 min/month
+            - 99% SLO = 1% error budget = 7.2 hours/month
+
+  - id: multi-window-alerting
+    title: "Multi-Window Alerting"
+    objectives:
+      - Understand fast burn vs slow burn
+      - Configure multi-burn-rate alerts
+      - Interpret burn rate alerts
+    checkpoints:
+      - name: view-pyrra-rules
+        description: "Viewed Pyrra-generated PrometheusRules"
+        validation:
+          type: manual
+          instructions: |
+            Pyrra auto-generates multi-window, multi-burn-rate alerts.
+
+            View generated rules:
+            kubectl get prometheusrules -n slo-tutorial
+
+            The rules implement the Google SRE alerting strategy:
+            - 1h window, 14.4x burn rate (exhausts budget in 1h)
+            - 6h window, 6x burn rate (exhausts in 6h)
+            - 3d window, 1x burn rate (exhausts in 30d)
+
+  - id: slo-dashboard
+    title: "SLO Dashboard"
+    objectives:
+      - Visualize SLO compliance
+      - Track error budget consumption
+      - Use Pyrra UI
+    checkpoints:
+      - name: access-pyrra-ui
+        description: "Accessed Pyrra web UI"
+        validation:
+          type: manual
+          instructions: |
+            Access Pyrra UI:
+            kubectl port-forward -n slo-tutorial svc/pyrra 9099:9099
+
+            Open http://localhost:9099
+
+            You should see:
+            - List of SLOs
+            - Current compliance percentage
+            - Error budget remaining
+            - Burn rate trends
+
+completion:
+  message: |
+    Congratulations! You've completed the SLO tutorial.
+
+    You learned:
+    - SLI/SLO/SLA hierarchy
+    - Defining SLIs with PromQL
+    - Pyrra ServiceLevelObjective CRDs
+    - Error budget calculations
+    - Multi-window, multi-burn-rate alerting
+    - SLO dashboard visualization
+
+    Key formulas:
+    - Error Budget = 100% - SLO Target
+    - 99.9% SLO = 43.2 minutes/month budget
+    - 99% SLO = 7.2 hours/month budget
+    - Burn Rate = Actual Error Rate / Allowed Error Rate
+
+    Next steps:
+    - Apply SLOs to your production services
+    - Implement error budget policies (freeze deploys when exhausted)
+    - Set up SLO review processes

@@ -1,0 +1,51 @@
+# Loki values for observability cost tutorial
+# Single binary mode for tutorial simplicity
+
+deploymentMode: SingleBinary
+
+loki:
+  auth_enabled: false
+
+  commonConfig:
+    replication_factor: 1
+
+  storage:
+    type: filesystem
+
+  # Short retention for cost analysis demo
+  limits_config:
+    retention_period: 72h
+    max_query_series: 500
+    max_entries_limit_per_query: 5000
+
+singleBinary:
+  replicas: 1
+  resources:
+    requests:
+      cpu: 50m
+      memory: 256Mi
+    limits:
+      cpu: 500m
+      memory: 512Mi
+
+# Disable components not needed for single binary
+backend:
+  replicas: 0
+read:
+  replicas: 0
+write:
+  replicas: 0
+
+# Disable monitoring (we're monitoring Loki itself)
+monitoring:
+  selfMonitoring:
+    enabled: false
+  lokiCanary:
+    enabled: false
+
+# Disable gateway
+gateway:
+  enabled: false
+
+test:
+  enabled: false

@@ -1,0 +1,62 @@
+# Promtail - Log collector for Loki tutorial
+# Collects logs from all pods and sends to Loki
+
+config:
+  clients:
+    - url: http://loki-gateway.loki.svc.cluster.local/loki/api/v1/push
+      tenant_id: ""
+
+  snippets:
+    # Add common labels
+    common:
+      - action: replace
+        source_labels:
+          - __meta_kubernetes_pod_node_name
+        target_label: node
+      - action: replace
+        source_labels:
+          - __meta_kubernetes_namespace
+        target_label: namespace
+      - action: replace
+        source_labels:
+          - __meta_kubernetes_pod_name
+        target_label: pod
+      - action: replace
+        source_labels:
+          - __meta_kubernetes_pod_container_name
+        target_label: container
+      - action: replace
+        source_labels:
+          - __meta_kubernetes_pod_label_app
+        target_label: app
+
+    # Pipeline stages for log processing
+    pipelineStages:
+      # Try to parse JSON logs
+      - json:
+          expressions:
+            level: level
+            service: service
+            endpoint: endpoint
+            method: method
+            status: status
+            duration_ms: duration_ms
+            trace_id: trace_id
+            message: message
+      # Add parsed fields as labels (be careful with cardinality)
+      - labels:
+          level:
+          service:
+
+# Resources for Kind cluster
+resources:
+  requests:
+    cpu: 20m
+    memory: 64Mi
+  limits:
+    cpu: 200m
+    memory: 128Mi
+
+# ServiceMonitor disabled (no Prometheus in this tutorial by default)
+serviceMonitor:
+  enabled: false

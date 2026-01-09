@@ -1,0 +1,32 @@
+# Pyrra Helm values
+# SLO management with built-in UI
+
+# Pyrra API server
+pyrra:
+  # Prometheus URL for queries
+  prometheusUrl: http://kube-prometheus-stack-prometheus.prometheus:9090
+
+  # Enable generic recording rules (for standard SLO calculations)
+  genericRules:
+    enabled: true
+
+# Web UI
+service:
+  type: ClusterIP
+  port: 9099
+
+# Resource limits
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 200m
+    memory: 256Mi
+
+# Install CRDs
+installCRDs: true
+
+# Kubernetes operator mode (watches ServiceLevelObjective CRDs)
+kubernetesOperator:
+  enabled: true

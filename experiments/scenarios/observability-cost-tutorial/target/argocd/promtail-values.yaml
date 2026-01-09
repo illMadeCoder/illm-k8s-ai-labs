@@ -1,0 +1,35 @@
+# Promtail values for observability cost tutorial
+
+config:
+  clients:
+    - url: http://loki.observability-cost.svc:3100/loki/api/v1/push
+
+  # Pipeline stages for cost-aware logging
+  snippets:
+    pipelineStages:
+      # Extract common labels
+      - cri: {}
+      # Drop debug logs to reduce volume (cost optimization example)
+      - match:
+          selector: '{app=~".+"}'
+          stages:
+            - json:
+                expressions:
+                  level: level
+            - labels:
+                level:
+      # Example: Drop verbose logs
+      # - drop:
+      #     expression: ".*DEBUG.*"
+      #     drop_counter_reason: debug_logs_dropped
+
+resources:
+  requests:
+    cpu: 25m
+    memory: 64Mi
+  limits:
+    cpu: 100m
+    memory: 128Mi
+
+serviceMonitor:
+  enabled: false

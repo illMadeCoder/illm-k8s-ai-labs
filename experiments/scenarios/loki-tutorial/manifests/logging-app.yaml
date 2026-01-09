@@ -1,0 +1,80 @@
+# Log Generator - Structured JSON logs for Loki tutorial
+# Generates consistent log output for LogQL learning
+---
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: demo
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: logging-app
+  namespace: demo
+  labels:
+    app: logging-app
+    tutorial: loki-tutorial
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: logging-app
+  template:
+    metadata:
+      labels:
+        app: logging-app
+        tutorial: loki-tutorial
+    spec:
+      containers:
+        - name: logging-app
+          image: ghcr.io/illmadecoder/log-generator:latest
+          imagePullPolicy: Always
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+          env:
+            - name: PORT
+              value: "8080"
+            # Medium rate for tutorial - 100 logs/sec
+            - name: LOG_RATE
+              value: "medium"
+            # Low cardinality - 5 services (easier to learn)
+            - name: LOG_CARDINALITY
+              value: "low"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 5
+          resources:
+            requests:
+              memory: 32Mi
+              cpu: 10m
+            limits:
+              memory: 128Mi
+              cpu: 100m
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: logging-app
+  namespace: demo
+  labels:
+    app: logging-app
+spec:
+  type: LoadBalancer
+  ports:
+    - port: 8080
+      targetPort: 8080
+      protocol: TCP
+      name: http
+  selector:
+    app: logging-app

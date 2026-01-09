@@ -1,0 +1,8 @@
+# Target cluster for OpenTelemetry tutorial
+# Runs OTel Collector, Tempo, Grafana, and otel-demo app
+size: medium
+provider: kind
+
+# Medium cluster for tracing infrastructure
+# nodes: 2
+# memory: 4Gi

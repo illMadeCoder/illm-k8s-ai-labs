@@ -1,0 +1,103 @@
+# Tracing Comparison Tutorial - Tempo vs Jaeger
+name: tracing-comparison
+title: "Tempo vs Jaeger - Tracing Backend Comparison"
+description: |
+  Compare Grafana Tempo and Jaeger for distributed tracing.
+  Both receive the same traces via dual-write from OTel Collector.
+duration: 60
+difficulty: intermediate
+prerequisites:
+  - otel-tutorial
+
+modules:
+  - id: architecture-comparison
+    title: "Architecture Comparison"
+    objectives:
+      - Understand Tempo's block-oriented storage model
+      - Understand Jaeger's collector-query architecture
+      - Compare deployment patterns
+    checkpoints:
+      - name: both-backends-running
+        description: "Both Tempo and Jaeger are receiving traces"
+        validation:
+          type: pod_ready
+          selectors:
+            - app.kubernetes.io/name=tempo
+            - app.kubernetes.io/name=jaeger
+          namespace: tracing-comparison
+
+  - id: query-language
+    title: "Query Language Comparison"
+    objectives:
+      - Learn TraceQL (Tempo)
+      - Learn Jaeger query interface
+      - Compare capabilities
+    checkpoints:
+      - name: query-tempo
+        description: "Queried traces in Tempo using TraceQL"
+        validation:
+          type: manual
+          instructions: |
+            In Grafana Explore, select Tempo and run:
+            {resource.service.name="user-service"}
+      - name: query-jaeger
+        description: "Queried traces in Jaeger UI"
+        validation:
+          type: manual
+          instructions: |
+            kubectl port-forward svc/jaeger-query 16686:16686 -n tracing-comparison
+            Open http://localhost:16686
+            Select user-service and click Find Traces
+
+  - id: ui-comparison
+    title: "UI/UX Comparison"
+    objectives:
+      - Compare Grafana Explore vs Jaeger UI
+      - Evaluate trace visualization
+      - Compare service maps
+    checkpoints:
+      - name: compare-trace-views
+        description: "Compared the same trace in both UIs"
+        validation:
+          type: manual
+          instructions: |
+            Find the same trace ID in both:
+            1. Grafana Tempo: Search by trace ID
+            2. Jaeger UI: Search by trace ID
+
+            Compare the waterfall views and information displayed.
+
+  - id: feature-comparison
+    title: "Feature Comparison"
+    objectives:
+      - Compare structural queries (Tempo >> operator)
+      - Compare service graph visualization
+      - Evaluate when to use each
+    checkpoints:
+      - name: structural-query
+        description: "Tried a structural query in Tempo"
+        validation:
+          type: manual
+          instructions: |
+            In Tempo, try a structural query:
+            {resource.service.name="user-service"} >> {resource.service.name="payment-service"}
+
+            This finds traces where user-service eventually calls payment-service.
+            Note: Jaeger doesn't have this capability.
+
+completion:
+  message: |
+    You've compared Tempo and Jaeger!
+
+    Summary:
+    | Aspect | Tempo | Jaeger |
+    |--------|-------|--------|
+    | Query | TraceQL (powerful) | Basic filters |
+    | UI | Grafana (unified) | Dedicated UI |
+    | Storage | Block (efficient) | Pluggable |
+    | Integration | Loki/Prometheus | Standalone |
+    | Project | Grafana Labs | CNCF Graduated |
+
+    When to use each:
+    - **Tempo**: If you use Grafana stack (LGTM), want TraceQL
+    - **Jaeger**: If you want dedicated tracing UI, CNCF ecosystem

@@ -1,0 +1,75 @@
+# kube-prometheus-stack - Minimal install for Grafana only
+# Prometheus and Alertmanager disabled - this tutorial focuses on logs
+
+# Disable Prometheus components
+prometheus:
+  enabled: false
+
+alertmanager:
+  enabled: false
+
+# Disable all exporters
+kubeStateMetrics:
+  enabled: false
+
+nodeExporter:
+  enabled: false
+
+kubeApiServer:
+  enabled: false
+
+kubelet:
+  enabled: false
+
+kubeControllerManager:
+  enabled: false
+
+coreDns:
+  enabled: false
+
+kubeScheduler:
+  enabled: false
+
+kubeProxy:
+  enabled: false
+
+kubeEtcd:
+  enabled: false
+
+prometheusOperator:
+  enabled: false
+
+# Enable only Grafana
+grafana:
+  enabled: true
+
+  adminPassword: admin
+
+  service:
+    type: LoadBalancer
+
+  # Pre-configure Loki datasource
+  additionalDataSources:
+    - name: Loki
+      type: loki
+      url: http://loki-gateway.loki.svc.cluster.local
+      access: proxy
+      isDefault: true
+      jsonData:
+        maxLines: 1000
+
+  # Sidecar for dashboards
+  sidecar:
+    dashboards:
+      enabled: true
+      label: grafana_dashboard
+      labelValue: "1"
+      searchNamespace: ALL
+
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi

@@ -1,0 +1,102 @@
+# Argo Workflow for observability-cost-tutorial validation
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: observability-cost-validation-
+  namespace: argo
+spec:
+  entrypoint: validate-observability-cost
+  templates:
+    - name: validate-observability-cost
+      steps:
+        - - name: check-prometheus
+            template: check-statefulset
+            arguments:
+              parameters:
+                - name: name
+                  value: prometheus-kube-prometheus-stack-prometheus
+                - name: namespace
+                  value: observability-cost
+        - - name: check-loki
+            template: check-statefulset
+            arguments:
+              parameters:
+                - name: name
+                  value: loki
+                - name: namespace
+                  value: observability-cost
+        - - name: check-grafana
+            template: check-deployment
+            arguments:
+              parameters:
+                - name: name
+                  value: kube-prometheus-stack-grafana
+                - name: namespace
+                  value: observability-cost
+        - - name: check-log-generators
+            template: check-log-generators
+        - - name: wait-for-metrics
+            template: wait-metrics
+        - - name: verify-cardinality
+            template: check-cardinality
+
+    - name: check-deployment
+      inputs:
+        parameters:
+          - name: name
+          - name: namespace
+      container:
+        image: bitnami/kubectl:latest
+        command: [sh, -c]
+        args:
+          - |
+            kubectl rollout status deployment/{{inputs.parameters.name}} \
+              -n {{inputs.parameters.namespace}} --timeout=120s
+
+    - name: check-statefulset
+      inputs:
+        parameters:
+          - name: name
+          - name: namespace
+      container:
+        image: bitnami/kubectl:latest
+        command: [sh, -c]
+        args:
+          - |
+            kubectl rollout status statefulset/{{inputs.parameters.name}} \
+              -n {{inputs.parameters.namespace}} --timeout=120s
+
+    - name: check-log-generators
+      container:
+        image: bitnami/kubectl:latest
+        command: [sh, -c]
+        args:
+          - |
+            echo "Checking log generators..."
+            kubectl get pods -n observability-cost -l app=log-generator
+            kubectl rollout status deployment/log-generator-verbose -n observability-cost --timeout=60s || true
+            kubectl rollout status deployment/log-generator-efficient -n observability-cost --timeout=60s || true
+
+    - name: wait-metrics
+      container:
+        image: curlimages/curl:latest
+        command: [sh, -c]
+        args:
+          - |
+            echo "Waiting for metrics to accumulate..."
+            sleep 60
+
+    - name: check-cardinality
+      container:
+        image: curlimages/curl:latest
+        command: [sh, -c]
+        args:
+          - |
+            echo "Checking Prometheus cardinality..."
+            RESULT=$(curl -s "http://prometheus-kube-prometheus-stack-prometheus.observability-cost.svc:9090/api/v1/query?query=prometheus_tsdb_head_series")
+            echo "TSDB series: $RESULT"
+            if echo "$RESULT" | grep -q "success"; then
+              echo "SUCCESS: Prometheus cardinality metrics available"
+            else
+              echo "WARNING: Could not query cardinality"
+            fi

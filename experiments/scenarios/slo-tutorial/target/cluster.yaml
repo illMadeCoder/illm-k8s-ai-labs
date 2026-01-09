@@ -1,0 +1,8 @@
+# Target cluster for SLO tutorial
+# Runs Prometheus, Pyrra, Grafana, and metrics-app
+size: medium
+provider: kind
+
+# Medium cluster for SLO infrastructure
+# nodes: 2
+# memory: 4Gi

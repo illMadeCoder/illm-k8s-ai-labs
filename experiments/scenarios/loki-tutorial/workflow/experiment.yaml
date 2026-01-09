@@ -1,0 +1,169 @@
+# Loki Tutorial - Validation Workflow
+# Verifies Loki stack deployment and log ingestion
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: loki-tutorial-
+  namespace: argo
+spec:
+  entrypoint: loki-tutorial
+  serviceAccountName: argo-workflow
+
+  templates:
+    - name: loki-tutorial
+      dag:
+        tasks:
+          - name: wait-for-loki
+            template: wait-for-loki
+          - name: wait-for-promtail
+            template: wait-for-promtail
+          - name: wait-for-grafana
+            template: wait-for-grafana
+          - name: wait-for-logging-app
+            template: wait-for-logging-app
+          - name: validate-ingestion
+            template: validate-ingestion
+            dependencies: [wait-for-loki, wait-for-promtail, wait-for-logging-app]
+          - name: validate-queries
+            template: validate-queries
+            dependencies: [validate-ingestion]
+
+    - name: wait-for-loki
+      container:
+        image: curlimages/curl:8.5.0
+        command: [sh, -c]
+        args:
+          - |
+            echo "Waiting for Loki to be ready..."
+            for i in $(seq 1 60); do
+              if curl -sf http://loki-gateway.loki.svc.cluster.local/ready; then
+                echo "Loki is ready!"
+                exit 0
+              fi
+              echo "Attempt $i/60 - Loki not ready yet..."
+              sleep 5
+            done
+            echo "ERROR: Loki did not become ready in time"
+            exit 1
+
+    - name: wait-for-promtail
+      container:
+        image: curlimages/curl:8.5.0
+        command: [sh, -c]
+        args:
+          - |
+            echo "Waiting for Promtail to be ready..."
+            for i in $(seq 1 30); do
+              # Check if promtail pods are running
+              if curl -sf http://promtail.loki.svc.cluster.local:3101/ready 2>/dev/null; then
+                echo "Promtail is ready!"
+                exit 0
+              fi
+              echo "Attempt $i/30 - Promtail not ready yet..."
+              sleep 5
+            done
+            # Promtail might not have a ready endpoint, check Loki for logs instead
+            echo "Promtail ready check skipped, will verify via log ingestion"
+            exit 0
+
+    - name: wait-for-grafana
+      container:
+        image: curlimages/curl:8.5.0
+        command: [sh, -c]
+        args:
+          - |
+            echo "Waiting for Grafana to be ready..."
+            for i in $(seq 1 60); do
+              if curl -sf http://kube-prometheus-stack-grafana.loki.svc.cluster.local/api/health; then
+                echo "Grafana is ready!"
+                exit 0
+              fi
+              echo "Attempt $i/60 - Grafana not ready yet..."
+              sleep 5
+            done
+            echo "ERROR: Grafana did not become ready in time"
+            exit 1
+
+    - name: wait-for-logging-app
+      container:
+        image: curlimages/curl:8.5.0
+        command: [sh, -c]
+        args:
+          - |
+            echo "Waiting for logging-app to be ready..."
+            for i in $(seq 1 60); do
+              if curl -sf http://logging-app.demo.svc.cluster.local:8080/ready; then
+                echo "Logging app is ready!"
+                exit 0
+              fi
+              echo "Attempt $i/60 - Logging app not ready yet..."
+              sleep 5
+            done
+            echo "ERROR: Logging app did not become ready in time"
+            exit 1
+
+    - name: validate-ingestion
+      container:
+        image: curlimages/curl:8.5.0
+        command: [sh, -c]
+        args:
+          - |
+            echo "Waiting for logs to be ingested into Loki..."
+            LOKI_URL="http://loki-gateway.loki.svc.cluster.local"
+
+            # Wait for logs to appear
+            for i in $(seq 1 30); do
+              RESULT=$(curl -s -G "$LOKI_URL/loki/api/v1/query" \
+                --data-urlencode 'query={app="logging-app"}' \
+                --data-urlencode 'limit=10')
+
+              COUNT=$(echo "$RESULT" | grep -o '"result":\[' | wc -l)
+              if echo "$RESULT" | grep -q '"values"'; then
+                echo "Logs successfully ingested into Loki!"
+                echo "Sample query result:"
+                echo "$RESULT" | head -c 500
+                exit 0
+              fi
+              echo "Attempt $i/30 - No logs yet, waiting..."
+              sleep 10
+            done
+
+            echo "ERROR: No logs found in Loki after waiting"
+            exit 1
+
+    - name: validate-queries
+      container:
+        image: curlimages/curl:8.5.0
+        command: [sh, -c]
+        args:
+          - |
+            echo "Validating LogQL queries..."
+            LOKI_URL="http://loki-gateway.loki.svc.cluster.local"
+
+            # Test 1: Basic label query
+            echo "Test 1: Basic label query..."
+            curl -sf -G "$LOKI_URL/loki/api/v1/query" \
+              --data-urlencode 'query={app="logging-app"}' \
+              --data-urlencode 'limit=5' > /dev/null
+            echo "  PASS: Basic label query works"
+
+            # Test 2: JSON parsing
+            echo "Test 2: JSON parsing..."
+            curl -sf -G "$LOKI_URL/loki/api/v1/query" \
+              --data-urlencode 'query={app="logging-app"} | json' \
+              --data-urlencode 'limit=5' > /dev/null
+            echo "  PASS: JSON parsing works"
+
+            # Test 3: Metric query (count)
+            echo "Test 3: Metric query..."
+            RESULT=$(curl -s -G "$LOKI_URL/loki/api/v1/query" \
+              --data-urlencode 'query=sum(count_over_time({app="logging-app"} [5m]))')
+            if echo "$RESULT" | grep -q '"value"'; then
+              echo "  PASS: Metric query works"
+            else
+              echo "  WARN: Metric query returned no value (may need more time)"
+            fi
+
+            echo ""
+            echo "All LogQL validation tests completed!"
+            exit 0

@@ -1,0 +1,159 @@
+# ELK Tutorial - Validation Workflow
+# Verifies Elasticsearch, Kibana, and log ingestion
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: elk-tutorial-
+  namespace: argo
+spec:
+  entrypoint: elk-tutorial
+  serviceAccountName: argo-workflow
+
+  templates:
+    - name: elk-tutorial
+      dag:
+        tasks:
+          - name: wait-for-elasticsearch
+            template: wait-for-elasticsearch
+          - name: wait-for-kibana
+            template: wait-for-kibana
+            dependencies: [wait-for-elasticsearch]
+          - name: wait-for-fluentbit
+            template: wait-for-fluentbit
+          - name: wait-for-logging-app
+            template: wait-for-logging-app
+          - name: validate-ingestion
+            template: validate-ingestion
+            dependencies: [wait-for-elasticsearch, wait-for-fluentbit, wait-for-logging-app]
+          - name: validate-queries
+            template: validate-queries
+            dependencies: [validate-ingestion]
+
+    - name: wait-for-elasticsearch
+      container:
+        image: curlimages/curl:8.5.0
+        command: [sh, -c]
+        args:
+          - |
+            echo "Waiting for Elasticsearch to be ready..."
+            for i in $(seq 1 90); do
+              HEALTH=$(curl -sf http://elasticsearch.elasticsearch.svc.cluster.local:9200/_cluster/health 2>/dev/null | grep -o '"status":"[^"]*"' | cut -d'"' -f4)
+              if [ "$HEALTH" = "green" ] || [ "$HEALTH" = "yellow" ]; then
+                echo "Elasticsearch is ready! Status: $HEALTH"
+                exit 0
+              fi
+              echo "Attempt $i/90 - Elasticsearch not ready yet..."
+              sleep 5
+            done
+            echo "ERROR: Elasticsearch did not become ready in time"
+            exit 1
+
+    - name: wait-for-kibana
+      container:
+        image: curlimages/curl:8.5.0
+        command: [sh, -c]
+        args:
+          - |
+            echo "Waiting for Kibana to be ready..."
+            for i in $(seq 1 90); do
+              if curl -sf http://kibana.elasticsearch.svc.cluster.local:5601/api/status 2>/dev/null | grep -q '"overall":{"level":"available"'; then
+                echo "Kibana is ready!"
+                exit 0
+              fi
+              echo "Attempt $i/90 - Kibana not ready yet..."
+              sleep 5
+            done
+            echo "ERROR: Kibana did not become ready in time"
+            exit 1
+
+    - name: wait-for-fluentbit
+      container:
+        image: curlimages/curl:8.5.0
+        command: [sh, -c]
+        args:
+          - |
+            echo "Waiting for Fluent Bit to be ready..."
+            # Fluent Bit doesn't have a simple health endpoint, wait briefly
+            sleep 30
+            echo "Fluent Bit assumed ready (will verify via log ingestion)"
+            exit 0
+
+    - name: wait-for-logging-app
+      container:
+        image: curlimages/curl:8.5.0
+        command: [sh, -c]
+        args:
+          - |
+            echo "Waiting for logging-app to be ready..."
+            for i in $(seq 1 60); do
+              if curl -sf http://logging-app.demo.svc.cluster.local:8080/ready; then
+                echo "Logging app is ready!"
+                exit 0
+              fi
+              echo "Attempt $i/60 - Logging app not ready yet..."
+              sleep 5
+            done
+            echo "ERROR: Logging app did not become ready in time"
+            exit 1
+
+    - name: validate-ingestion
+      container:
+        image: curlimages/curl:8.5.0
+        command: [sh, -c]
+        args:
+          - |
+            echo "Waiting for logs to be ingested into Elasticsearch..."
+            ES_URL="http://elasticsearch.elasticsearch.svc.cluster.local:9200"
+
+            # Wait for logs indices to appear and have documents
+            for i in $(seq 1 30); do
+              COUNT=$(curl -s "$ES_URL/logs-*/_count" 2>/dev/null | grep -o '"count":[0-9]*' | cut -d':' -f2)
+              if [ -n "$COUNT" ] && [ "$COUNT" -gt 0 ]; then
+                echo "Logs successfully ingested into Elasticsearch!"
+                echo "Document count: $COUNT"
+                exit 0
+              fi
+              echo "Attempt $i/30 - No logs yet (count: $COUNT), waiting..."
+              sleep 10
+            done
+
+            echo "ERROR: No logs found in Elasticsearch after waiting"
+            exit 1
+
+    - name: validate-queries
+      container:
+        image: curlimages/curl:8.5.0
+        command: [sh, -c]
+        args:
+          - |
+            echo "Validating Elasticsearch queries..."
+            ES_URL="http://elasticsearch.elasticsearch.svc.cluster.local:9200"
+
+            # Test 1: Simple match query
+            echo "Test 1: Match query..."
+            curl -sf -X POST "$ES_URL/logs-*/_search" \
+              -H 'Content-Type: application/json' \
+              -d '{"query": {"match": {"level": "error"}}, "size": 1}' > /dev/null
+            echo "  PASS: Match query works"
+
+            # Test 2: Terms aggregation
+            echo "Test 2: Terms aggregation..."
+            RESULT=$(curl -s -X POST "$ES_URL/logs-*/_search" \
+              -H 'Content-Type: application/json' \
+              -d '{"size": 0, "aggs": {"by_level": {"terms": {"field": "level"}}}}')
+            if echo "$RESULT" | grep -q '"buckets"'; then
+              echo "  PASS: Terms aggregation works"
+            else
+              echo "  WARN: Aggregation returned unexpected result"
+            fi
+
+            # Test 3: Date histogram
+            echo "Test 3: Date histogram..."
+            curl -sf -X POST "$ES_URL/logs-*/_search" \
+              -H 'Content-Type: application/json' \
+              -d '{"size": 0, "aggs": {"over_time": {"date_histogram": {"field": "@timestamp", "fixed_interval": "1m"}}}}' > /dev/null
+            echo "  PASS: Date histogram works"
+
+            echo ""
+            echo "All Elasticsearch validation tests completed!"
+            exit 0

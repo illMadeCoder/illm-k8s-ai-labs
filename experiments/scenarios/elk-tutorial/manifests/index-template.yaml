@@ -1,0 +1,71 @@
+# Elasticsearch Index Template - Applied via init job
+# Configures field mappings for structured logs
+---
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: es-index-template
+  namespace: elasticsearch
+spec:
+  ttlSecondsAfterFinished: 300
+  template:
+    spec:
+      restartPolicy: OnFailure
+      initContainers:
+        - name: wait-for-es
+          image: curlimages/curl:8.5.0
+          command: [sh, -c]
+          args:
+            - |
+              echo "Waiting for Elasticsearch..."
+              until curl -sf http://elasticsearch:9200/_cluster/health; do
+                echo "ES not ready, waiting..."
+                sleep 5
+              done
+              echo "Elasticsearch is ready!"
+      containers:
+        - name: create-template
+          image: curlimages/curl:8.5.0
+          command: [sh, -c]
+          args:
+            - |
+              echo "Creating index template..."
+              curl -X PUT "http://elasticsearch:9200/_index_template/logs-template" \
+                -H 'Content-Type: application/json' \
+                -d '{
+                  "index_patterns": ["logs-*"],
+                  "template": {
+                    "settings": {
+                      "number_of_shards": 1,
+                      "number_of_replicas": 0,
+                      "index.lifecycle.name": "logs-policy"
+                    },
+                    "mappings": {
+                      "properties": {
+                        "@timestamp": { "type": "date" },
+                        "level": { "type": "keyword" },
+                        "service": { "type": "keyword" },
+                        "endpoint": { "type": "keyword" },
+                        "method": { "type": "keyword" },
+                        "status": { "type": "integer" },
+                        "duration_ms": { "type": "integer" },
+                        "trace_id": { "type": "keyword" },
+                        "message": { "type": "text" },
+                        "kubernetes": {
+                          "properties": {
+                            "namespace_name": { "type": "keyword" },
+                            "pod_name": { "type": "keyword" },
+                            "container_name": { "type": "keyword" },
+                            "labels": {
+                              "properties": {
+                                "app": { "type": "keyword" }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }'
+              echo ""
+              echo "Index template created!"
