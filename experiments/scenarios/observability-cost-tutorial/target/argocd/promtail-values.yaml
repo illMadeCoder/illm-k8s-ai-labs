@@ -1,5 +1,10 @@
 # Promtail values for observability cost tutorial
 
+# Enable RBAC for pod discovery
+rbac:
+  create: true
+  pspEnabled: false
+
 config:
   clients:
     - url: http://loki.observability-cost.svc:3100/loki/api/v1/push
