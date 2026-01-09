@@ -74,3 +74,9 @@ test:
 # Persistence for Kind
 persistence:
   enabled: false
+
+# Disable caches for Kind (memory constrained)
+chunksCache:
+  enabled: false
+resultsCache:
+  enabled: false

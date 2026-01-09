@@ -1,6 +1,11 @@
 # Promtail - Log collector for Loki tutorial
 # Collects logs from all pods and sends to Loki
 
+# Enable RBAC for pod discovery
+rbac:
+  create: true
+  pspEnabled: false
+
 config:
   clients:
     - url: http://loki-gateway.loki.svc.cluster.local/loki/api/v1/push
