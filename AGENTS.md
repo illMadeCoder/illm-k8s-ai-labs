@@ -2,6 +2,32 @@
 
 This project uses **bd** (beads) for issue tracking. Run `bd onboard` to get started.
 
+## Project Context: Kubernetes AI Lab
+
+This repo contains Kubernetes lab environments for learning observability tools (Loki, Prometheus, SLOs, etc.).
+
+**Key goal:** Track operational toil during lab simulations to identify and fix recurring issues.
+
+## Toil Tracking During Labs
+
+When running lab simulations, **proactively log issues** you encounter:
+
+```bash
+# Log any friction point during lab setup/operation
+bd create "Brief description" -l toil,<lab-name> -p <0-3> -d "What happened and any workaround"
+```
+
+**Use these labels:**
+- `toil`, `flaky`, `config`, `timing`, `resources`, `networking`
+- Lab names: `loki-tutorial`, `slo-tutorial`, `logging-comparison`
+
+**Analyze patterns:**
+```bash
+bd count --by-label    # Which areas have most issues?
+bd list -l toil        # All toil issues
+bd duplicates          # Recurring problems
+```
+
 ## Quick Reference
 
 ```bash
