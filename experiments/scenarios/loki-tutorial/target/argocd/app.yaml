@@ -38,11 +38,11 @@ spec:
         valueFiles:
           - $values/experiments/scenarios/loki-tutorial/target/argocd/grafana-values.yaml
     # Values reference
-    - repoURL: https://github.com/illMadeCoder/illm-k8s-ai-lab.git
+    - repoURL: https://github.com/illMadeCoder/illm-k8s-ai-labs.git
       targetRevision: HEAD
       ref: values
     # log-generator deployment
-    - repoURL: https://github.com/illMadeCoder/illm-k8s-ai-lab.git
+    - repoURL: https://github.com/illMadeCoder/illm-k8s-ai-labs.git
       targetRevision: HEAD
       path: experiments/scenarios/loki-tutorial/manifests
 

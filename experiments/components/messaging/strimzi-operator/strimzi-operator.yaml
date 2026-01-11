@@ -16,7 +16,7 @@ spec:
         releaseName: strimzi-operator
         valueFiles:
           - $values/experiments/components/messaging/strimzi-operator/values.yaml
-    - repoURL: https://github.com/illMadeCoder/illm-k8s-ai-lab.git
+    - repoURL: https://github.com/illMadeCoder/illm-k8s-ai-labs.git
       targetRevision: HEAD
       ref: values
   destination:

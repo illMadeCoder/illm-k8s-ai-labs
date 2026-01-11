@@ -33,7 +33,7 @@ spec:
           attestors:
             - entries:
                 - keyless:
-                    subject: "https://github.com/illMadeCoder/illm-k8s-ai-lab/*"
+                    subject: "https://github.com/illMadeCoder/illm-k8s-ai-labs/*"
                     issuer: "https://token.actions.githubusercontent.com"
                     rekor:
                       url: https://rekor.sigstore.dev
