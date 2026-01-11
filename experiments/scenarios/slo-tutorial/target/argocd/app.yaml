@@ -30,11 +30,11 @@ spec:
         valueFiles:
           - $values/experiments/scenarios/slo-tutorial/target/argocd/pyrra-values.yaml
     # Values reference
-    - repoURL: https://github.com/illMadeCoder/illm-k8s-ai-labs.git
+    - repoURL: https://github.com/illMadeCoder/illm-k8s-ai-lab.git
       targetRevision: HEAD
       ref: values
     # SLO definitions, metrics-app, and dashboards
-    - repoURL: https://github.com/illMadeCoder/illm-k8s-ai-labs.git
+    - repoURL: https://github.com/illMadeCoder/illm-k8s-ai-lab.git
       targetRevision: HEAD
       path: experiments/scenarios/slo-tutorial/manifests
 

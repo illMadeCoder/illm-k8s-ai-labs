@@ -47,7 +47,7 @@ spec:
             enabled: true
 
     # Blackbox Loader app (sensor data generator)
-    - repoURL: https://github.com/illMadeCoder/illm-k8s-ai-labs.git
+    - repoURL: https://github.com/illMadeCoder/illm-k8s-ai-lab.git
       targetRevision: HEAD
       path: experiments/scenarios/seaweedfs-tutorial/manifests
 

@@ -22,7 +22,7 @@ spec:
       helm:
         valueFiles:
           - $values/hub/app-of-apps/kind/values/argo-workflows.yaml
-    - repoURL: https://github.com/illMadeCoder/illm-k8s-ai-labs.git
+    - repoURL: https://github.com/illMadeCoder/illm-k8s-ai-lab.git
       targetRevision: HEAD
       ref: values
   destination:

@@ -18,10 +18,10 @@ spec:
         releaseName: elk
         valueFiles:
           - $values/experiments/components/observability/elk-stack/values.yaml
-    - repoURL: https://github.com/illMadeCoder/illm-k8s-ai-labs.git
+    - repoURL: https://github.com/illMadeCoder/illm-k8s-ai-lab.git
       targetRevision: HEAD
       ref: values
-    - repoURL: https://github.com/illMadeCoder/illm-k8s-ai-labs.git
+    - repoURL: https://github.com/illMadeCoder/illm-k8s-ai-lab.git
       targetRevision: HEAD
       path: experiments/components/observability/elk-stack
       directory:

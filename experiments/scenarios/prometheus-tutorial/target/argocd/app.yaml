@@ -22,15 +22,15 @@ spec:
         valueFiles:
           - $values/experiments/scenarios/prometheus-tutorial/target/argocd/prometheus-values.yaml
     # Values reference
-    - repoURL: https://github.com/illMadeCoder/illm-k8s-ai-labs.git
+    - repoURL: https://github.com/illMadeCoder/illm-k8s-ai-lab.git
       targetRevision: HEAD
       ref: values
     # metrics-app deployment (demo namespace)
-    - repoURL: https://github.com/illMadeCoder/illm-k8s-ai-labs.git
+    - repoURL: https://github.com/illMadeCoder/illm-k8s-ai-lab.git
       targetRevision: HEAD
       path: experiments/components/apps/metrics-app/k8s
     # station-monitor deployment (station namespace) - Sector 12 mystery
-    - repoURL: https://github.com/illMadeCoder/illm-k8s-ai-labs.git
+    - repoURL: https://github.com/illMadeCoder/illm-k8s-ai-lab.git
       targetRevision: HEAD
       path: experiments/components/apps/station-monitor/k8s
 

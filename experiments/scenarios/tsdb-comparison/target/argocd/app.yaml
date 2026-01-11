@@ -14,7 +14,7 @@ spec:
   project: default
   sources:
     # MinIO for Mimir S3 backend
-    - repoURL: https://github.com/illMadeCoder/illm-k8s-ai-labs.git
+    - repoURL: https://github.com/illMadeCoder/illm-k8s-ai-lab.git
       targetRevision: HEAD
       path: experiments/scenarios/tsdb-comparison/manifests
       directory:
@@ -52,7 +52,7 @@ spec:
         valueFiles:
           - $values/experiments/scenarios/tsdb-comparison/target/argocd/prometheus-values.yaml
     # Values from git repo
-    - repoURL: https://github.com/illMadeCoder/illm-k8s-ai-labs.git
+    - repoURL: https://github.com/illMadeCoder/illm-k8s-ai-lab.git
       targetRevision: HEAD
       ref: values
   destination:
@@ -103,11 +103,11 @@ spec:
         valueFiles:
           - $values/experiments/scenarios/tsdb-comparison/target/argocd/victoria-metrics-values.yaml
     # Values from git repo
-    - repoURL: https://github.com/illMadeCoder/illm-k8s-ai-labs.git
+    - repoURL: https://github.com/illMadeCoder/illm-k8s-ai-lab.git
       targetRevision: HEAD
       ref: values
     # Scrape config
-    - repoURL: https://github.com/illMadeCoder/illm-k8s-ai-labs.git
+    - repoURL: https://github.com/illMadeCoder/illm-k8s-ai-lab.git
       targetRevision: HEAD
       path: experiments/scenarios/tsdb-comparison/manifests
       directory:
@@ -145,7 +145,7 @@ spec:
         valueFiles:
           - $values/experiments/scenarios/tsdb-comparison/target/argocd/mimir-values.yaml
     # Values from git repo
-    - repoURL: https://github.com/illMadeCoder/illm-k8s-ai-labs.git
+    - repoURL: https://github.com/illMadeCoder/illm-k8s-ai-lab.git
       targetRevision: HEAD
       ref: values
   destination:
@@ -179,11 +179,11 @@ spec:
   project: default
   sources:
     # Cardinality generator app
-    - repoURL: https://github.com/illMadeCoder/illm-k8s-ai-labs.git
+    - repoURL: https://github.com/illMadeCoder/illm-k8s-ai-lab.git
       targetRevision: HEAD
       path: experiments/components/apps/cardinality-generator/k8s
     # Grafana datasources and dashboard
-    - repoURL: https://github.com/illMadeCoder/illm-k8s-ai-labs.git
+    - repoURL: https://github.com/illMadeCoder/illm-k8s-ai-lab.git
       targetRevision: HEAD
       path: experiments/scenarios/tsdb-comparison/manifests
       directory:

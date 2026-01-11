@@ -38,11 +38,11 @@ spec:
         valueFiles:
           - $values/experiments/scenarios/observability-cost-tutorial/target/argocd/promtail-values.yaml
     # Values reference
-    - repoURL: https://github.com/illMadeCoder/illm-k8s-ai-labs.git
+    - repoURL: https://github.com/illMadeCoder/illm-k8s-ai-lab.git
       targetRevision: HEAD
       ref: values
     # Cost analysis dashboards and cardinality generator
-    - repoURL: https://github.com/illMadeCoder/illm-k8s-ai-labs.git
+    - repoURL: https://github.com/illMadeCoder/illm-k8s-ai-lab.git
       targetRevision: HEAD
       path: experiments/scenarios/observability-cost-tutorial/manifests
 

@@ -16,7 +16,7 @@ spec:
         releaseName: eck-operator
         valueFiles:
           - $values/experiments/components/observability/eck-operator/values.yaml
-    - repoURL: https://github.com/illMadeCoder/illm-k8s-ai-labs.git
+    - repoURL: https://github.com/illMadeCoder/illm-k8s-ai-lab.git
       targetRevision: HEAD
       ref: values
   destination:

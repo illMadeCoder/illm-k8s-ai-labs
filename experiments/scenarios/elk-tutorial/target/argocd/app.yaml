@@ -22,11 +22,11 @@ spec:
         valueFiles:
           - $values/experiments/scenarios/elk-tutorial/target/argocd/fluent-bit-values.yaml
     # Values reference
-    - repoURL: https://github.com/illMadeCoder/illm-k8s-ai-labs.git
+    - repoURL: https://github.com/illMadeCoder/illm-k8s-ai-lab.git
       targetRevision: HEAD
       ref: values
     # Elasticsearch, Kibana, and log-generator manifests
-    - repoURL: https://github.com/illMadeCoder/illm-k8s-ai-labs.git
+    - repoURL: https://github.com/illMadeCoder/illm-k8s-ai-lab.git
       targetRevision: HEAD
       path: experiments/scenarios/elk-tutorial/manifests
 
