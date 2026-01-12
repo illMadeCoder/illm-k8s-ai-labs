@@ -32,7 +32,7 @@ spec:
     spec:
       containers:
         - name: user-service
-          image: ghcr.io/illmadecoder/otel-demo-user-service:latest
+          image: ttl.sh/illm-otel-user-service:2h
           ports:
             - containerPort: 8080
           env:
@@ -83,7 +83,7 @@ spec:
     spec:
       containers:
         - name: order-service
-          image: ghcr.io/illmadecoder/otel-demo-order-service:latest
+          image: ttl.sh/illm-otel-order-service:2h
           ports:
             - containerPort: 8080
           env:
@@ -134,7 +134,7 @@ spec:
     spec:
       containers:
         - name: payment-service
-          image: ghcr.io/illmadecoder/otel-demo-payment-service:latest
+          image: ttl.sh/illm-otel-payment-service:2h
           ports:
             - containerPort: 8080
           envFrom:
