@@ -1,0 +1,115 @@
+# kube-vip for LoadBalancer services on Talos
+# Provides stable IPs for type: LoadBalancer services
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: kube-vip
+  namespace: kube-system
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: kube-vip-role
+rules:
+- apiGroups: [""]
+  resources: ["services", "services/status", "nodes", "endpoints"]
+  verbs: ["list", "get", "watch", "update"]
+- apiGroups: ["coordination.k8s.io"]
+  resources: ["leases"]
+  verbs: ["list", "get", "watch", "create", "update"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: kube-vip-binding
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: kube-vip-role
+subjects:
+- kind: ServiceAccount
+  name: kube-vip
+  namespace: kube-system
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: kubevip
+  namespace: kube-system
+data:
+  range-global: 192.168.1.240-192.168.1.250
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: kube-vip
+  namespace: kube-system
+spec:
+  selector:
+    matchLabels:
+      app: kube-vip
+  template:
+    metadata:
+      labels:
+        app: kube-vip
+    spec:
+      serviceAccountName: kube-vip
+      hostNetwork: true
+      tolerations:
+      - effect: NoSchedule
+        operator: Exists
+      - effect: NoExecute
+        operator: Exists
+      containers:
+      - name: kube-vip
+        image: ghcr.io/kube-vip/kube-vip:v0.8.7
+        args:
+        - manager
+        env:
+        - name: vip_arp
+          value: "true"
+        - name: port
+          value: "6443"
+        - name: vip_interface
+          value: enp3s0
+        - name: vip_cidr
+          value: "32"
+        - name: svc_enable
+          value: "true"
+        - name: svc_election
+          value: "true"
+        - name: vip_leaderelection
+          value: "true"
+        securityContext:
+          capabilities:
+            add:
+            - NET_ADMIN
+            - NET_RAW
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: kube-vip-cloud-provider
+  namespace: kube-system
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: kube-vip-cloud-provider
+  template:
+    metadata:
+      labels:
+        app: kube-vip-cloud-provider
+    spec:
+      serviceAccountName: kube-vip
+      containers:
+      - name: kube-vip-cloud-provider
+        image: ghcr.io/kube-vip/kube-vip-cloud-provider:v0.0.10
+        command:
+        - /kube-vip-cloud-provider
+        - --leader-elect-resource-name=kube-vip-cloud-provider
+      tolerations:
+      - key: node-role.kubernetes.io/control-plane
+        operator: Exists
+        effect: NoSchedule

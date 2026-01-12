@@ -3,6 +3,7 @@ version: '3'
 # Talos Platform - Persistent target cluster on GMKtec mini PC
 #
 # Usage:
+#   task talos:bootstrap             # Install kube-vip for LoadBalancer support
 #   task talos:status                # Show cluster status
 #   task talos:reset                 # Reset cluster for new experiment
 #   task talos:up -- <name>          # Deploy experiment to Talos target
@@ -19,6 +20,24 @@ vars:
   PRESERVED_NS: "kube-system kube-public kube-node-lease default"
 
 tasks:
+  bootstrap:
+    desc: Install kube-vip for LoadBalancer support on Talos
+    cmds:
+      - |
+        echo "=== Installing kube-vip on Talos ==="
+        kubectl --context {{.TALOS_CONTEXT}} apply -f platforms/talos/manifests/kube-vip.yaml
+
+        echo ""
+        echo "Waiting for kube-vip pods..."
+        kubectl --context {{.TALOS_CONTEXT}} -n kube-system wait --for=condition=ready pod -l app=kube-vip --timeout=60s
+        kubectl --context {{.TALOS_CONTEXT}} -n kube-system wait --for=condition=ready pod -l app=kube-vip-cloud-provider --timeout=60s
+
+        echo ""
+        echo "=== kube-vip installed ==="
+        echo "LoadBalancer IP range: 192.168.1.240-192.168.1.250"
+        kubectl --context {{.TALOS_CONTEXT}} get pods -n kube-system -l app=kube-vip
+        kubectl --context {{.TALOS_CONTEXT}} get pods -n kube-system -l app=kube-vip-cloud-provider
+
   status:
     desc: Show Talos cluster status
     cmds:
