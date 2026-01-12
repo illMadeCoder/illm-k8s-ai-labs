@@ -3,7 +3,7 @@ version: '3'
 # Talos Platform - Persistent target cluster on GMKtec mini PC
 #
 # Usage:
-#   task talos:bootstrap             # Install kube-vip for LoadBalancer support
+#   task talos:bootstrap             # Install kube-vip + local-path-provisioner
 #   task talos:status                # Show cluster status
 #   task talos:reset                 # Reset cluster for new experiment
 #   task talos:up -- <name>          # Deploy experiment to Talos target
@@ -16,27 +16,48 @@ vars:
   TALOS_IP: 192.168.1.178
   HUB_CONTEXT: kind-hub
   ARGOCD_NAMESPACE: argocd
-  # Namespaces to preserve during reset
-  PRESERVED_NS: "kube-system kube-public kube-node-lease default"
+  # Namespaces to preserve during reset (system + infrastructure)
+  PRESERVED_NS: "kube-system kube-public kube-node-lease default local-path-storage"
 
 tasks:
   bootstrap:
-    desc: Install kube-vip for LoadBalancer support on Talos
+    desc: Install kube-vip and local-path-provisioner on Talos
     cmds:
       - |
-        echo "=== Installing kube-vip on Talos ==="
+        echo "=============================================="
+        echo "  BOOTSTRAPPING TALOS PLATFORM"
+        echo "=============================================="
+        echo ""
+
+        # Step 1: Install kube-vip for LoadBalancer support
+        echo "=== Step 1: Installing kube-vip ==="
         kubectl --context {{.TALOS_CONTEXT}} apply -f platforms/talos/manifests/kube-vip.yaml
 
-        echo ""
         echo "Waiting for kube-vip pods..."
         kubectl --context {{.TALOS_CONTEXT}} -n kube-system wait --for=condition=ready pod -l app=kube-vip --timeout=60s
         kubectl --context {{.TALOS_CONTEXT}} -n kube-system wait --for=condition=ready pod -l app=kube-vip-cloud-provider --timeout=60s
+        echo "kube-vip ready! LoadBalancer IP range: 192.168.1.240-192.168.1.250"
 
         echo ""
-        echo "=== kube-vip installed ==="
-        echo "LoadBalancer IP range: 192.168.1.240-192.168.1.250"
-        kubectl --context {{.TALOS_CONTEXT}} get pods -n kube-system -l app=kube-vip
-        kubectl --context {{.TALOS_CONTEXT}} get pods -n kube-system -l app=kube-vip-cloud-provider
+
+        # Step 2: Install local-path-provisioner for PVC support
+        echo "=== Step 2: Installing local-path-provisioner ==="
+        kubectl --context {{.TALOS_CONTEXT}} apply -f platforms/talos/manifests/local-path-provisioner.yaml
+
+        echo "Waiting for local-path-provisioner..."
+        kubectl --context {{.TALOS_CONTEXT}} -n local-path-storage wait --for=condition=ready pod -l app=local-path-provisioner --timeout=60s
+        echo "local-path-provisioner ready! Default StorageClass: local-path"
+
+        echo ""
+        echo "=============================================="
+        echo "  TALOS BOOTSTRAP COMPLETE"
+        echo "=============================================="
+        echo ""
+        echo "Installed:"
+        echo "  - kube-vip (LoadBalancer: 192.168.1.240-250)"
+        echo "  - local-path-provisioner (StorageClass: local-path)"
+        echo ""
+        kubectl --context {{.TALOS_CONTEXT}} get sc
 
   status:
     desc: Show Talos cluster status
