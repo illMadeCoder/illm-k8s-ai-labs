@@ -77,26 +77,18 @@ spec:
             wait: true
             waitTimeout: 10m0s
             values:
-              # Expose vcluster API via ClusterIP service
-              service:
-                type: ClusterIP
-              # Syncer configuration
-              syncer:
-                extraArgs: []
-              # Sync resources from host
+              # Sync resources from host cluster
               sync:
                 fromHost:
                   storageClasses:
                     enabled: true
                   ingressClasses:
                     enabled: true
-                  nodes:
-                    enabled: false
               # Export kubeconfig for external access
               exportKubeConfig:
                 context: vcluster
                 server: ""
-              # Resource limits (will be patched by size)
+              # Control plane resource limits (patched by size)
               controlPlane:
                 statefulSet:
                   resources:
