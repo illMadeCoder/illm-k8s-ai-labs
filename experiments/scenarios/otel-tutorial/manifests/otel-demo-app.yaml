@@ -32,7 +32,7 @@ spec:
     spec:
       containers:
         - name: user-service
-          image: ttl.sh/illm-otel-user-service:2h
+          image: ttl.sh/illm-otel-user-service:24h
           ports:
             - containerPort: 8080
           env:
@@ -83,7 +83,7 @@ spec:
     spec:
       containers:
         - name: order-service
-          image: ttl.sh/illm-otel-order-service:2h
+          image: ttl.sh/illm-otel-order-service:24h
           ports:
             - containerPort: 8080
           env:
@@ -134,7 +134,7 @@ spec:
     spec:
       containers:
         - name: payment-service
-          image: ttl.sh/illm-otel-payment-service:2h
+          image: ttl.sh/illm-otel-payment-service:24h
           ports:
             - containerPort: 8080
           envFrom:
