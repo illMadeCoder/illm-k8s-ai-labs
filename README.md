@@ -12,6 +12,23 @@ A Kubernetes learning lab with GitOps, supply chain security, and observability.
 | **Platforms** | Kind (local), Talos (home lab hardware), AKS/EKS (via Crossplane) |
 | **Secrets** | OpenBao + External Secrets Operator, internal PKI |
 
+## Project Structure
+
+```
+platforms/
+├── hub/app-of-apps/    # ArgoCD applications (GitOps root)
+├── kind/               # Local development
+└── talos/              # Home lab hardware (N100)
+
+experiments/
+├── scenarios/          # 17 runnable tutorials
+└── components/         # Reusable infra (50+ components)
+
+docs/
+├── adrs/               # Architecture Decision Records
+└── roadmap/            # 16 phases + 12 appendices
+```
+
 ## Architecture
 
 ```
@@ -106,21 +123,34 @@ Run `task kind:conduct -- <name>` to deploy any scenario:
 
 [Full roadmap →](docs/roadmap.md)
 
-## Project Structure
+## Supply Chain Security (SLSA Level 2)
 
 ```
-platforms/
-├── hub/app-of-apps/    # ArgoCD applications (GitOps root)
-├── kind/               # Local development
-└── talos/              # Home lab hardware (N100)
-
-experiments/
-├── scenarios/          # 17 runnable tutorials
-└── components/         # Reusable infra (50+ components)
-
-docs/
-├── adrs/               # Architecture Decision Records
-└── roadmap/            # 16 phases + 12 appendices
+┌─────────────┐     ┌─────────────┐     ┌─────────────┐     ┌─────────────┐
+│   GitHub    │     │   Trivy     │     │    Syft     │     │   Cosign    │
+│   Actions   │────►│   (scan)    │────►│   (SBOM)    │────►│   (sign)    │
+│             │     │             │     │             │     │  keyless    │
+└─────────────┘     └─────────────┘     └─────────────┘     └──────┬──────┘
+                                                                   │
+                    ┌──────────────────────────────────────────────┘
+                    │
+                    ▼
+┌─────────────────────────────────────┐     ┌─────────────────────────────┐
+│              GHCR                   │     │      Rekor                  │
+│  ┌───────────┐  ┌────────────────┐  │     │   (transparency log)        │
+│  │   Image   │  │  Attestations  │  │     │                             │
+│  │           │  │  - signature   │  │     │   Public record of          │
+│  │           │  │  - SBOM        │  │     │   all signatures            │
+│  └───────────┘  └────────────────┘  │     └─────────────────────────────┘
+└──────────────────┬──────────────────┘
+                   │
+                   ▼
+┌─────────────────────────────────────┐     ┌─────────────────────────────┐
+│      ArgoCD Image Updater           │     │         Kyverno             │
+│                                     │     │                             │
+│   Detects new image, updates        │────►│   Verifies signature        │
+│   deployment manifests              │     │   before admission          │
+└─────────────────────────────────────┘     └─────────────────────────────┘
 ```
 
 ## License
