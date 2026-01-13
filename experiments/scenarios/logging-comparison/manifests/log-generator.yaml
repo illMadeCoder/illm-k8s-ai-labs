@@ -37,8 +37,8 @@ spec:
     spec:
       containers:
         - name: log-generator
-          image: log-generator:latest
-          imagePullPolicy: Never
+          image: ttl.sh/illm-log-generator:24h
+          imagePullPolicy: Always
           ports:
             - name: http
               containerPort: 8080
