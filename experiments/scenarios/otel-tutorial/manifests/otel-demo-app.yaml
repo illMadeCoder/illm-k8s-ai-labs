@@ -33,6 +33,7 @@ spec:
       containers:
         - name: user-service
           image: ttl.sh/illm-otel-user-service:24h
+          imagePullPolicy: Always
           ports:
             - containerPort: 8080
           env:
@@ -84,6 +85,7 @@ spec:
       containers:
         - name: order-service
           image: ttl.sh/illm-otel-order-service:24h
+          imagePullPolicy: Always
           ports:
             - containerPort: 8080
           env:
@@ -135,6 +137,7 @@ spec:
       containers:
         - name: payment-service
           image: ttl.sh/illm-otel-payment-service:24h
+          imagePullPolicy: Always
           ports:
             - containerPort: 8080
           envFrom:
