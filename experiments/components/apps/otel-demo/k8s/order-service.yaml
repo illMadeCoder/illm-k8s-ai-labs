@@ -27,7 +27,7 @@ spec:
             allowPrivilegeEscalation: false
             capabilities:
               drop: [ALL]
-            runAsNonRoot: true
+            # runAsNonRoot: true  # Images run as root, need rebuild
             seccompProfile:
               type: RuntimeDefault
           ports:
