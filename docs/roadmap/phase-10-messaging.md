@@ -4,44 +4,74 @@
 
 ### 10.0 Messaging Decision Framework
 
-**Goal:** Understand messaging patterns and when to use each technology
+**Goal:** Understand messaging paradigms and when to use each technology
+
+> **Critical insight:** These systems are NOT interchangeable competitors. They have fundamentally different architectures and serve completely different purposes. You cannot compare them without understanding their core semantics.
 
 **Learning objectives:**
-- Compare messaging paradigms (queues vs streams vs pub/sub)
-- Understand delivery guarantees and trade-offs
-- Make informed messaging technology decisions
+- Understand the fundamental architectural differences between messaging systems
+- Compare messaging paradigms (queues vs logs vs routers)
+- Make informed decisions based on system semantics, not just features
+
+**Architectural paradigms:**
+
+1. **Traditional Message Queue Brokers (RabbitMQ, ActiveMQ, SQS)**
+   - Topologies, routing, prioritization
+   - Ack/nack (confirmation or rejection)
+   - Retrying, dead lettering
+   - Point-to-point and competing consumers
+   - Messages are consumed and removed
+
+2. **Event Logs (Kafka, Redpanda, Bookkeeper)**
+   - NOT a message queue
+   - Linear stream of byte payloads with position
+   - No sense of ack/nack, routing, or prioritization
+   - Messages are retained and replayable
+   - Consumer tracks position in log
+
+3. **Ephemeral Message Routers (NATS Core)**
+   - Neither a queue nor a log
+   - Like UDP broadcast or anycast
+   - Fire-and-forget, no persistence
+   - Extremely low latency
+   - Unique in its category
+
+4. **Hybrid Systems (NATS JetStream)**
+   - Bolts NATS router onto a log
+   - Adds message queue elements (acks/nacks)
+   - More flexible but more complex
 
 **Tasks:**
 - [ ] Create `docs/messaging-comparison.md`
-- [ ] Messaging paradigms:
-  - [ ] Message queues (point-to-point, competing consumers)
-  - [ ] Event streaming (log-based, replay capability)
-  - [ ] Pub/sub (topic-based, fan-out)
-  - [ ] Request/reply (synchronous over async)
-- [ ] Technology comparison:
-  - [ ] **Kafka:** Event streaming, high throughput, log retention
-  - [ ] **RabbitMQ:** Traditional queuing, routing flexibility, protocols
-  - [ ] **NATS:** Lightweight, low latency, cloud-native
-  - [ ] **Cloud queues (SQS/Service Bus):** Managed, serverless integration
-- [ ] Decision criteria:
-  - [ ] Message ordering requirements
-  - [ ] Delivery guarantees (at-most-once, at-least-once, exactly-once)
-  - [ ] Throughput and latency requirements
-  - [ ] Message replay needs
-  - [ ] Operational complexity tolerance
-- [ ] Use case mapping:
-  - [ ] Event sourcing / CQRS → Kafka
-  - [ ] Task queues / work distribution → RabbitMQ
-  - [ ] Real-time microservice communication → NATS
-  - [ ] Cloud-native serverless → SQS/Service Bus
+- [ ] Understand architectural paradigms:
+  - [ ] Message queue semantics and guarantees
+  - [ ] Log-based streaming and replay
+  - [ ] Ephemeral routing and fire-and-forget
+  - [ ] Why these are NOT comparable architectures
+- [ ] Technology deep dive:
+  - [ ] **RabbitMQ:** Queue broker - topologies, routing, ack/nack, dead letters
+  - [ ] **Kafka:** Event log - partitions, offsets, retention, replay
+  - [ ] **NATS Core:** Ephemeral router - subjects, pub/sub, request/reply
+  - [ ] **NATS JetStream:** Hybrid - persistence + acks + NATS semantics
+  - [ ] **Cloud queues (SQS/Service Bus):** Managed queues with cloud integration
+- [ ] Decision criteria (architecture-first):
+  - [ ] Do you need message replay? → Log (Kafka)
+  - [ ] Do you need complex routing and dead letters? → Queue (RabbitMQ)
+  - [ ] Do you need ultra-low latency and can tolerate loss? → Router (NATS Core)
+  - [ ] Do you need persistence + low latency? → Hybrid (NATS JetStream)
+  - [ ] Do you need serverless integration? → Cloud queue (SQS/Service Bus)
 - [ ] Anti-patterns:
-  - [ ] Using Kafka for simple task queues
-  - [ ] Using RabbitMQ for event sourcing
+  - [ ] Using Kafka for simple task queues (wrong architecture)
+  - [ ] Using RabbitMQ for event sourcing (can't replay history)
+  - [ ] Comparing systems without understanding their semantics
+  - [ ] Choosing based on features instead of architecture fit
   - [ ] Over-engineering with messaging when HTTP suffices
-- [ ] Document decision criteria
+- [ ] Document decision framework based on architectural paradigms
 - [ ] **ADR:** Document messaging technology selection for this lab
 
 *Note: Phase 12.2 provides detailed performance benchmarks after you've learned each system.*
+
+**Credit:** Architecture distinctions clarified by [Reddit community feedback](https://www.reddit.com/r/kubernetes/comments/1i10rsl/comment/m6y8ojx/).
 
 ---
 
