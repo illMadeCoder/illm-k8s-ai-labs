@@ -34,6 +34,13 @@ spec:
         - name: user-service
           image: ttl.sh/illm-otel-user-service:24h
           imagePullPolicy: Always
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
           ports:
             - containerPort: 8080
           env:
@@ -86,6 +93,13 @@ spec:
         - name: order-service
           image: ttl.sh/illm-otel-order-service:24h
           imagePullPolicy: Always
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
           ports:
             - containerPort: 8080
           env:
@@ -138,6 +152,13 @@ spec:
         - name: payment-service
           image: ttl.sh/illm-otel-payment-service:24h
           imagePullPolicy: Always
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: [ALL]
+            runAsNonRoot: true
+            seccompProfile:
+              type: RuntimeDefault
           ports:
             - containerPort: 8080
           envFrom:
