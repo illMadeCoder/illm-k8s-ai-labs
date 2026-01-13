@@ -3,7 +3,7 @@
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: hello-app-experiment
+  name: hello-app-target
   namespace: argocd
   labels:
     experiment: hello-app
@@ -13,7 +13,7 @@ metadata:
 spec:
   project: default
   sources:
-    # Deploy hello-app manifests (excluding HTTPRoute - no Gateway API in Kind)
+    # Deploy hello-app manifests
     - repoURL: https://github.com/illMadeCoder/illm-k8s-ai-labs.git
       targetRevision: HEAD
       path: experiments/components/apps/hello-app/k8s
@@ -21,7 +21,7 @@ spec:
         recurse: false
         include: '{deployment.yaml,service.yaml}'
   destination:
-    server: https://kubernetes.default.svc
+    name: target
     namespace: hello-app
   syncPolicy:
     automated:
