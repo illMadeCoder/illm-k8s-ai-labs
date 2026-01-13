@@ -1,6 +1,6 @@
 # CLAUDE.md
 
-Track progress in `TODO.md`. Use `/compact` at ~70% context.
+Track progress in `docs/roadmap.md`. Use `/compact` at ~70% context.
 
 ## Operational Toil Tracking (beads)
 
