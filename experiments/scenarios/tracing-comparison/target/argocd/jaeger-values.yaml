@@ -12,10 +12,7 @@ allInOne:
   image:
     repository: jaegertracing/all-in-one
     tag: "1.62"
-  extraEnv:
-    # Enable OTLP receiver
-    - name: COLLECTOR_OTLP_ENABLED
-      value: "true"
+  # OTLP is enabled by default in recent Jaeger versions
   resources:
     requests:
       cpu: 50m
