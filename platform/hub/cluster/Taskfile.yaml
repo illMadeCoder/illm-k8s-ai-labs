@@ -3,14 +3,14 @@ version: '3'
 # Kind Tier - Hub + Experiments on Kind clusters
 #
 # Usage:
-#   task kind:bootstrap              # Bootstrap hub cluster
-#   task kind:destroy                # Destroy hub cluster
-#   task kind:status                 # Show hub status
-#   task kind:password               # Get ArgoCD password
-#   task kind:list                   # List experiments
-#   task kind:conduct -- <name>      # Run experiment (interactive)
-#   task kind:up -- <name>           # Deploy experiment
-#   task kind:down -- <name>         # Destroy experiment clusters
+#   task hub:bootstrap              # Bootstrap hub cluster
+#   task hub:destroy                # Destroy hub cluster
+#   task hub:status                 # Show hub status
+#   task hub:password               # Get ArgoCD password
+#   task hub:list                   # List experiments
+#   task hub:conduct -- <name>      # Run experiment (interactive)
+#   task hub:up -- <name>           # Deploy experiment
+#   task hub:down -- <name>         # Destroy experiment clusters
 
 silent: true
 
@@ -18,10 +18,10 @@ vars:
   HUB_CLUSTER: hub
   ARGOCD_NAMESPACE: argocd
   # ENVIRONMENT CONFIG: If changing Kind network, also update:
-  #   - platforms/hub/app-of-apps/kind/manifests/metallb-config/kustomization.yaml (POOL_RANGE)
-  #   - platforms/hub/app-of-apps/kind/values/dns-stack.yaml (loadBalancerIP)
-  #   - platforms/hub/app-of-apps/kind/values/argocd.yaml (loadBalancerIP)
-  #   - platforms/hub/bootstrap/argocd-values-kind.yaml (loadBalancerIP)
+  #   - platform/hub/manifests/metallb-config/kustomization.yaml (POOL_RANGE)
+  #   - platform/hub/values/dns-stack.yaml (loadBalancerIP)
+  #   - platform/hub/values/argocd.yaml (loadBalancerIP)
+  #   - platform/hub/bootstrap/argocd-values-kind.yaml (loadBalancerIP)
   DNS_IP: 172.19.255.200
   # OpenBao persistence (use $HOME instead of ~ for reliable expansion)
   OPENBAO_KEYS_FILE: $HOME/.illmlab/openbao-keys.json
@@ -42,7 +42,7 @@ tasks:
         chmod 777 ~/.illmlab/openbao-data
       - |
         echo "=== Creating Kind cluster ==="
-        kind create cluster --name {{.HUB_CLUSTER}} --config platforms/kind/cluster-config.yaml --wait 60s || true
+        kind create cluster --name {{.HUB_CLUSTER}} --config platform/hub/cluster/cluster-config.yaml --wait 60s || true
         kubectl config use-context kind-{{.HUB_CLUSTER}}
       - |
         echo "=== Installing ArgoCD ==="
@@ -50,10 +50,10 @@ tasks:
         helm repo update argo
         helm upgrade --install argocd argo/argo-cd \
           -n {{.ARGOCD_NAMESPACE}} --create-namespace \
-          -f platforms/hub/bootstrap/argocd-values-kind.yaml
+          -f platform/hub/bootstrap/argocd-values-kind.yaml
       - |
         echo "=== Applying hub application ==="
-        kubectl apply -f platforms/hub/bootstrap/hub-application.yaml
+        kubectl apply -f platform/hub/bootstrap/hub-application.yaml
       - |
         echo "=== Waiting for services ==="
         echo "Waiting for dns-stack to be healthy..."
@@ -274,15 +274,15 @@ tasks:
       - kubectl --context kind-{{.HUB_CLUSTER}} -n {{.ARGOCD_NAMESPACE}} get secret argocd-initial-admin-secret -o jsonpath='{.data.password}' | base64 -d && echo
 
   secret:
-    desc: "Store secret in OpenBao: task kind:secret -- <path> <key>=<value> [key2=value2...]"
+    desc: "Store secret in OpenBao: task hub:secret -- <path> <key>=<value> [key2=value2...]"
     cmds:
       - |
         if [ -z "{{.CLI_ARGS}}" ]; then
-          echo "Usage: task kind:secret -- <path> <key>=<value> [key2=value2...]"
+          echo "Usage: task hub:secret -- <path> <key>=<value> [key2=value2...]"
           echo ""
           echo "Examples:"
-          echo "  task kind:secret -- cloudflare api-token=abc123"
-          echo "  task kind:secret -- github token=xyz user=myuser"
+          echo "  task hub:secret -- cloudflare api-token=abc123"
+          echo "  task hub:secret -- github token=xyz user=myuser"
           exit 1
         fi
 
@@ -290,7 +290,7 @@ tasks:
 
         if [ ! -f "$KEYS_FILE" ]; then
           echo "ERROR: OpenBao keys file not found at $KEYS_FILE"
-          echo "Run 'task kind:bootstrap' first."
+          echo "Run 'task hub:bootstrap' first."
           exit 1
         fi
 
@@ -379,15 +379,15 @@ tasks:
       - tree experiments/scenarios -L 1 -d --noreport 2>/dev/null || ls -d experiments/scenarios/*/
 
   up:
-    desc: "Deploy experiment: task kind:up -- <name>"
+    desc: "Deploy experiment: task hub:up -- <name>"
     cmds:
       - task: _ensure-cloud-provider-kind
       - |
         if [ -z "{{.CLI_ARGS}}" ]; then
-          echo "Usage: task kind:up -- <experiment-name>"
+          echo "Usage: task hub:up -- <experiment-name>"
           echo ""
           echo "Deploys experiment clusters and apps."
-          echo "Use 'task kind:down -- <name>' to clean up when done."
+          echo "Use 'task hub:down -- <name>' to clean up when done."
           exit 1
         fi
 
@@ -608,16 +608,16 @@ tasks:
         done
 
         echo ""
-        echo "To clean up: task kind:down -- $EXP_NAME"
+        echo "To clean up: task hub:down -- $EXP_NAME"
         echo ""
 
   conduct:
-    desc: "Run experiment: task kind:conduct -- <name> [USERS=10] [DURATION=60s]"
+    desc: "Run experiment: task hub:conduct -- <name> [USERS=10] [DURATION=60s]"
     cmds:
       - task: _ensure-cloud-provider-kind
       - |
         if [ -z "{{.CLI_ARGS}}" ]; then
-          echo "Usage: task kind:conduct -- <experiment-name> [USERS=10] [DURATION=60s]"
+          echo "Usage: task hub:conduct -- <experiment-name> [USERS=10] [DURATION=60s]"
           exit 1
         fi
 
@@ -1043,11 +1043,11 @@ tasks:
         fi
 
   down:
-    desc: "Destroy experiment clusters: task kind:down -- <name>"
+    desc: "Destroy experiment clusters: task hub:down -- <name>"
     cmds:
       - |
         if [ -z "{{.CLI_ARGS}}" ]; then
-          echo "Usage: task kind:down -- <experiment-name>"
+          echo "Usage: task hub:down -- <experiment-name>"
           exit 1
         fi
 

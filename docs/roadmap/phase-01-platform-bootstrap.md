@@ -54,7 +54,7 @@
 │  │   (root)    │ │  Workflows  │ │ (provisions)│ │  (secrets)  │   │
 │  └─────────────┘ └─────────────┘ └─────────────┘ └─────────────┘   │
 │        │                               │                            │
-│        │ task kind:conduct             │ provisions in PARALLEL     │
+│        │ task hub:conduct             │ provisions in PARALLEL     │
 └────────┼───────────────────────────────┼────────────────────────────┘
          │                               │
          │         ┌─────────────────────┼─────────────────────┐
@@ -73,7 +73,7 @@
 
 **Experiment Lifecycle:**
 ```bash
-task kind:conduct -- http-baseline
+task hub:conduct -- http-baseline
   ├── 1. Hub provisions ALL clusters in PARALLEL:
   │     ├── http-baseline-orchestrator (Kind or cloud via Crossplane)
   │     ├── http-baseline-target
@@ -119,21 +119,23 @@ git push → GitHub webhook → Cloudflare Tunnel → ArgoCD → sync
 
 **Directory Structure:**
 ```
-platforms/
-├── hub/
-│   ├── bootstrap/
-│   │   ├── argocd-values-kind.yaml    # ArgoCD + app-of-apps reference
-│   │   └── hub-application.yaml       # Root app-of-apps
-│   └── app-of-apps/
-│       ├── kind/                      # Kind hub services
-│       │   ├── argocd.yaml            # ArgoCD self-manages
-│       │   ├── argo-workflows.yaml    # Experiment orchestration
-│       │   ├── metallb.yaml           # LoadBalancer
-│       │   ├── dns-stack.yaml         # k8s_gateway for DNS
-│       │   └── values/
-│       └── talos/                     # Talos hub services (future)
-└── kind/
-    └── Taskfile.yaml                  # task kind:bootstrap, kind:conduct, etc.
+platform/
+├── hub/                               # Control plane (runs on Kind locally)
+│   ├── apps/                          # ArgoCD Applications
+│   │   ├── argocd.yaml                # ArgoCD self-manages
+│   │   ├── argo-workflows.yaml        # Experiment orchestration
+│   │   ├── metallb.yaml               # LoadBalancer
+│   │   └── dns-stack.yaml             # k8s_gateway for DNS
+│   ├── values/                        # Helm values for hub components
+│   ├── manifests/                     # Raw K8s manifests
+│   ├── cluster/                       # Kind cluster provisioning
+│   │   └── Taskfile.yaml              # task hub:bootstrap, hub:conduct, etc.
+│   └── bootstrap/                     # Initial ArgoCD setup
+│       ├── argocd-values-kind.yaml    # ArgoCD + app-of-apps reference
+│       └── hub-application.yaml       # Root app-of-apps
+└── targets/                           # Workload clusters managed by hub
+    └── talos/                         # Home lab (N100 hardware)
+        └── cluster/                   # Talos provisioning
 
 experiments/scenarios/<experiment-name>/
 ├── orchestrator/                      # Orchestrator cluster config
@@ -149,14 +151,14 @@ experiments/scenarios/<experiment-name>/
 **Bootstrap (one command per environment):**
 ```bash
 # Kind hub (dev)
-task kind:bootstrap
+task hub:bootstrap
 
 # Talos hub (future)
 task talos:bootstrap
 ```
 
 **Tasks (in order):**
-1. [x] Create `platforms/hub/` directory structure
+1. [x] Create `platform/hub/` directory structure
 2. [x] Create ArgoCD bootstrap values with app-of-apps reference
 3. [x] Create Kind app-of-apps with ArgoCD self-management
 4. [x] Add MetalLB to Kind app-of-apps
@@ -334,7 +336,7 @@ task talos:bootstrap
   - [ ] Wait for apps to sync
   - [ ] Run load test (k6)
   - [ ] Collect results
-- [ ] Integration with `task kind:conduct`:
+- [ ] Integration with `task hub:conduct`:
   - [ ] Submit workflow to hub
   - [ ] Wait for completion
   - [ ] Report results

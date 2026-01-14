@@ -1,15 +1,15 @@
-# MetalLB Configuration for Kind
+# cert-manager Configuration
 #
-# Deploys IPAddressPool and L2Advertisement after MetalLB is ready.
-# Sync wave 0 ensures this runs after metallb (wave -1).
+# Deploys ClusterIssuers for Let's Encrypt after cert-manager is ready.
+# Sync wave 0 ensures this runs after cert-manager (wave -2).
 #
-# Uses Kustomize for environment-specific IP configuration.
-# To change IP range, edit: manifests/metallb-config/kustomization.yaml
+# Uses Kustomize for environment-specific domain/email configuration.
+# To change domain/email, edit: manifests/cert-manager-config/kustomization.yaml
 
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: metallb-config
+  name: cert-manager-config
   namespace: argocd
   labels:
     app.kubernetes.io/part-of: hub
@@ -23,10 +23,10 @@ spec:
   source:
     repoURL: https://github.com/illMadeCoder/illm-k8s-ai-labs.git
     targetRevision: HEAD
-    path: platforms/hub/app-of-apps/kind/manifests/metallb-config
+    path: platform/hub/manifests/cert-manager-config
   destination:
     server: https://kubernetes.default.svc
-    namespace: metallb-system
+    namespace: cert-manager
   syncPolicy:
     automated:
       prune: true

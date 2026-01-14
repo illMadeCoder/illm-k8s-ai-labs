@@ -115,7 +115,7 @@ Complexity          Validate                 Synthesis
 ## Current Focus
 
 **Phase 1: Platform Bootstrap**
-- [x] Create `platforms/hub/` directory structure
+- [x] Create `platform/hub/` directory structure
 - [x] Create ArgoCD bootstrap values with app-of-apps reference
 - [x] Create Kind app-of-apps with ArgoCD self-management
 - [x] Add MetalLB to Kind app-of-apps
@@ -243,7 +243,7 @@ See [Phase 1](docs/roadmap/phase-01-platform-bootstrap.md) for full details.
 ### Next Steps
 
 - [x] Re-enable Let's Encrypt after rate limit reset (issuers ready)
-- [ ] Set up Talos home lab cluster
+- [x] Set up Talos home lab cluster
 - [x] Phase 3.2: SeaweedFS Object Storage
 - [x] Phase 3.3: Logging Comparison (Loki vs ELK)
   - [x] Create `loki-tutorial` experiment (Loki + Promtail + Grafana)

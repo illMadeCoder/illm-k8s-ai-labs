@@ -265,7 +265,7 @@ experiments/components/infrastructure/
 The Taskfile becomes a thin wrapper:
 
 ```yaml
-# platforms/exp/Taskfile.yaml
+# platform/hub/cluster/Taskfile.yaml  # or experiment-specific Taskfile
 tasks:
   up:
     desc: "Deploy experiment: task exp:up -- <scenario> <provider>"

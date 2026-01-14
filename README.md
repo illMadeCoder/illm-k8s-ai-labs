@@ -15,10 +15,15 @@ A Kubernetes learning lab with GitOps, supply chain security, and observability.
 ## Project Structure
 
 ```
-platforms/
-├── hub/app-of-apps/    # ArgoCD applications (GitOps root)
-├── kind/               # Local development
-└── talos/              # Home lab hardware (N100)
+platform/
+├── hub/                # Control plane (runs on Kind locally)
+│   ├── apps/           # ArgoCD Applications (GitOps root)
+│   ├── values/         # Helm values for hub components
+│   ├── manifests/      # Raw K8s manifests
+│   ├── cluster/        # Kind cluster provisioning
+│   └── bootstrap/      # Initial ArgoCD setup
+└── targets/            # Workload clusters managed by hub
+    └── talos/          # Home lab (N100 hardware)
 
 experiments/
 ├── scenarios/          # 17 runnable tutorials
@@ -73,15 +78,15 @@ docs/
 ```bash
 # Prerequisites: Docker, kubectl, task (go-task.dev), helm
 
-task kind:bootstrap                      # Create cluster + GitOps
-task kind:conduct -- prometheus-tutorial # Run an experiment
-task kind:teardown -- prometheus-tutorial
-task kind:delete
+task hub:bootstrap                      # Create cluster + GitOps
+task hub:conduct -- prometheus-tutorial # Run an experiment
+task hub:down -- prometheus-tutorial
+task hub:destroy
 ```
 
 ## Experiments
 
-Run `task kind:conduct -- <name>` to deploy any scenario:
+Run `task hub:conduct -- <name>` to deploy any scenario:
 
 | Scenario | What You Learn |
 |----------|----------------|

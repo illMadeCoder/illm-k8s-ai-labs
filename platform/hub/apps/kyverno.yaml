@@ -1,35 +1,37 @@
-# External Secrets Operator for Hub
+# Kyverno - Policy Engine for Kubernetes
 #
-# Syncs secrets from OpenBao into Kubernetes Secrets.
-# Enables GitOps for secrets - ExternalSecret CRs in git, actual secrets from OpenBao.
+# Enforces policies including:
+# - Image signature verification
+# - Resource validation
+# - Mutation and generation of resources
 
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
-  name: external-secrets
+  name: kyverno
   namespace: argocd
   labels:
     app.kubernetes.io/part-of: hub
     environment: kind
   annotations:
-    argocd.argoproj.io/sync-wave: "1"  # After OpenBao
+    argocd.argoproj.io/sync-wave: "2"  # After core infrastructure
   finalizers:
     - resources-finalizer.argocd.argoproj.io
 spec:
   project: default
   sources:
-    - repoURL: https://charts.external-secrets.io
-      chart: external-secrets
-      targetRevision: 0.12.1
+    - repoURL: https://kyverno.github.io/kyverno
+      chart: kyverno
+      targetRevision: 3.3.4
       helm:
         valueFiles:
-          - $values/platforms/hub/app-of-apps/kind/values/external-secrets.yaml
+          - $values/platform/hub/values/kyverno.yaml
     - repoURL: https://github.com/illMadeCoder/illm-k8s-ai-labs.git
       targetRevision: HEAD
       ref: values
   destination:
     server: https://kubernetes.default.svc
-    namespace: external-secrets
+    namespace: kyverno
   syncPolicy:
     automated:
       prune: true
