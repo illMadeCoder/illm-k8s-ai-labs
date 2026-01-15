@@ -156,20 +156,62 @@ spec:
         kinds:
           - kind: GRPCRoute
 ---
-# Client certificate secret (for mTLS demo)
-apiVersion: v1
-kind: Secret
+# Server TLS certificate from OpenBao (for mTLS gateway)
+#
+# Store in OpenBao:
+#   bao kv put secret/tls/grpc-server tls.crt=@server.crt tls.key=@server.key
+#
+apiVersion: external-secrets.io/v1beta1
+kind: ExternalSecret
+metadata:
+  name: server-cert
+  namespace: grpc-tutorial
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: openbao
+  target:
+    name: server-cert
+    creationPolicy: Owner
+    template:
+      type: kubernetes.io/tls
+      data:
+        tls.crt: "{{ .cert }}"
+        tls.key: "{{ .key }}"
+  data:
+    - secretKey: cert
+      remoteRef:
+        key: secret/data/tls/grpc-server
+        property: tls.crt
+    - secretKey: key
+      remoteRef:
+        key: secret/data/tls/grpc-server
+        property: tls.key
+---
+# Client CA certificate from OpenBao (for mTLS client validation)
+#
+# Store in OpenBao:
+#   bao kv put secret/tls/grpc-client-ca ca.crt=@client-ca.crt
+#
+apiVersion: external-secrets.io/v1beta1
+kind: ExternalSecret
 metadata:
   name: client-ca-cert
   namespace: grpc-tutorial
-type: Opaque
-stringData:
-  ca.crt: |
-    # CA certificate for validating client certs
-    # In production, use cert-manager or external CA
-    -----BEGIN CERTIFICATE-----
-    (Client CA certificate here)
-    -----END CERTIFICATE-----
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: openbao
+  target:
+    name: client-ca-cert
+    creationPolicy: Owner
+  data:
+    - secretKey: ca.crt
+      remoteRef:
+        key: secret/data/tls/grpc-client-ca
+        property: ca.crt
 ---
 # JWT Authentication for gRPC
 apiVersion: gateway.envoyproxy.io/v1alpha1

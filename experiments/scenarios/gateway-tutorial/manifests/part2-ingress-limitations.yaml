@@ -75,16 +75,34 @@ spec:
 ---
 # Part 2c: Basic Authentication (nginx annotations)
 # Requires creating a secret with htpasswd credentials
-apiVersion: v1
-kind: Secret
+#
+# The htpasswd secret is stored in OpenBao and synced via ExternalSecret.
+# To generate and store credentials:
+#
+#   # Generate htpasswd (demo: admin/password123)
+#   htpasswd -nb admin password123 > auth
+#
+#   # Store in OpenBao
+#   bao kv put secret/auth/gateway-tutorial auth=@auth
+#
+apiVersion: external-secrets.io/v1beta1
+kind: ExternalSecret
 metadata:
   name: basic-auth
   namespace: gateway-tutorial
-type: Opaque
-stringData:
-  # Created with: htpasswd -nb admin password123
-  auth: |
-    admin:$apr1$H6uskkkW$IgXLP6ewTrSuBkTrqE8wj/
+spec:
+  refreshInterval: 1h
+  secretStoreRef:
+    kind: ClusterSecretStore
+    name: openbao
+  target:
+    name: basic-auth
+    creationPolicy: Owner
+  data:
+    - secretKey: auth
+      remoteRef:
+        key: secret/data/auth/gateway-tutorial
+        property: auth
 ---
 apiVersion: networking.k8s.io/v1
 kind: Ingress
