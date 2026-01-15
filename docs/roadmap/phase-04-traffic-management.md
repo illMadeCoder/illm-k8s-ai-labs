@@ -2,113 +2,171 @@
 
 *Control how traffic flows before learning deployment strategies that depend on it.*
 
-### 5.1 Gateway API Deep Dive
+### 4.1 Gateway Tutorial: Ingress → Gateway API Evolution
 
-**Goal:** Master Kubernetes Gateway API for ingress and traffic routing
+**Goal:** Understand L7 traffic management from legacy Ingress through modern Gateway API
 
 **Learning objectives:**
+- Master Kubernetes Ingress and its limitations
 - Understand Gateway API resources (Gateway, HTTPRoute, GRPCRoute)
-- Implement advanced routing patterns
-- Compare with legacy Ingress
+- Experience the migration path from Ingress to Gateway API
+- Implement advanced routing and traffic manipulation patterns
 
-**Tasks:**
-- [ ] Create `experiments/scenarios/gateway-api-tutorial/`
-- [ ] Deploy Gateway API implementation:
-  - [ ] **Contour** (work requirement - Envoy-based)
-  - [ ] Envoy Gateway (alternative)
-  - [ ] Cilium Gateway (if using Cilium CNI)
-- [ ] Configure Gateway resource
-- [ ] Implement HTTPRoute patterns:
+**Scenario:** `experiments/scenarios/gateway-tutorial/`
+
+**Part 1: Ingress Basics**
+- [ ] Deploy nginx-ingress controller
+- [ ] Configure basic Ingress resources:
   - [ ] Path-based routing
   - [ ] Host-based routing (virtual hosts)
-  - [ ] Header matching
-  - [ ] Query parameter routing
-  - [ ] Method matching (GET vs POST)
-- [ ] Traffic manipulation:
-  - [ ] Weight-based splitting (A/B)
+  - [ ] TLS termination with cert-manager
+- [ ] Understand Ingress annotations pattern
+
+**Part 2: Hitting Ingress Limitations**
+- [ ] Attempt rate limiting (annotation hell begins)
+- [ ] Try header-based routing (limited support)
+- [ ] Add authentication (nginx-specific annotations)
+- [ ] Traffic splitting for canary (awkward with Ingress)
+- [ ] Document the pain points
+
+**Part 3: Migrate to Gateway API**
+- [ ] Deploy Envoy Gateway (CNCF reference implementation)
+- [ ] Create Gateway resource
+- [ ] Migrate Ingress rules to HTTPRoute
+- [ ] Compare configuration complexity
+- [ ] Side-by-side: same routes, both approaches
+
+**Part 4: Gateway API Deep Dive**
+- [ ] HTTPRoute patterns:
+  - [ ] Path/host/header/query/method matching
+  - [ ] Weight-based traffic splitting
   - [ ] Request mirroring
   - [ ] URL rewriting
-  - [ ] Header modification (add/remove/set)
+  - [ ] Header modification
   - [ ] Redirects
 - [ ] Advanced features:
   - [ ] Timeouts and retries
-  - [ ] Rate limiting (via policy attachment)
+  - [ ] Rate limiting (BackendTrafficPolicy)
   - [ ] CORS configuration
 - [ ] TLS configuration:
-  - [ ] TLS termination (with cert-manager certs)
+  - [ ] TLS termination
   - [ ] TLS passthrough
   - [ ] mTLS with client certificates
-- [ ] Multi-gateway setup:
+- [ ] Multi-gateway patterns:
   - [ ] Internal vs external gateways
   - [ ] Namespace isolation (ReferenceGrant)
-- [ ] Document Gateway API vs Ingress migration
-- [ ] **ADR:** Document Gateway API implementation choice
+- [ ] GRPCRoute for gRPC services
+
+**Deliverables:**
+- [ ] Working tutorial with all four parts
+- [ ] **ADR:** Gateway API implementation choice (Envoy Gateway)
+- [ ] Comparison table: Ingress vs Gateway API
 
 ---
 
-### 5.2 Ingress Controllers Comparison
+### 4.2 Gateway Comparison: In-Cluster Implementations
 
-**Goal:** Understand trade-offs between ingress implementations
+**Goal:** Compare in-cluster gateway implementations for informed selection
 
 **Learning objectives:**
-- Compare nginx, Traefik, and Envoy-based controllers
-- Understand feature/performance trade-offs
-- Make informed controller selection
+- Understand trade-offs between gateway implementations
+- Compare configuration patterns and complexity
+- Evaluate feature availability and resource consumption
 
-**Tasks:**
-- [ ] Create `experiments/scenarios/ingress-comparison/`
-- [ ] Deploy and configure:
-  - [ ] **Contour** (work requirement - Envoy-based, Gateway API native)
-  - [ ] Nginx Ingress Controller
-  - [ ] Traefik
-  - [ ] Envoy Gateway
-- [ ] Implement equivalent routing on each
-- [ ] Compare:
-  - [ ] Configuration complexity
-  - [ ] Feature availability
-  - [ ] Resource consumption
-  - [ ] Custom resource patterns
-- [ ] Test advanced features:
-  - [ ] Rate limiting implementation
-  - [ ] Authentication integration
-  - [ ] Custom error pages
-- [ ] Document selection criteria
+**Scenario:** `experiments/scenarios/gateway-comparison/`
+
+**Implementations to compare:**
+- [ ] nginx-ingress (most widely deployed)
+- [ ] Traefik (popular, good Gateway API support)
+- [ ] Envoy Gateway (CNCF reference, pure Gateway API)
+
+**Same demo app, same routes on each:**
+- [ ] Path-based routing to multiple services
+- [ ] Host-based virtual hosting
+- [ ] TLS termination
+- [ ] Rate limiting
+- [ ] Header manipulation
+
+**Comparison metrics:**
+| Metric | nginx | Traefik | Envoy Gateway |
+|--------|-------|---------|---------------|
+| Config complexity | | | |
+| Gateway API support | | | |
+| Resource usage (CPU/mem) | | | |
+| Feature completeness | | | |
+| Observability integration | | | |
+| Community/docs quality | | | |
+
+**Deliverables:**
+- [ ] Side-by-side deployment of all three
+- [ ] Comparison matrix with findings
+- [ ] Recommendation criteria document
 
 ---
 
-### 5.3 API Gateway Patterns
+### 4.3 Cloud Gateway Comparison: Managed vs In-Cluster
 
-**Goal:** Implement API management patterns beyond basic routing
+**Goal:** Compare cloud-native application gateways with in-cluster solutions
 
 **Learning objectives:**
-- Understand API gateway responsibilities
-- Implement authentication, rate limiting, and API versioning
-- Evaluate managed vs self-hosted options
+- Understand cloud provider L7 gateway offerings
+- Evaluate cost, performance, and operational trade-offs
+- Make informed decisions for production architectures
 
-**Tasks:**
-- [ ] Create `experiments/scenarios/api-gateway-tutorial/`
-- [ ] Deploy Kong or Ambassador (or use Envoy Gateway)
-- [ ] Implement API management features:
-  - [ ] API key authentication
-  - [ ] JWT validation (integrate with **Auth0** from Phase 3.7)
-  - [ ] OAuth2/OIDC integration
-- [ ] Rate limiting patterns:
-  - [ ] Per-client rate limits
-  - [ ] Global rate limits
-  - [ ] Quota management
-- [ ] API versioning strategies:
-  - [ ] Path-based (/v1/, /v2/)
-  - [ ] Header-based (Accept-Version)
-  - [ ] Request transformation between versions
-- [ ] API analytics:
-  - [ ] Request logging
-  - [ ] Usage metrics per consumer
-  - [ ] Error rate by endpoint
-- [ ] Developer portal (optional):
-  - [ ] API documentation (OpenAPI)
-  - [ ] Self-service key provisioning
-- [ ] Document API gateway patterns
-- [ ] **ADR:** Document API versioning strategy
+**Scenario:** `experiments/scenarios/cloud-gateway-comparison/`
+
+**Implementations to compare:**
+- [ ] AWS ALB Ingress Controller (provisions AWS ALBs)
+- [ ] Azure AGIC (provisions Azure Application Gateways)
+- [ ] Envoy Gateway in-cluster (baseline comparison)
+
+**Infrastructure:**
+- [ ] AWS EKS cluster via Crossplane
+- [ ] Azure AKS cluster via Crossplane
+- [ ] Talos cluster (in-cluster baseline)
+
+**Comparison Metrics:**
+
+| Category | Metrics |
+|----------|---------|
+| **Latency** | p50, p95, p99 request latency |
+| **Throughput** | Max RPS, RPS at 10/100/1000 concurrency |
+| **Provisioning** | Time to create gateway, time to add route |
+| **Cost** | Hourly gateway cost, per-request cost, data transfer |
+| **Config propagation** | Time from kubectl apply → traffic flowing |
+| **Reliability** | Multi-AZ behavior, failover time, SLA |
+| **Features** | Rate limiting, auth (JWT/mTLS), WAF, WebSocket/gRPC |
+| **Observability** | Metrics export, access logs, tracing integration |
+| **Blast radius** | Impact of misconfig, rollback ease |
+| **Vendor lock-in** | Portability of configuration |
+
+**Load testing:**
+- [ ] Use k6 for consistent load generation
+- [ ] Test at multiple concurrency levels
+- [ ] Measure during route changes
+
+**Deliverables:**
+- [ ] Crossplane compositions for AWS ALB IC and Azure AGIC
+- [ ] Automated metrics collection
+- [ ] Scoring matrix with all metrics
+- [ ] **ADR:** When to use cloud-native vs in-cluster gateways
+- [ ] Cost calculator for different traffic levels
 
 ---
 
+## Dependencies
+
+```
+gateway-tutorial
+       ↓
+gateway-comparison
+       ↓
+cloud-gateway-comparison
+```
+
+## Backlog
+
+After completing Phase 4:
+- [ ] Play through gateway-tutorial
+- [ ] Play through gateway-comparison
+- [ ] Play through cloud-gateway-comparison
