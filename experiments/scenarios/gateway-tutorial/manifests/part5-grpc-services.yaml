@@ -219,18 +219,21 @@ spec:
         - name: grpc-health
           image: moul/grpcbin:latest
           ports:
-            - containerPort: 9001
+            - containerPort: 9000
               name: grpc
+            - containerPort: 9001
+              name: grpc-tls
           # Kubernetes 1.24+ native gRPC health probes
+          # Note: K8s gRPC probes don't support TLS, must use insecure port
           livenessProbe:
             grpc:
-              port: 9001
+              port: 9000
               service: grpc.health.v1.Health
             initialDelaySeconds: 5
             periodSeconds: 10
           readinessProbe:
             grpc:
-              port: 9001
+              port: 9000
               service: grpc.health.v1.Health
             initialDelaySeconds: 3
             periodSeconds: 5
