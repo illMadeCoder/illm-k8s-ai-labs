@@ -330,8 +330,9 @@ spec:
 ---
 # grpcurl Testing Pod
 # Provides grpcurl for testing gRPC services within the cluster
+# Using netshoot image which includes grpcurl and a full shell
 # Usage:
-#   kubectl exec -it -n grpc-tutorial grpcurl-test -- sh
+#   kubectl exec -it -n grpc-tutorial grpcurl-test -- bash
 #   grpcurl -plaintext grpc-echo:50051 list
 #   grpcurl -plaintext grpc-echo:50051 grpcbin.GRPCBin/DummyUnary
 apiVersion: v1
@@ -343,13 +344,13 @@ metadata:
     app: grpcurl-test
 spec:
   containers:
-    - name: grpcurl
-      image: fullstorydev/grpcurl:latest
+    - name: netshoot
+      image: nicolaka/netshoot:latest
       command: ["sleep", "infinity"]
       resources:
         requests:
           cpu: 10m
-          memory: 32Mi
-        limits:
-          cpu: 100m
           memory: 64Mi
+        limits:
+          cpu: 200m
+          memory: 256Mi
