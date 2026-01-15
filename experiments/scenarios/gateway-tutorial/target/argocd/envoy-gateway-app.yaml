@@ -1,5 +1,5 @@
 # Envoy Gateway ArgoCD Application
-# Separate from main app due to ArgoCD multi-source OCI helm issues
+# Using GitHub-hosted manifests since ArgoCD OCI helm has issues
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -13,10 +13,22 @@ metadata:
 spec:
   project: default
   source:
-    # OCI helm chart works in single-source apps
-    repoURL: oci://docker.io/envoyproxy/gateway-helm
+    # Use GitHub repo with helm chart
+    repoURL: https://github.com/envoyproxy/gateway
     targetRevision: v1.2.4
-    chart: ""
+    path: charts/gateway-helm
+    helm:
+      releaseName: envoy-gateway
+      values: |
+        # Minimal values to avoid nil pointer errors
+        deployment:
+          envoyGateway:
+            resources:
+              requests:
+                cpu: 100m
+                memory: 256Mi
+        service:
+          annotations: {}
   destination:
     name: target
     namespace: envoy-gateway-system

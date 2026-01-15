@@ -1,48 +1,75 @@
 # Part 4: TLS Configuration and Multi-Gateway Patterns
 ---
-# Part 4k: TLS Certificate from OpenBao
+# Part 4k: TLS Certificate for Gateway
 #
-# The certificate is stored in OpenBao and synced via ExternalSecret.
-# To generate and store a self-signed certificate:
+# DEMO CERTIFICATE - DO NOT USE IN PRODUCTION
+# In production, use cert-manager or ExternalSecrets with a secret store.
 #
-#   # Generate cert
-#   openssl req -x509 -newkey rsa:4096 -sha256 -days 365 -nodes \
+# To regenerate:
+#   openssl req -x509 -newkey rsa:2048 -sha256 -days 365 -nodes \
 #     -keyout tls.key -out tls.crt \
 #     -subj "/CN=*.gateway.local" \
 #     -addext "subjectAltName=DNS:*.gateway.local,DNS:gateway.local"
 #
-#   # Store in OpenBao
-#   bao kv put secret/tls/gateway-tutorial \
-#     tls.crt=@tls.crt \
-#     tls.key=@tls.key
-#
-apiVersion: external-secrets.io/v1beta1
-kind: ExternalSecret
+apiVersion: v1
+kind: Secret
 metadata:
   name: tutorial-tls-cert
   namespace: gateway-tutorial
-spec:
-  refreshInterval: 1h
-  secretStoreRef:
-    kind: ClusterSecretStore
-    name: openbao
-  target:
-    name: tutorial-tls-cert
-    creationPolicy: Owner
-    template:
-      type: kubernetes.io/tls
-      data:
-        tls.crt: "{{ .cert }}"
-        tls.key: "{{ .key }}"
-  data:
-    - secretKey: cert
-      remoteRef:
-        key: secret/data/tls/gateway-tutorial
-        property: tls.crt
-    - secretKey: key
-      remoteRef:
-        key: secret/data/tls/gateway-tutorial
-        property: tls.key
+  annotations:
+    description: "Demo TLS certificate for tutorial - *.gateway.local"
+type: kubernetes.io/tls
+stringData:
+  tls.crt: |
+    -----BEGIN CERTIFICATE-----
+    MIIDQDCCAiigAwIBAgIUUfjOVcj0vDU/Gw6Emo5fmNDNdjIwDQYJKoZIhvcNAQEL
+    BQAwGjEYMBYGA1UEAwwPKi5nYXRld2F5LmxvY2FsMB4XDTI2MDExNTE4MTQ1NFoX
+    DTI3MDExNTE4MTQ1NFowGjEYMBYGA1UEAwwPKi5nYXRld2F5LmxvY2FsMIIBIjAN
+    BgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAt5yIeGc9i7UQno5QAAia7QhdLxlm
+    VloXHzblT1L5l7xFPOqp4JYaHCcEfV831FgHNrh25+VuK9p65rXHZ6Fik+J8xVSZ
+    ZFBl1fYaWi4wDbDvJXXjrheUm4xxJueUxzMbMgeO/JTE0W/SPNJvuj3hezEph9aj
+    nXL9EyRqF6j/ZdFqxbMQ4olz9ildwHtMyAkJMwYfAI32c/cQuke/P7vaNouP+7mk
+    C2oGjiU7MgEHqAprY3tabbPRXN1di2YxfHf9GnVKut3e37lr0OXnJ2oq13UF/LAc
+    ekSoc0TgihxKmI45bKmmedyhUQxB2Fel2l8mNNSxnEVb2TDxqOR7LEK4/wIDAQAB
+    o34wfDAdBgNVHQ4EFgQUA2pME/m6ezjMYuMjCDCrs3udDbkwHwYDVR0jBBgwFoAU
+    A2pME/m6ezjMYuMjCDCrs3udDbkwDwYDVR0TAQH/BAUwAwEB/zApBgNVHREEIjAg
+    gg8qLmdhdGV3YXkubG9jYWyCDWdhdGV3YXkubG9jYWwwDQYJKoZIhvcNAQELBQAD
+    ggEBAAHXzJpQu9o65sQaIc8oqzv60wPSzBQmltQvCinCoXK4mMKGaekobrc9LOWR
+    Ztz51U9EkkdfMNfSDu/fdt+2MwvcjUVepv4FCXEOYtHv1veVZaJ3vGWO3W1sOkWP
+    CHCW9CTNt3oBGVeRqqzRCjRog3vh1q+TAZbza0i/6SPYl2N5IdLCxAhja7/cTMbU
+    O3bTwaPh6La/fKjT9vHB6teBUbVn3lLwEGeXvTE7Nf+pEYxZpMSphHdb4jWkM2pq
+    9SGWtTUznK1kyephmQa5iMk9Q2FcyQwF/QziVwlgjaeTm+mzzit4qDTWN7YD++20
+    PEp8NTloylSE4K/mbdv4RAdfGt0=
+    -----END CERTIFICATE-----
+  tls.key: |
+    -----BEGIN PRIVATE KEY-----
+    MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQC3nIh4Zz2LtRCe
+    jlAACJrtCF0vGWZWWhcfNuVPUvmXvEU86qnglhocJwR9XzfUWAc2uHbn5W4r2nrm
+    tcdnoWKT4nzFVJlkUGXV9hpaLjANsO8ldeOuF5SbjHEm55THMxsyB478lMTRb9I8
+    0m+6PeF7MSmH1qOdcv0TJGoXqP9l0WrFsxDiiXP2KV3Ae0zICQkzBh8AjfZz9xC6
+    R78/u9o2i4/7uaQLagaOJTsyAQeoCmtje1pts9Fc3V2LZjF8d/0adUq63d7fuWvQ
+    5ecnairXdQX8sBx6RKhzROCKHEqYjjlsqaZ53KFRDEHYV6XaXyY01LGcRVvZMPGo
+    5HssQrj/AgMBAAECggEAHqd6G0v1OQVmPGp7Db5iCy/Jyuq9LK6GzLXQC/HI7N3I
+    W3a8HNxCiK+07q9+dSurLKYYZ/fkcFreCPWRUIpfmFwIQ7OvllFb5yBa3vJ2IFsJ
+    WiI3/GFAdMW6QGoKa0VrhWtAooe94k9+dJwXfisFoZkgG2co0skXWmJKeh/DX/6Q
+    xH/i3OL9YlhQS84Tfm6W3X1KuSZiCKZSJAMXNX7zIfOllIb91/0VGZKTaV9ufZbf
+    IlZ/CXeZlt4yCecvOZI6BD1mNPDt8c11tb/fcNeIHp7fnkgvMN4VlBqC7tw9jKKz
+    R6JXvx/VywKV3AK65/duvqvyPx3sOCf4NvC9xyxyxQKBgQD9WU4fbPL452iT+ygE
+    6lyOrHnmg0NoyNXzpRBh5Eu16PNKIg0HzWiZ0oMjm+XTEreFzSkl28dh8EgS9Kpv
+    YEN8dlnG0YYQLK3BLlb9wFt3jxghvjW1Wq5LXQhHQBqTAr5iZMCKYg9ljVUDJxup
+    HGsjUfBD7feOLh6UxH42RJmOywKBgQC5iGinpYgzvDoHaGgP5lQoui58lpTA0FuN
+    i5O7Qng1+GM1FQf6r2/Me3BfoJ2B4xNnRdH07jveBfTh9FQbGGR58ERnLvtAPYkc
+    MC3nFMstUZTdGrJhk7ly7Hh+oYsJg2R47nCd/qjXUvq8rwtqrj7pjnKOb3eGPCEz
+    HmDw8jskHQKBgQD8ErpHTEioXN7RtiiIU4MKNhQHxfzxKjqudELLk7G86m3/Ccg7
+    RiZYPntal8fg7pOJXqsdTwKfsMqVibh2nqonET6cMmaYe0valTfavGSFneudzzpz
+    GimnNIaDFgYa1bUGA0cLqSu2mBvIykWcSnlTKDjN7dzNK5gj3ynQ5wp+ZwKBgFS1
+    RSMV3sPQMqZjMu/fd5lIuCTGE5CdEM/lZEPhK0Vo7NK1kXkRVHgF+96NVJyS8q76
+    H8w2YTsTeSUZCrV8Q5Ow8Woy9x/zeIBYNv0Eb2d3kgIJSFxouAkSkkkutG5ZgSv9
+    oYlhVfFJv5UaTpociDjWgtMpbWbqWTYfrp8T2ZC5AoGAKT3pIWpVohUwdlt9bWA2
+    mMZ6zF1knomF/2BMiGIiWcFehlrEatngbTlsvqfQFX7/rgIQM72vTX881ebkAOSV
+    rKcIidqXuwApUKhmIRaO08GkblYl1+MBNRrAvYvUkvj/q0vmV1HeH9jiuY0Defcx
+    NyPEdsClXekZHx65yI+Jquc=
+    -----END PRIVATE KEY-----
 ---
 # Part 4l: TLS Termination - Gateway terminates TLS
 # This is the most common pattern
