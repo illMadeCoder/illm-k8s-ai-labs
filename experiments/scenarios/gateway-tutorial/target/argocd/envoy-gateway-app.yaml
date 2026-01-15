@@ -12,23 +12,19 @@ metadata:
     - resources-finalizer.argocd.argoproj.io
 spec:
   project: default
-  source:
+  sources:
     # Use GitHub repo with helm chart
-    repoURL: https://github.com/envoyproxy/gateway
-    targetRevision: v1.2.4
-    path: charts/gateway-helm
-    helm:
-      releaseName: envoy-gateway
-      values: |
-        # Minimal values to avoid nil pointer errors
-        deployment:
-          envoyGateway:
-            resources:
-              requests:
-                cpu: 100m
-                memory: 256Mi
-        service:
-          annotations: {}
+    - repoURL: https://github.com/envoyproxy/gateway
+      targetRevision: v1.2.4
+      path: charts/gateway-helm
+      helm:
+        releaseName: envoy-gateway
+        valueFiles:
+          - $values/experiments/scenarios/gateway-tutorial/target/argocd/envoy-gateway-values.yaml
+    # Values reference from main repo
+    - repoURL: https://github.com/illMadeCoder/illm-k8s-ai-labs.git
+      targetRevision: HEAD
+      ref: values
   destination:
     name: target
     namespace: envoy-gateway-system

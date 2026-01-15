@@ -15,6 +15,9 @@ config:
       controllerName: gateway.envoyproxy.io/gatewayclass-controller
     provider:
       type: Kubernetes
+      kubernetes:
+        deploy:
+          replicas: 1
     logging:
       level:
         default: info
