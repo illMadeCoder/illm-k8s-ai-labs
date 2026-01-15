@@ -55,12 +55,156 @@
 - [ ] Multi-gateway patterns:
   - [ ] Internal vs external gateways
   - [ ] Namespace isolation (ReferenceGrant)
-- [ ] GRPCRoute for gRPC services
+
+**Part 5: gRPC Traffic Management**
+
+*gRPC has fundamentally different traffic management requirements than HTTP/1.1. HTTP/2 multiplexing, streaming RPCs, and binary protocols require specialized handling.*
+
+**5a: gRPC Fundamentals & The Load Balancing Problem**
+- [ ] Deploy gRPC demo services (3-service chain)
+- [ ] Demonstrate the HTTP/2 load balancing problem:
+  - [ ] L4 load balancing fails (all requests go to one pod)
+  - [ ] Connection pooling vs request distribution
+  - [ ] Why HTTP/2 multiplexing breaks traditional LB
+- [ ] Load balancing strategies:
+  - [ ] Proxy-based L7 LB (gateway handles it)
+  - [ ] Client-side LB (grpc-go, grpc-java built-in)
+  - [ ] Look-aside LB with xDS (Envoy service mesh pattern)
+- [ ] Extracting the root cause here helps understand why solutions differ from HTTP/1.1 patterns
+
+**5b: gRPC with Ingress (The Pain)**
+- [ ] nginx-ingress gRPC configuration:
+  - [ ] `nginx.ingress.kubernetes.io/backend-protocol: "GRPC"`
+  - [ ] `nginx.ingress.kubernetes.io/ssl-redirect: "true"` (gRPC needs TLS or h2c)
+  - [ ] Health check configuration (gRPC health protocol)
+- [ ] Traefik gRPC:
+  - [ ] h2c (HTTP/2 cleartext) configuration
+  - [ ] TLS termination with gRPC backends
+- [ ] Document the annotation complexity and lack of standardization
+
+**5c: GRPCRoute with Gateway API**
+- [ ] Deploy GRPCRoute resources:
+  - [ ] Service matching by gRPC service name
+  - [ ] Method matching (package.Service/Method)
+  - [ ] Header matching on gRPC metadata
+- [ ] Traffic manipulation:
+  - [ ] Weight-based splitting for gRPC canary
+  - [ ] gRPC mirroring
+  - [ ] Metadata/header injection
+- [ ] Compare: Ingress annotations vs GRPCRoute clarity
+
+**5d: gRPC Timeouts, Retries & Deadlines**
+- [ ] Deadline propagation:
+  - [ ] Client sets deadline
+  - [ ] Gateway respects/modifies deadline
+  - [ ] Deadline propagation across service chain
+  - [ ] `grpc-timeout` header handling
+- [ ] Retry configuration:
+  - [ ] Retryable status codes (UNAVAILABLE, RESOURCE_EXHAUSTED)
+  - [ ] Non-retryable (INVALID_ARGUMENT, NOT_FOUND)
+  - [ ] Retry budgets and backoff
+  - [ ] Hedged requests (send to multiple backends)
+- [ ] Timeout patterns:
+  - [ ] Per-call timeout
+  - [ ] Per-stream timeout (for streaming RPCs)
+  - [ ] Connection timeout
+
+**5e: gRPC Streaming Patterns**
+- [ ] Unary RPC (request-response) - standard pattern
+- [ ] Server streaming:
+  - [ ] Gateway timeout considerations (long-lived streams)
+  - [ ] Flow control / backpressure
+- [ ] Client streaming:
+  - [ ] Buffering at gateway
+  - [ ] Upload size limits
+- [ ] Bidirectional streaming:
+  - [ ] WebSocket-like long-lived connections
+  - [ ] Gateway connection limits
+  - [ ] Idle timeout handling
+- [ ] Test each pattern through the gateway
+
+**5f: gRPC Health Checking**
+- [ ] gRPC Health Checking Protocol (grpc.health.v1.Health):
+  - [ ] Implement health service in demo apps
+  - [ ] Service-level health vs server-level health
+- [ ] Gateway health checking:
+  - [ ] Envoy Gateway gRPC health checks
+  - [ ] nginx-ingress gRPC health probes
+- [ ] Kubernetes integration:
+  - [ ] gRPC liveness/readiness probes (K8s 1.24+)
+  - [ ] `grpc` probe type configuration
+
+**5g: gRPC-Web for Browser Clients**
+- [ ] The browser problem (no HTTP/2 trailers in browser fetch)
+- [ ] gRPC-Web protocol:
+  - [ ] Base64 encoding for binary
+  - [ ] Trailer handling via special headers
+- [ ] Deploy Envoy gRPC-Web filter:
+  - [ ] Transcode gRPC-Web → gRPC
+  - [ ] CORS configuration for browser
+- [ ] Alternative: grpc-web proxy sidecar
+- [ ] Test from browser JavaScript client
+
+**5h: gRPC Transcoding (REST ↔ gRPC)**
+- [ ] Use case: REST clients calling gRPC services
+- [ ] google.api.http annotations in proto:
+  ```protobuf
+  rpc GetUser(GetUserRequest) returns (User) {
+    option (google.api.http) = {
+      get: "/v1/users/{user_id}"
+    };
+  }
+  ```
+- [ ] Envoy gRPC-JSON transcoder filter
+- [ ] Test: curl REST endpoint → gRPC backend
+- [ ] Extracting the root cause here helps understand when to use transcoding vs native gRPC
+
+**5i: gRPC Security**
+- [ ] TLS modes:
+  - [ ] TLS termination at gateway (gateway → backend cleartext)
+  - [ ] TLS passthrough (end-to-end encryption)
+  - [ ] mTLS (mutual TLS with client certs)
+- [ ] Per-RPC credentials:
+  - [ ] Bearer tokens in metadata
+  - [ ] JWT validation at gateway
+- [ ] Channel vs call credentials:
+  - [ ] Channel: TLS for transport
+  - [ ] Call: per-request auth tokens
+
+**5j: gRPC Observability**
+- [ ] Metrics:
+  - [ ] gRPC method-level metrics (rate, errors, duration)
+  - [ ] Prometheus gRPC interceptors
+  - [ ] Gateway-level gRPC metrics
+- [ ] Distributed tracing:
+  - [ ] OpenTelemetry gRPC instrumentation
+  - [ ] Trace context propagation via metadata
+  - [ ] View traces in Tempo from Part 4 setup
+- [ ] Access logging:
+  - [ ] gRPC method in access logs
+  - [ ] Status code mapping (gRPC → HTTP)
+
+**5k: gRPC Reflection & Debugging**
+- [ ] gRPC Server Reflection:
+  - [ ] Enable reflection in demo services
+  - [ ] Why reflection is useful (schema discovery)
+  - [ ] Security considerations (disable in prod?)
+- [ ] Debugging tools:
+  - [ ] grpcurl for CLI testing
+  - [ ] grpc-client-cli
+  - [ ] Postman gRPC support
+  - [ ] BloomRPC / Evans
+- [ ] Gateway debugging:
+  - [ ] Envoy admin interface for gRPC stats
+  - [ ] Connection/stream inspection
 
 **Deliverables:**
-- [ ] Working tutorial with all four parts
+- [ ] Working tutorial with all five parts
+- [ ] gRPC demo application (3-service chain with all RPC types)
 - [ ] **ADR:** Gateway API implementation choice (Envoy Gateway)
+- [ ] **ADR:** gRPC load balancing strategy
 - [ ] Comparison table: Ingress vs Gateway API
+- [ ] Comparison table: gRPC gateway support matrix
 
 ---
 
@@ -86,12 +230,17 @@
 - [ ] TLS termination
 - [ ] Rate limiting
 - [ ] Header manipulation
+- [ ] gRPC routing (GRPCRoute or equivalent)
+- [ ] gRPC load balancing verification
 
 **Comparison metrics:**
 | Metric | nginx | Traefik | Envoy Gateway |
 |--------|-------|---------|---------------|
 | Config complexity | | | |
 | Gateway API support | | | |
+| GRPCRoute support | | | |
+| gRPC LB effectiveness | | | |
+| gRPC streaming support | | | |
 | Resource usage (CPU/mem) | | | |
 | Feature completeness | | | |
 | Observability integration | | | |
@@ -135,7 +284,8 @@
 | **Cost** | Hourly gateway cost, per-request cost, data transfer |
 | **Config propagation** | Time from kubectl apply → traffic flowing |
 | **Reliability** | Multi-AZ behavior, failover time, SLA |
-| **Features** | Rate limiting, auth (JWT/mTLS), WAF, WebSocket/gRPC |
+| **Features** | Rate limiting, auth (JWT/mTLS), WAF, WebSocket |
+| **gRPC Support** | gRPC routing, LB effectiveness, streaming, health checks |
 | **Observability** | Metrics export, access logs, tracing integration |
 | **Blast radius** | Impact of misconfig, rollback ease |
 | **Vendor lock-in** | Portability of configuration |
@@ -167,6 +317,12 @@ cloud-gateway-comparison
 ## Backlog
 
 After completing Phase 4:
-- [ ] Play through gateway-tutorial
+- [ ] Play through gateway-tutorial (Parts 1-5)
 - [ ] Play through gateway-comparison
 - [ ] Play through cloud-gateway-comparison
+
+## ADRs
+
+- [ ] ADR: Gateway API implementation choice (Envoy Gateway)
+- [ ] ADR: gRPC load balancing strategy
+- [ ] ADR: Cloud-native vs in-cluster gateways
