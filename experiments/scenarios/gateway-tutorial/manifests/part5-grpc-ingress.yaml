@@ -96,15 +96,17 @@ spec:
       http:
         paths:
           # Route by path prefix - not natural for gRPC
+          # Note: Paths with dots require ImplementationSpecific pathType
+          # This is yet another limitation of Ingress for gRPC
           - path: /grpc.echo
-            pathType: Prefix
+            pathType: ImplementationSpecific
             backend:
               service:
                 name: grpc-echo
                 port:
                   number: 50051
           - path: /grpc.streaming
-            pathType: Prefix
+            pathType: ImplementationSpecific
             backend:
               service:
                 name: grpc-streaming
