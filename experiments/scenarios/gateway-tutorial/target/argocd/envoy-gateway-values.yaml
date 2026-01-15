@@ -2,6 +2,18 @@
 # CNCF reference implementation of Gateway API
 # Using defaults from v1.2.4 chart to avoid nil pointer errors
 
+# Global settings
+global:
+  images:
+    envoyGateway:
+      image: docker.io/envoyproxy/gateway:v1.2.4
+      pullPolicy: IfNotPresent
+      pullSecrets: []
+    ratelimit:
+      image: "docker.io/envoyproxy/ratelimit:49af5cca"
+      pullPolicy: IfNotPresent
+      pullSecrets: []
+
 # Pod disruption budget
 podDisruptionBudget:
   minAvailable: 0
