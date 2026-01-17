@@ -1,6 +1,12 @@
 ---
 # DeploymentRuntimeConfigs for all providers
 # These must exist BEFORE providers reference them
+#
+# Memory notes:
+# - Providers with many CRDs need 300-500MB at startup
+# - OOM at 256Mi caused cluster instability (provider OOM → API server auth errors)
+# - Using 512Mi limit with 256Mi request for headroom
+# - Long-term fix: Use MRAPs to reduce CRD count and memory usage
 ---
 apiVersion: pkg.crossplane.io/v1beta1
 kind: DeploymentRuntimeConfig
@@ -24,8 +30,8 @@ spec:
                   cpu: 50m
                   memory: 128Mi
                 limits:
-                  cpu: 200m
-                  memory: 256Mi
+                  cpu: 500m
+                  memory: 384Mi
 ---
 apiVersion: pkg.crossplane.io/v1beta1
 kind: DeploymentRuntimeConfig
@@ -49,8 +55,8 @@ spec:
                   cpu: 50m
                   memory: 128Mi
                 limits:
-                  cpu: 200m
-                  memory: 256Mi
+                  cpu: 500m
+                  memory: 384Mi
 ---
 apiVersion: pkg.crossplane.io/v1beta1
 kind: DeploymentRuntimeConfig
@@ -74,11 +80,11 @@ spec:
             - name: package-runtime
               resources:
                 requests:
-                  cpu: 50m
-                  memory: 128Mi
-                limits:
-                  cpu: 250m
+                  cpu: 100m
                   memory: 256Mi
+                limits:
+                  cpu: 500m
+                  memory: 512Mi
 ---
 apiVersion: pkg.crossplane.io/v1beta1
 kind: DeploymentRuntimeConfig
@@ -101,11 +107,11 @@ spec:
             - name: package-runtime
               resources:
                 requests:
-                  cpu: 50m
-                  memory: 128Mi
-                limits:
-                  cpu: 250m
+                  cpu: 100m
                   memory: 256Mi
+                limits:
+                  cpu: 500m
+                  memory: 512Mi
 ---
 apiVersion: pkg.crossplane.io/v1beta1
 kind: DeploymentRuntimeConfig
@@ -128,8 +134,8 @@ spec:
             - name: package-runtime
               resources:
                 requests:
-                  cpu: 50m
-                  memory: 128Mi
-                limits:
-                  cpu: 250m
+                  cpu: 100m
                   memory: 256Mi
+                limits:
+                  cpu: 500m
+                  memory: 512Mi
