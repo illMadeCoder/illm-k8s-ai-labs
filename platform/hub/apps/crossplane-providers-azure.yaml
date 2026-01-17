@@ -1,0 +1,37 @@
+# Crossplane Providers Azure (Wave 3)
+# Azure family + all individual Azure providers
+# Depends on: crossplane-providers-base
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: crossplane-providers-azure
+  namespace: argocd
+  labels:
+    app.kubernetes.io/part-of: hub
+  annotations:
+    argocd.argoproj.io/sync-wave: "3"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/illMadeCoder/illm-k8s-ai-labs.git
+    targetRevision: HEAD
+    path: experiments/components/infrastructure/crossplane-providers/azure
+    directory:
+      recurse: false
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: crossplane-system
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 3m

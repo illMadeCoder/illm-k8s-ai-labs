@@ -1,0 +1,37 @@
+# Crossplane Providers GCP (Wave 5)
+# GCP family + all individual GCP providers
+# Depends on: crossplane-providers-aws
+apiVersion: argoproj.io/v1alpha1
+kind: Application
+metadata:
+  name: crossplane-providers-gcp
+  namespace: argocd
+  labels:
+    app.kubernetes.io/part-of: hub
+  annotations:
+    argocd.argoproj.io/sync-wave: "5"
+  finalizers:
+    - resources-finalizer.argocd.argoproj.io
+spec:
+  project: default
+  source:
+    repoURL: https://github.com/illMadeCoder/illm-k8s-ai-labs.git
+    targetRevision: HEAD
+    path: experiments/components/infrastructure/crossplane-providers/gcp
+    directory:
+      recurse: false
+  destination:
+    server: https://kubernetes.default.svc
+    namespace: crossplane-system
+  syncPolicy:
+    automated:
+      prune: true
+      selfHeal: true
+    syncOptions:
+      - CreateNamespace=true
+    retry:
+      limit: 5
+      backoff:
+        duration: 10s
+        factor: 2
+        maxDuration: 3m
