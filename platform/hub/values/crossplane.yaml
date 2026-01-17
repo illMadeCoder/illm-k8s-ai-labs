@@ -1,9 +1,15 @@
-# Crossplane Helm values for Kind hub
+# Crossplane Helm values for Talos hub
 #
-# Minimal config for local development. Providers will be
+# Single-node control-plane deployment. Providers will be
 # installed separately to provision cloud infrastructure.
 
-# Resource limits for Kind
+# Allow scheduling on control-plane node (single-node cluster)
+tolerations:
+  - key: node-role.kubernetes.io/control-plane
+    operator: Exists
+    effect: NoSchedule
+
+# Resource limits for Talos N100
 resourcesCrossplane:
   requests:
     cpu: 100m

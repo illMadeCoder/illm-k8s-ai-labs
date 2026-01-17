@@ -23,6 +23,10 @@ spec:
           labels:
             pkg.crossplane.io/provider: provider-helm
         spec:
+          tolerations:
+            - key: node-role.kubernetes.io/control-plane
+              operator: Exists
+              effect: NoSchedule
           containers:
             - name: package-runtime
               resources:
@@ -48,6 +52,10 @@ spec:
           labels:
             pkg.crossplane.io/provider: provider-kubernetes
         spec:
+          tolerations:
+            - key: node-role.kubernetes.io/control-plane
+              operator: Exists
+              effect: NoSchedule
           containers:
             - name: package-runtime
               resources:
@@ -74,6 +82,10 @@ spec:
             pkg.crossplane.io/family: provider-family-azure
             azure.workload.identity/use: "true"
         spec:
+          tolerations:
+            - key: node-role.kubernetes.io/control-plane
+              operator: Exists
+              effect: NoSchedule
           securityContext:
             fsGroup: 65532
           containers:
@@ -101,6 +113,10 @@ spec:
           labels:
             pkg.crossplane.io/family: provider-family-aws
         spec:
+          tolerations:
+            - key: node-role.kubernetes.io/control-plane
+              operator: Exists
+              effect: NoSchedule
           securityContext:
             fsGroup: 2000
           containers:
@@ -128,6 +144,10 @@ spec:
           labels:
             pkg.crossplane.io/family: provider-family-gcp
         spec:
+          tolerations:
+            - key: node-role.kubernetes.io/control-plane
+              operator: Exists
+              effect: NoSchedule
           securityContext:
             fsGroup: 65532
           containers:
