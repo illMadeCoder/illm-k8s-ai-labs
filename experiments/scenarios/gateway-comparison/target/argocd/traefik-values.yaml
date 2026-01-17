@@ -46,8 +46,6 @@ ports:
       default: true
     exposedPort: 9000
     protocol: TCP
-    http2:
-      maxConcurrentStreams: 250
 
 # Enable metrics for comparison
 metrics:
@@ -83,3 +81,7 @@ ingressClass:
 # Deployment configuration
 deployment:
   replicas: 1
+
+# NOTE: Traefik's Gateway API support is experimental.
+# The Gateway in gateway-comparison namespace may require
+# additional RBAC configuration for cross-namespace access.
