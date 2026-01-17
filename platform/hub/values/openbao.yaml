@@ -49,7 +49,7 @@ server:
       }
 
       storage "file" {
-        path = "/vault/data"
+        path = "/openbao/data"
       }
 
   # HA disabled for home lab
