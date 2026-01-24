@@ -49,14 +49,11 @@ tempo:
     compaction:
       block_retention: 168h
 
-  # Overrides
+  # Overrides (using Tempo 2.x format)
   overrides:
     defaults:
-      ingestion:
-        rate_limit_bytes: 15000000
-        burst_size_bytes: 20000000
-      search:
-        max_duration: 0s
+      global:
+        max_bytes_per_trace: 5000000
 
 service:
   type: ClusterIP
