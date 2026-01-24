@@ -75,6 +75,9 @@ gateway:
     limits:
       cpu: 100m
       memory: 128Mi
+  # Disable anti-affinity for single-node clusters
+  affinity: {}
+  podAntiAffinity: {}
 
 test:
   enabled: false
