@@ -1,0 +1,9 @@
+# Placeholder ConfigMap to trigger PostSync hooks
+# ArgoCD PostSync hooks only run if there are resources to sync first
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: seaweedfs-config-placeholder
+  namespace: seaweedfs
+data:
+  description: "Placeholder to trigger bucket creation PostSync hook"

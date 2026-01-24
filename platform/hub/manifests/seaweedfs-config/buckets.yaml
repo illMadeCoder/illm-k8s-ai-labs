@@ -14,9 +14,19 @@ spec:
   template:
     spec:
       restartPolicy: OnFailure
+      # Pod security context for Talos PSS compliance
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1000
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: create-buckets
           image: amazon/aws-cli:2.15.0
+          securityContext:
+            allowPrivilegeEscalation: false
+            capabilities:
+              drop: ["ALL"]
           env:
             - name: AWS_ACCESS_KEY_ID
               value: "any"  # SeaweedFS doesn't require auth by default
