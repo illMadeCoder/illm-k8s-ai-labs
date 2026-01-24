@@ -1,0 +1,57 @@
+# S3 Buckets for Observability Stack
+# Creates buckets in SeaweedFS for Loki, Mimir, and Tempo
+
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: seaweedfs-create-buckets
+  namespace: seaweedfs
+  annotations:
+    argocd.argoproj.io/hook: PostSync
+    argocd.argoproj.io/hook-delete-policy: HookSucceeded
+spec:
+  ttlSecondsAfterFinished: 300
+  template:
+    spec:
+      restartPolicy: OnFailure
+      containers:
+        - name: create-buckets
+          image: amazon/aws-cli:2.15.0
+          env:
+            - name: AWS_ACCESS_KEY_ID
+              value: "any"  # SeaweedFS doesn't require auth by default
+            - name: AWS_SECRET_ACCESS_KEY
+              value: "any"
+            - name: AWS_DEFAULT_REGION
+              value: "us-east-1"
+          command:
+            - /bin/sh
+            - -c
+            - |
+              set -e
+
+              # Wait for SeaweedFS S3 to be ready
+              echo "Waiting for SeaweedFS S3 endpoint..."
+              until aws --endpoint-url http://seaweedfs-s3:8333 s3 ls 2>/dev/null; do
+                echo "Waiting for S3..."
+                sleep 5
+              done
+
+              echo "Creating buckets for observability stack..."
+
+              # Create Loki bucket
+              aws --endpoint-url http://seaweedfs-s3:8333 s3 mb s3://loki-chunks || echo "loki-chunks exists"
+              aws --endpoint-url http://seaweedfs-s3:8333 s3 mb s3://loki-ruler || echo "loki-ruler exists"
+
+              # Create Tempo bucket
+              aws --endpoint-url http://seaweedfs-s3:8333 s3 mb s3://tempo-traces || echo "tempo-traces exists"
+
+              # Create Mimir bucket
+              aws --endpoint-url http://seaweedfs-s3:8333 s3 mb s3://mimir-blocks || echo "mimir-blocks exists"
+              aws --endpoint-url http://seaweedfs-s3:8333 s3 mb s3://mimir-ruler || echo "mimir-ruler exists"
+              aws --endpoint-url http://seaweedfs-s3:8333 s3 mb s3://mimir-alertmanager || echo "mimir-alertmanager exists"
+
+              echo "Listing buckets:"
+              aws --endpoint-url http://seaweedfs-s3:8333 s3 ls
+
+              echo "Done!"

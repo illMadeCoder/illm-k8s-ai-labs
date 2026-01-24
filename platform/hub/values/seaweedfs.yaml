@@ -1,0 +1,78 @@
+# SeaweedFS - S3-compatible object storage for observability stack
+# Provides storage backend for Loki (logs), Mimir (metrics), Tempo (traces)
+
+# Master - manages volume placement and topology
+master:
+  replicas: 1
+  resources:
+    requests:
+      memory: 128Mi
+      cpu: 50m
+    limits:
+      memory: 256Mi
+      cpu: 200m
+  data:
+    type: persistentVolumeClaim
+    size: 1Gi
+    storageClass: local-path
+  logs:
+    type: emptyDir
+
+# Volume server - stores actual data
+volume:
+  replicas: 1
+  resources:
+    requests:
+      memory: 256Mi
+      cpu: 100m
+    limits:
+      memory: 512Mi
+      cpu: 500m
+  dataDirs:
+    - name: data1
+      type: persistentVolumeClaim
+      size: 50Gi  # Main storage for observability data
+      storageClass: local-path
+      maxVolumes: 0  # Auto-calculate based on size
+  logs:
+    type: emptyDir
+  idx:
+    type: emptyDir
+
+# Filer - provides S3 API and filesystem interface
+filer:
+  enabled: true
+  replicas: 1
+  resources:
+    requests:
+      memory: 128Mi
+      cpu: 50m
+    limits:
+      memory: 256Mi
+      cpu: 200m
+  data:
+    type: persistentVolumeClaim
+    size: 5Gi  # Filer metadata
+    storageClass: local-path
+  logs:
+    type: emptyDir
+  # S3 API configuration
+  s3:
+    enabled: true
+    port: 8333
+    # Allow anonymous access for internal services
+    # In production, configure IAM/authentication
+    allowEmptyFolder: true
+
+# S3 gateway
+s3:
+  enabled: true
+  resources:
+    requests:
+      memory: 64Mi
+      cpu: 25m
+    limits:
+      memory: 128Mi
+      cpu: 100m
+  logs:
+    type: emptyDir
