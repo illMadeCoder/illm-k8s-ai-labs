@@ -1,8 +1,6 @@
 # Grafana Mimir values for hub cluster
 # Uses SeaweedFS S3-compatible storage backend
-# Running in monolithic mode for simplicity
-
-deploymentMode: monolithic
+# Minimal single-node distributed setup
 
 mimir:
   structuredConfig:
@@ -15,6 +13,11 @@ mimir:
           access_key_id: any
           secret_access_key: any
           insecure: true
+
+    # Single-node settings
+    ingester:
+      ring:
+        replication_factor: 1
 
     # 7 day retention
     limits:
@@ -50,40 +53,98 @@ mimir:
         secret_access_key: any
         insecure: true
 
-# Disable distributed components (using monolithic)
+# Minimal single-node components
 ingester:
-  replicas: 0
-distributor:
-  replicas: 0
-querier:
-  replicas: 0
-query_frontend:
-  replicas: 0
-query_scheduler:
-  replicas: 0
-ruler:
-  replicas: 0
-compactor:
-  replicas: 0
-store_gateway:
-  replicas: 0
-alertmanager:
-  replicas: 0
-overrides_exporter:
-  replicas: 0
-
-# Monolithic deployment
-monolithic:
   replicas: 1
+  zoneAwareReplication:
+    enabled: false
+  affinity: ~
   resources:
     requests:
       cpu: 100m
       memory: 256Mi
     limits:
       cpu: 500m
-      memory: 1Gi
+      memory: 512Mi
   persistentVolume:
+    enabled: true
+    storageClass: local-path
+    size: 2Gi
+
+distributor:
+  replicas: 1
+  affinity: ~
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+
+querier:
+  replicas: 1
+  affinity: ~
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+
+query_frontend:
+  replicas: 1
+  affinity: ~
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+
+compactor:
+  replicas: 1
+  affinity: ~
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+  persistentVolume:
+    enabled: true
+    storageClass: local-path
+    size: 2Gi
+
+store_gateway:
+  replicas: 1
+  zoneAwareReplication:
     enabled: false
+  affinity: ~
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 200m
+      memory: 256Mi
+  persistentVolume:
+    enabled: true
+    storageClass: local-path
+    size: 2Gi
+
+# Disable components not needed for minimal setup
+query_scheduler:
+  replicas: 0
+ruler:
+  replicas: 0
+alertmanager:
+  replicas: 0
+overrides_exporter:
+  replicas: 0
 
 # Disable nginx and minio (we have SeaweedFS)
 nginx:
@@ -95,6 +156,7 @@ minio:
 gateway:
   enabledNonEnterprise: true
   replicas: 1
+  affinity: ~
   resources:
     requests:
       cpu: 50m
@@ -102,3 +164,6 @@ gateway:
     limits:
       cpu: 200m
       memory: 256Mi
+
+rollout_operator:
+  enabled: true
