@@ -12,15 +12,11 @@ singleBinary:
     limits:
       cpu: 500m
       memory: 512Mi
-  # Enable emptyDir for local data (WAL, cache)
+  # Persistence enabled with local-path for WAL/cache
   persistence:
-    enabled: false
-  extraVolumes:
-    - name: data
-      emptyDir: {}
-  extraVolumeMounts:
-    - name: data
-      mountPath: /var/loki
+    enabled: true
+    storageClass: local-path
+    size: 1Gi
 
 loki:
   auth_enabled: false
