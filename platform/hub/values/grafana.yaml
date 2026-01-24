@@ -1,0 +1,78 @@
+# Grafana values for hub cluster
+# Pre-configured with Loki, Mimir, and Tempo data sources
+
+replicas: 1
+
+resources:
+  requests:
+    cpu: 100m
+    memory: 128Mi
+  limits:
+    cpu: 500m
+    memory: 512Mi
+
+persistence:
+  enabled: true
+  storageClassName: local-path
+  size: 1Gi
+
+# Admin credentials (change in production)
+adminUser: admin
+adminPassword: admin
+
+# Data sources for LGTM stack
+datasources:
+  datasources.yaml:
+    apiVersion: 1
+    datasources:
+      - name: Mimir
+        type: prometheus
+        url: http://mimir-gateway.observability.svc.cluster.local/prometheus
+        access: proxy
+        isDefault: true
+        jsonData:
+          httpMethod: POST
+          manageAlerts: true
+          prometheusType: Mimir
+
+      - name: Loki
+        type: loki
+        url: http://loki-gateway.observability.svc.cluster.local
+        access: proxy
+        jsonData:
+          maxLines: 1000
+          derivedFields:
+            - name: TraceID
+              matcherRegex: '"traceId":"(\w+)"'
+              url: '$${__value.raw}'
+              datasourceUid: tempo
+
+      - name: Tempo
+        type: tempo
+        url: http://tempo.observability.svc.cluster.local:3100
+        access: proxy
+        uid: tempo
+        jsonData:
+          httpMethod: GET
+          tracesToLogs:
+            datasourceUid: loki
+            tags: ['job', 'namespace', 'pod']
+          tracesToMetrics:
+            datasourceUid: mimir
+          serviceMap:
+            datasourceUid: mimir
+          lokiSearch:
+            datasourceUid: loki
+
+# Service configuration
+service:
+  type: ClusterIP
+  port: 80
+
+# Disable test pod
+testFramework:
+  enabled: false
+
+# Service monitor for self-monitoring
+serviceMonitor:
+  enabled: true
