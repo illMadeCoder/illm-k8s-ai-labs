@@ -20,6 +20,12 @@ persistence:
 adminUser: admin
 adminPassword: admin
 
+# Serve from /grafana subpath
+grafana.ini:
+  server:
+    root_url: "%(protocol)s://%(domain)s/grafana"
+    serve_from_sub_path: true
+
 # Data sources for LGTM stack
 datasources:
   datasources.yaml:
