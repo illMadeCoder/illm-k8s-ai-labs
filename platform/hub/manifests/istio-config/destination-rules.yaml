@@ -1,5 +1,6 @@
 # DestinationRules for traffic policies
-# Configure mTLS and load balancing for backend services
+# All services use DISABLE until sidecars are enabled
+# Change to ISTIO_MUTUAL after: kubectl label ns observability istio-injection=enabled
 ---
 apiVersion: networking.istio.io/v1
 kind: DestinationRule
@@ -10,7 +11,7 @@ spec:
   host: grafana.observability.svc.cluster.local
   trafficPolicy:
     tls:
-      mode: ISTIO_MUTUAL
+      mode: DISABLE
 ---
 apiVersion: networking.istio.io/v1
 kind: DestinationRule
@@ -21,7 +22,7 @@ spec:
   host: mimir-gateway.observability.svc.cluster.local
   trafficPolicy:
     tls:
-      mode: ISTIO_MUTUAL
+      mode: DISABLE
 ---
 apiVersion: networking.istio.io/v1
 kind: DestinationRule
@@ -32,7 +33,7 @@ spec:
   host: loki-gateway.observability.svc.cluster.local
   trafficPolicy:
     tls:
-      mode: ISTIO_MUTUAL
+      mode: DISABLE
 ---
 apiVersion: networking.istio.io/v1
 kind: DestinationRule
@@ -43,9 +44,8 @@ spec:
   host: tempo.observability.svc.cluster.local
   trafficPolicy:
     tls:
-      mode: ISTIO_MUTUAL
+      mode: DISABLE
 ---
-# ArgoCD and OpenBao don't have sidecars yet, use DISABLE
 apiVersion: networking.istio.io/v1
 kind: DestinationRule
 metadata:
