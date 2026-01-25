@@ -1,5 +1,5 @@
 # Label namespaces for Istio sidecar injection
-# Pods need to be restarted after this is applied
+# Istio requires privileged PSS for init container capabilities (NET_ADMIN, NET_RAW)
 ---
 apiVersion: v1
 kind: Namespace
@@ -7,3 +7,6 @@ metadata:
   name: observability
   labels:
     istio-injection: enabled
+    pod-security.kubernetes.io/enforce: privileged
+    pod-security.kubernetes.io/audit: privileged
+    pod-security.kubernetes.io/warn: privileged
