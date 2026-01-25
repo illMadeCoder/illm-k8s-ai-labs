@@ -78,3 +78,15 @@ spec:
   trafficPolicy:
     tls:
       mode: DISABLE
+---
+# SeaweedFS - storage backend for observability
+apiVersion: networking.istio.io/v1
+kind: DestinationRule
+metadata:
+  name: seaweedfs
+  namespace: observability
+spec:
+  host: "*.seaweedfs.svc.cluster.local"
+  trafficPolicy:
+    tls:
+      mode: ISTIO_MUTUAL
