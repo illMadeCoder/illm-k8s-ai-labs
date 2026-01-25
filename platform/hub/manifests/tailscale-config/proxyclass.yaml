@@ -1,0 +1,19 @@
+# ProxyClass to run Tailscale with kernel networking (not userspace)
+apiVersion: tailscale.com/v1alpha1
+kind: ProxyClass
+metadata:
+  name: kernel-proxy
+spec:
+  statefulSet:
+    pod:
+      tailscaleContainer:
+        env:
+          - name: TS_USERSPACE
+            value: "false"
+        securityContext:
+          privileged: true
+          capabilities:
+            add:
+              - NET_ADMIN
+              - NET_RAW
+              - SYS_MODULE
