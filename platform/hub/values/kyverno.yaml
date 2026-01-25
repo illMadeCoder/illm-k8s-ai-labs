@@ -1,5 +1,18 @@
-# Kyverno values for Kind cluster
+# Kyverno values for Talos cluster
 # Minimal config for learning environment
+
+# Fix kubectl image for cleanup jobs (1.30.2 doesn't exist)
+cleanupJobs:
+  admissionReports:
+    image:
+      registry: docker.io
+      repository: bitnami/kubectl
+      tag: "1.31"
+  clusterAdmissionReports:
+    image:
+      registry: docker.io
+      repository: bitnami/kubectl
+      tag: "1.31"
 
 # Admission controller config
 admissionController:

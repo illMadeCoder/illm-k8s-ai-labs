@@ -12,7 +12,7 @@ metadata:
   namespace: argocd
   labels:
     app.kubernetes.io/part-of: hub
-    environment: kind
+    environment: talos
   annotations:
     argocd.argoproj.io/sync-wave: "2"  # After core infrastructure
   finalizers:
