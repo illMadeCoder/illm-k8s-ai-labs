@@ -43,6 +43,11 @@ global:
   # Use distroless images for security
   variant: distroless
 
+  # Enable CNI plugin (required for Talos - no iptables in init containers)
+  istio_cni:
+    enabled: true
+    chained: true
+
   # Proxy resources (for sidecars)
   proxy:
     resources:
@@ -53,7 +58,7 @@ global:
         cpu: 100m
         memory: 128Mi
 
-  # Proxy init container resources
+  # Proxy init container resources (minimal when using CNI)
   proxy_init:
     resources:
       requests:
