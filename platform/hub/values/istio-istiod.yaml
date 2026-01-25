@@ -2,6 +2,10 @@
 # Homelab-optimized with Tempo tracing integration
 
 pilot:
+  # Enable CNI mode (required for Talos - no iptables in init containers)
+  cni:
+    enabled: true
+
   # Homelab-friendly resources
   resources:
     requests:
