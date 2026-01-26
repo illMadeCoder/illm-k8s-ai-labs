@@ -11,9 +11,10 @@
 # 3. ExternalSecret syncs to operator-oauth secret automatically
 
 # Use pre-existing secret (created by ExternalSecret)
+# Empty strings tell Helm to not create the secret - uses existing operator-oauth
 oauth:
-  clientId: "from-secret"
-  clientSecret: "from-secret"
+  clientId: ""
+  clientSecret: ""
 
 # Tell operator to use existing secret
 operatorConfig:
