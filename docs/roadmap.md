@@ -49,7 +49,7 @@ A **benchmarking-focused** Kubernetes experiment lab for **Cloud Architect**, **
 | 4 | [Traffic Management](docs/roadmap/phase-04-traffic-management.md) | Not Started | Gateway API, ingress comparison |
 | 5 | [Data & Persistence](docs/roadmap/phase-05-data-persistence.md) | Not Started | PostgreSQL, Redis, backup, benchmark |
 | 6 | [Security & Policy](docs/roadmap/phase-06-security-policy.md) | Not Started | TLS, secrets (ESO), RBAC, Kyverno, NetworkPolicy |
-| 7 | [Service Mesh](docs/roadmap/phase-07-service-mesh.md) | Not Started | Istio vs Linkerd vs Cilium, overhead benchmark |
+| 7 | [Service Mesh](docs/roadmap/phase-07-service-mesh.md) | In Progress | Istio deployed on Talos hub |
 | 8 | [Messaging & Events](docs/roadmap/phase-08-messaging-events.md) | Not Started | Kafka vs RabbitMQ vs NATS, throughput benchmark |
 | 9 | [Autoscaling & Resources](docs/roadmap/phase-09-autoscaling-resources.md) | Not Started | HPA, VPA, KEDA, cluster autoscaling |
 | 10 | [Performance & Cost Engineering](docs/roadmap/phase-10-performance-cost-engineering.md) | Not Started | Runtime comparison, full stack benchmark, cost per transaction |
@@ -267,3 +267,31 @@ See [Phase 1](docs/roadmap/phase-01-platform-bootstrap.md) for full details.
 - [x] Phase 3.6: Observability Cost Management
   - [x] Create `observability-cost-tutorial` experiment (cardinality, log volume, retention)
   - [ ] **BACKLOG**: Play through observability-cost-tutorial
+
+---
+
+## Phase 7: Service Mesh (In Progress)
+
+### Phase 7.1: Istio on Talos
+
+- [x] Deploy Istio via ArgoCD (istio-base, istio-cni, istio-istiod, istio-ingress)
+- [x] Configure CNI plugin for Talos compatibility (no iptables in containers)
+- [x] Replace Traefik with Istio ingress gateway
+- [x] Configure Tailscale LoadBalancer for external access
+- [x] Create VirtualServices for path-based routing (/grafana, /mimir, /loki, /tempo, /argocd, /openbao, /kiali)
+- [x] Enable sidecar injection for namespaces (observability, seaweedfs, argocd, openbao)
+- [x] Configure mTLS with PeerAuthentication (STRICT) and DestinationRules (ISTIO_MUTUAL)
+- [x] Deploy Kiali for service graph visualization
+- [x] Configure Tempo tracing integration
+- [x] Document in [ADR-014](docs/adrs/ADR-014-service-mesh-istio.md)
+
+**Lessons Learned:**
+- Kyverno excluded from mesh - init containers need K8s API access before sidecar starts
+- `pilot.cni.enabled: true` is the critical setting (not just `global.istio_cni.enabled`)
+- Services without sidecars need `mode: DISABLE` in DestinationRules
+
+### Next Steps
+
+- [ ] Phase 7.2: Linkerd Tutorial (comparison)
+- [ ] Phase 7.3: Cilium Service Mesh (if switching CNI)
+- [ ] Phase 7.4: Service Mesh Cost Analysis

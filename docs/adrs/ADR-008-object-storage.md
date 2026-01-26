@@ -265,6 +265,25 @@ The tradeoff: SeaweedFS has less S3 feature coverage and uses replication (not e
 - Smaller community (but growing post-MinIO-maintenance-mode)
 - Different architecture to learn (but that's educational)
 
+## Operational Notes
+
+### Index Volume Must Be Persistent
+
+**Issue discovered (2026-01):** SeaweedFS volume server crashed with "idx file does not exist" after pod restarts.
+
+**Root cause:** The Helm chart defaults `idx` volume to `emptyDir`. Index files (.idx) are stored separately from data files (.dat). When pods restart, emptyDir is cleared, losing index files while data files persist on PVC.
+
+**Fix:** Configure idx as persistentVolumeClaim:
+```yaml
+volume:
+  idx:
+    type: persistentVolumeClaim
+    size: 1Gi
+    storageClass: local-path
+```
+
+This is now configured in `platform/hub/values/seaweedfs.yaml`.
+
 ### Migration Path
 - SeaweedFS is S3-compatible
 - Loki/Tempo/Thanos configs work with any S3 backend
