@@ -54,6 +54,16 @@ tasks:
           kubectl --context {{.CONTEXT}} delete "$wh" --ignore-not-found 2>/dev/null || true
         done
 
+        # Step 0b: Clean up Tailscale managed resources (they have stale state after reset)
+        echo ""
+        echo "Step 0b: Cleaning up Tailscale managed resources..."
+        kubectl --context {{.CONTEXT}} delete sts -n tailscale -l tailscale.com/managed=true --ignore-not-found 2>/dev/null || true
+        kubectl --context {{.CONTEXT}} delete sts -n tailscale --all --ignore-not-found 2>/dev/null || true
+        kubectl --context {{.CONTEXT}} delete svc -n tailscale -l tailscale.com/managed=true --ignore-not-found 2>/dev/null || true
+        kubectl --context {{.CONTEXT}} delete secret -n tailscale -l tailscale.com/managed=true --ignore-not-found 2>/dev/null || true
+        # Also delete the operator's state secret to force clean reconciliation
+        kubectl --context {{.CONTEXT}} delete secret operator -n tailscale --ignore-not-found 2>/dev/null || true
+
         # Step 1: Delete hub application (remove finalizer first)
         echo ""
         echo "Step 1: Deleting hub application..."

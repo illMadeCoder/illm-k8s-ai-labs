@@ -23,6 +23,10 @@ admissionController:
     requests:
       cpu: 100m
       memory: 128Mi
+  # Use Ignore so pods can still be created when Kyverno is unhealthy
+  # For homelab, availability > strict policy enforcement
+  webhookConfiguration:
+    failurePolicy: Ignore
 
 # Background controller for generate/mutate policies
 backgroundController:
