@@ -9,6 +9,8 @@
 #   - platform/hub/bootstrap/argocd-values-talos.yaml (loadBalancerIP)
 
 server:
+  podLabels:
+    app.kubernetes.io/instance: argocd
   service:
     type: LoadBalancer
     # kube-vip pool: DNS=.240, ArgoCD=.241, OpenBao=.242
@@ -28,3 +30,29 @@ server:
 # configs:
 #   secret:
 #     githubSecret: "your-shared-secret"
+
+# Fix: Add instance label to all components (required by service selectors)
+# See: illm-k8s-ai-lab-vek
+controller:
+  podLabels:
+    app.kubernetes.io/instance: argocd
+
+repoServer:
+  podLabels:
+    app.kubernetes.io/instance: argocd
+
+applicationSet:
+  podLabels:
+    app.kubernetes.io/instance: argocd
+
+notifications:
+  podLabels:
+    app.kubernetes.io/instance: argocd
+
+redis:
+  podLabels:
+    app.kubernetes.io/instance: argocd
+
+dex:
+  podLabels:
+    app.kubernetes.io/instance: argocd
