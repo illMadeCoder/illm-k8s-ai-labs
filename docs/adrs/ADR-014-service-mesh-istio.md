@@ -1,4 +1,4 @@
-# ADR-014: Service Mesh with Istio
+# ADR-014: Hub Service Mesh with Istio
 
 ## Status
 

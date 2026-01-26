@@ -49,7 +49,7 @@ A **benchmarking-focused** Kubernetes experiment lab for **Cloud Architect**, **
 | 4 | [Traffic Management](docs/roadmap/phase-04-traffic-management.md) | Not Started | Gateway API, ingress comparison |
 | 5 | [Data & Persistence](docs/roadmap/phase-05-data-persistence.md) | Not Started | PostgreSQL, Redis, backup, benchmark |
 | 6 | [Security & Policy](docs/roadmap/phase-06-security-policy.md) | Not Started | TLS, secrets (ESO), RBAC, Kyverno, NetworkPolicy |
-| 7 | [Service Mesh](docs/roadmap/phase-07-service-mesh.md) | In Progress | Istio deployed on Talos hub |
+| 7 | [Service Mesh](docs/roadmap/phase-07-service-mesh.md) | Not Started | Istio vs Linkerd vs Cilium, overhead benchmark |
 | 8 | [Messaging & Events](docs/roadmap/phase-08-messaging-events.md) | Not Started | Kafka vs RabbitMQ vs NATS, throughput benchmark |
 | 9 | [Autoscaling & Resources](docs/roadmap/phase-09-autoscaling-resources.md) | Not Started | HPA, VPA, KEDA, cluster autoscaling |
 | 10 | [Performance & Cost Engineering](docs/roadmap/phase-10-performance-cost-engineering.md) | Not Started | Runtime comparison, full stack benchmark, cost per transaction |
@@ -270,9 +270,11 @@ See [Phase 1](docs/roadmap/phase-01-platform-bootstrap.md) for full details.
 
 ---
 
-## Phase 7: Service Mesh (In Progress)
+## Hub Infrastructure Updates (2026-01)
 
-### Phase 7.1: Istio on Talos
+### Istio Service Mesh for Hub
+
+Replaced Traefik with Istio for hub ingress and mTLS between services. This is infrastructure setup, not Phase 7 experiments (which will compare meshes).
 
 - [x] Deploy Istio via ArgoCD (istio-base, istio-cni, istio-istiod, istio-ingress)
 - [x] Configure CNI plugin for Talos compatibility (no iptables in containers)
@@ -290,8 +292,6 @@ See [Phase 1](docs/roadmap/phase-01-platform-bootstrap.md) for full details.
 - `pilot.cni.enabled: true` is the critical setting (not just `global.istio_cni.enabled`)
 - Services without sidecars need `mode: DISABLE` in DestinationRules
 
-### Next Steps
+### SeaweedFS Fix
 
-- [ ] Phase 7.2: Linkerd Tutorial (comparison)
-- [ ] Phase 7.3: Cilium Service Mesh (if switching CNI)
-- [ ] Phase 7.4: Service Mesh Cost Analysis
+- [x] Fixed idx volume persistence (was emptyDir, now PVC) - see [ADR-008](docs/adrs/ADR-008-object-storage.md)
