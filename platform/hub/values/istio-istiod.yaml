@@ -33,6 +33,8 @@ meshConfig:
   # Tracing configuration for Tempo
   enableTracing: true
   defaultConfig:
+    # Wait for proxy before starting app containers
+    holdApplicationUntilProxyStarts: true
     tracing:
       zipkin:
         address: tempo.observability.svc.cluster.local:9411
