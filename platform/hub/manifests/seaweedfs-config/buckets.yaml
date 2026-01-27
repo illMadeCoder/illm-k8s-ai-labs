@@ -1,5 +1,11 @@
 # S3 Buckets for Observability Stack
 # Creates buckets in SeaweedFS for Loki, Mimir, and Tempo
+#
+# Reliability improvements:
+# - Runs as regular resource (not hook) with sync-wave after SeaweedFS
+# - Excludes Istio sidecar to avoid proxy startup race conditions
+# - High backoff limit with extended timeout for S3 readiness
+# - Uses curl for S3 ops (lighter than aws-cli, more reliable)
 
 apiVersion: batch/v1
 kind: Job
@@ -7,11 +13,15 @@ metadata:
   name: seaweedfs-create-buckets
   namespace: seaweedfs
   annotations:
-    argocd.argoproj.io/hook: PostSync
-    argocd.argoproj.io/hook-delete-policy: HookSucceeded
+    argocd.argoproj.io/sync-wave: "5"  # After SeaweedFS (wave 4)
 spec:
+  backoffLimit: 10
+  activeDeadlineSeconds: 600  # 10 minute total timeout
   ttlSecondsAfterFinished: 300
   template:
+    metadata:
+      labels:
+        sidecar.istio.io/inject: "false"  # Avoid sidecar race conditions
     spec:
       restartPolicy: OnFailure
       # Pod security context for Talos PSS compliance
@@ -22,46 +32,52 @@ spec:
           type: RuntimeDefault
       containers:
         - name: create-buckets
-          image: amazon/aws-cli:2.15.0
+          image: curlimages/curl:8.5.0
           securityContext:
             allowPrivilegeEscalation: false
             capabilities:
               drop: ["ALL"]
-          env:
-            - name: AWS_ACCESS_KEY_ID
-              value: "any"  # SeaweedFS doesn't require auth by default
-            - name: AWS_SECRET_ACCESS_KEY
-              value: "any"
-            - name: AWS_DEFAULT_REGION
-              value: "us-east-1"
           command:
             - /bin/sh
             - -c
             - |
               set -e
+              S3_ENDPOINT="http://seaweedfs-s3.seaweedfs.svc.cluster.local:8333"
 
-              # Wait for SeaweedFS S3 to be ready
               echo "Waiting for SeaweedFS S3 endpoint..."
-              until aws --endpoint-url http://seaweedfs-s3:8333 s3 ls 2>/dev/null; do
-                echo "Waiting for S3..."
+              RETRIES=0
+              MAX_RETRIES=60
+              until curl -sf "$S3_ENDPOINT/" >/dev/null 2>&1; do
+                RETRIES=$((RETRIES + 1))
+                if [ $RETRIES -ge $MAX_RETRIES ]; then
+                  echo "ERROR: S3 not ready after $MAX_RETRIES attempts"
+                  exit 1
+                fi
+                echo "Waiting for S3... (attempt $RETRIES/$MAX_RETRIES)"
                 sleep 5
               done
 
-              echo "Creating buckets for observability stack..."
+              echo "S3 endpoint ready. Creating buckets..."
 
-              # Create Loki bucket
-              aws --endpoint-url http://seaweedfs-s3:8333 s3 mb s3://loki-chunks || echo "loki-chunks exists"
-              aws --endpoint-url http://seaweedfs-s3:8333 s3 mb s3://loki-ruler || echo "loki-ruler exists"
+              # Create buckets using S3 PUT requests
+              for bucket in loki-chunks loki-ruler tempo-traces mimir-blocks mimir-ruler mimir-alertmanager; do
+                echo "Creating bucket: $bucket"
+                HTTP_CODE=$(curl -s -o /dev/null -w "%{http_code}" -X PUT "$S3_ENDPOINT/$bucket")
+                if [ "$HTTP_CODE" = "200" ]; then
+                  echo "  ✓ Created $bucket"
+                elif [ "$HTTP_CODE" = "409" ]; then
+                  echo "  ✓ $bucket already exists"
+                else
+                  echo "  ✗ Failed to create $bucket (HTTP $HTTP_CODE)"
+                  # Don't fail - bucket might exist with different response code
+                fi
+              done
 
-              # Create Tempo bucket
-              aws --endpoint-url http://seaweedfs-s3:8333 s3 mb s3://tempo-traces || echo "tempo-traces exists"
+              echo ""
+              echo "Verifying buckets:"
+              curl -s "$S3_ENDPOINT/" | grep -o '<Name>[^<]*</Name>' | sed 's/<[^>]*>//g' | while read b; do
+                echo "  - $b"
+              done
 
-              # Create Mimir bucket
-              aws --endpoint-url http://seaweedfs-s3:8333 s3 mb s3://mimir-blocks || echo "mimir-blocks exists"
-              aws --endpoint-url http://seaweedfs-s3:8333 s3 mb s3://mimir-ruler || echo "mimir-ruler exists"
-              aws --endpoint-url http://seaweedfs-s3:8333 s3 mb s3://mimir-alertmanager || echo "mimir-alertmanager exists"
-
-              echo "Listing buckets:"
-              aws --endpoint-url http://seaweedfs-s3:8333 s3 ls
-
+              echo ""
               echo "Done!"
