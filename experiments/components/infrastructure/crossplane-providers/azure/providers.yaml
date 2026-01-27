@@ -6,10 +6,8 @@
 # - Individual providers: Install CRDs only (replicas: 0), no controller pods
 #
 # Sync waves phase CRD installation to avoid API server overload:
-# - Wave 0: Family provider (controller)
-# - Wave 1: Heavy CRD providers (network = 119 CRDs)
-# - Wave 2: Medium providers (containerservice)
-# - Wave 3: Smaller providers
+# Each provider gets its own wave with gaps to allow API server recovery.
+# Waves 50-89 are reserved for Azure providers.
 ---
 # Family provider - this is the ONLY one that runs a controller pod
 apiVersion: pkg.crossplane.io/v1
@@ -17,7 +15,7 @@ kind: Provider
 metadata:
   name: provider-family-azure
   annotations:
-    argocd.argoproj.io/sync-wave: "0"
+    argocd.argoproj.io/sync-wave: "50"
 spec:
   package: xpkg.upbound.io/upbound/provider-family-azure:v2.3.0
   runtimeConfigRef:
@@ -31,7 +29,7 @@ kind: Provider
 metadata:
   name: provider-azure-network
   annotations:
-    argocd.argoproj.io/sync-wave: "1"
+    argocd.argoproj.io/sync-wave: "55"
 spec:
   package: xpkg.upbound.io/upbound/provider-azure-network:v2.3.0
   runtimeConfigRef:
@@ -45,7 +43,7 @@ kind: Provider
 metadata:
   name: provider-azure-containerservice
   annotations:
-    argocd.argoproj.io/sync-wave: "2"
+    argocd.argoproj.io/sync-wave: "60"
 spec:
   package: xpkg.upbound.io/upbound/provider-azure-containerservice:v2.3.0
   runtimeConfigRef:
@@ -59,7 +57,7 @@ kind: Provider
 metadata:
   name: provider-azure-resources
   annotations:
-    argocd.argoproj.io/sync-wave: "3"
+    argocd.argoproj.io/sync-wave: "65"
 spec:
   package: xpkg.upbound.io/upbound/provider-azure-resources:v2.3.0
   runtimeConfigRef:
@@ -73,7 +71,7 @@ kind: Provider
 metadata:
   name: provider-azure-management
   annotations:
-    argocd.argoproj.io/sync-wave: "3"
+    argocd.argoproj.io/sync-wave: "70"
 spec:
   package: xpkg.upbound.io/upbound/provider-azure-management:v2.3.0
   runtimeConfigRef:
@@ -87,7 +85,7 @@ kind: Provider
 metadata:
   name: provider-azure-storage
   annotations:
-    argocd.argoproj.io/sync-wave: "3"
+    argocd.argoproj.io/sync-wave: "75"
 spec:
   package: xpkg.upbound.io/upbound/provider-azure-storage:v2.3.0
   runtimeConfigRef:
@@ -101,7 +99,7 @@ kind: Provider
 metadata:
   name: provider-azure-sql
   annotations:
-    argocd.argoproj.io/sync-wave: "3"
+    argocd.argoproj.io/sync-wave: "80"
 spec:
   package: xpkg.upbound.io/upbound/provider-azure-sql:v2.3.0
   runtimeConfigRef:
@@ -115,7 +113,7 @@ kind: Provider
 metadata:
   name: provider-azure-cache
   annotations:
-    argocd.argoproj.io/sync-wave: "3"
+    argocd.argoproj.io/sync-wave: "85"
 spec:
   package: xpkg.upbound.io/upbound/provider-azure-cache:v2.3.0
   runtimeConfigRef:
@@ -129,7 +127,7 @@ kind: Provider
 metadata:
   name: provider-azure-servicebus
   annotations:
-    argocd.argoproj.io/sync-wave: "3"
+    argocd.argoproj.io/sync-wave: "89"
 spec:
   package: xpkg.upbound.io/upbound/provider-azure-servicebus:v2.3.0
   runtimeConfigRef:
