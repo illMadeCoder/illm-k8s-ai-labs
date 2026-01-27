@@ -56,3 +56,30 @@ redis:
 dex:
   podLabels:
     app.kubernetes.io/instance: argocd
+
+# Custom resource health checks
+# Fix: CRD-only Crossplane providers (replicas: 0) show as unhealthy because
+# there are no pods. This blocks ArgoCD sync waves. We consider a Provider
+# healthy when its "Installed" condition is True (CRDs are registered).
+configs:
+  cm:
+    resource.customizations.health.pkg.crossplane.io_Provider: |
+      hs = {}
+      if obj.status ~= nil and obj.status.conditions ~= nil then
+        for i, condition in ipairs(obj.status.conditions) do
+          if condition.type == "Installed" then
+            if condition.status == "True" then
+              hs.status = "Healthy"
+              hs.message = "Provider CRDs installed"
+              return hs
+            else
+              hs.status = "Progressing"
+              hs.message = condition.message or "Installing CRDs"
+              return hs
+            end
+          end
+        end
+      end
+      hs.status = "Progressing"
+      hs.message = "Waiting for provider status"
+      return hs

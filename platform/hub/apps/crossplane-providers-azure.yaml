@@ -1,6 +1,9 @@
-# Crossplane Providers Azure (Wave 3)
+# Crossplane Providers Azure (Wave 50)
 # Azure family + all individual Azure providers
-# Depends on: crossplane-providers-base
+# Depends on: crossplane-providers-aws (must finish before this starts)
+#
+# Sync wave strategy: Apps are spread by 40 waves to allow full provider
+# installation before next cloud starts. Internal provider waves are 50-89.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -9,7 +12,7 @@ metadata:
   labels:
     app.kubernetes.io/part-of: hub
   annotations:
-    argocd.argoproj.io/sync-wave: "3"
+    argocd.argoproj.io/sync-wave: "50"
   finalizers:
     - resources-finalizer.argocd.argoproj.io
 spec:

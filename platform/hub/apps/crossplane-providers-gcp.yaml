@@ -1,6 +1,9 @@
-# Crossplane Providers GCP (Wave 5)
+# Crossplane Providers GCP (Wave 90)
 # GCP family + all individual GCP providers
-# Depends on: crossplane-providers-aws
+# Depends on: crossplane-providers-azure (must finish before this starts)
+#
+# Sync wave strategy: Apps are spread by 40 waves to allow full provider
+# installation before next cloud starts. Internal provider waves are 90-125.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
@@ -9,7 +12,7 @@ metadata:
   labels:
     app.kubernetes.io/part-of: hub
   annotations:
-    argocd.argoproj.io/sync-wave: "5"
+    argocd.argoproj.io/sync-wave: "90"
   finalizers:
     - resources-finalizer.argocd.argoproj.io
 spec:
