@@ -4,6 +4,11 @@
 # Gateway name
 name: istio-ingressgateway
 
+# Explicit image to avoid "auto" placeholder when istiod isn't ready
+image:
+  repository: docker.io/istio/proxyv2
+  tag: 1.24.2
+
 # Homelab-friendly resources
 resources:
   requests:
