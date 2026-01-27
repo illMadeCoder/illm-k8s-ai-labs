@@ -1,0 +1,26 @@
+# Headlamp values for hub cluster
+# Kubernetes dashboard UI exposed via Tailscale
+
+replicaCount: 1
+
+resources:
+  requests:
+    cpu: 50m
+    memory: 64Mi
+  limits:
+    cpu: 200m
+    memory: 256Mi
+
+# Tailscale ingress for secure remote access
+ingress:
+  enabled: true
+  ingressClassName: tailscale
+  hosts:
+    - paths:
+        - path: /
+          type: Prefix
+
+# Service configuration
+service:
+  type: ClusterIP
+  port: 80
