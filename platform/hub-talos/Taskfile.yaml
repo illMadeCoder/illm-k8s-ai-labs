@@ -20,6 +20,7 @@ vars:
   OPENBAO_KEYS_FILE: ~/.illmlab/openbao-keys.json
   SECRETS_DIR: .secrets
   ARGOCD_CHART_VERSION: "7.7.5"
+  TALOS_CONTROLPLANE_CONFIG: ~/.talos/controlplane.yaml
 
 tasks:
   status:
@@ -335,8 +336,36 @@ tasks:
         echo "=============================================="
         echo ""
 
-        # Step 1: Bootstrap etcd
-        echo "Step 1: Bootstrapping etcd..."
+        # Step 1: Apply machine config if node is in maintenance mode
+        echo "Step 1: Checking Talos node state..."
+        if talosctl --nodes {{.TALOS_IP}} version &>/dev/null; then
+          echo "  Node is running (config already applied)"
+        else
+          echo "  Node may be in maintenance mode, applying machine config..."
+          if [ -f "{{.TALOS_CONTROLPLANE_CONFIG}}" ]; then
+            talosctl apply-config --nodes {{.TALOS_IP}} --file "{{.TALOS_CONTROLPLANE_CONFIG}}" --insecure
+            echo "  Config applied, waiting for node to boot..."
+            for i in $(seq 1 60); do
+              if talosctl --nodes {{.TALOS_IP}} version &>/dev/null; then
+                echo "  Node is ready"
+                break
+              fi
+              if [ "$i" -eq 60 ]; then
+                echo "  ERROR: Node not ready after 10 minutes"
+                exit 1
+              fi
+              echo "  Waiting... ($i/60)"
+              sleep 10
+            done
+          else
+            echo "  ERROR: No machine config at {{.TALOS_CONTROLPLANE_CONFIG}}"
+            exit 1
+          fi
+        fi
+
+        # Step 2: Bootstrap etcd
+        echo ""
+        echo "Step 2: Bootstrapping etcd..."
         ETCD_STATE=$(talosctl --nodes {{.TALOS_IP}} service etcd 2>/dev/null | grep STATE | awk '{print $NF}' || echo "unknown")
         if [ "$ETCD_STATE" = "Running" ]; then
           echo "  etcd already running (skipping bootstrap)"
@@ -346,9 +375,9 @@ tasks:
           echo "  Bootstrap initiated"
         fi
 
-        # Step 2: Wait for Kubernetes API + Node Ready
+        # Step 3: Wait for Kubernetes API + Node Ready
         echo ""
-        echo "Step 2: Waiting for Kubernetes API..."
+        echo "Step 3: Waiting for Kubernetes API..."
         for i in $(seq 1 60); do
           if kubectl --context {{.CONTEXT}} get nodes &>/dev/null; then
             echo "  Kubernetes API is available"
@@ -377,11 +406,17 @@ tasks:
           sleep 5
         done
 
-        # Step 3: Install ArgoCD via Helm
+        # Step 4: Install ArgoCD via Helm
         echo ""
-        echo "Step 3: Installing ArgoCD via Helm..."
+        echo "Step 4: Installing ArgoCD via Helm..."
         helm repo add argo https://argoproj.github.io/argo-helm 2>/dev/null || true
         helm repo update argo 2>/dev/null || true
+        # Clear stale Helm release if stuck in pending-install/pending-upgrade
+        HELM_STATUS=$(helm --kube-context {{.CONTEXT}} status argocd -n argocd -o json 2>/dev/null | jq -r '.info.status' || echo "")
+        if echo "$HELM_STATUS" | grep -q "^pending-"; then
+          echo "  Clearing stale Helm release (status: $HELM_STATUS)..."
+          kubectl --context {{.CONTEXT}} delete secret -n argocd -l owner=helm,name=argocd 2>/dev/null || true
+        fi
         helm upgrade --install argocd argo/argo-cd \
           --namespace argocd --create-namespace \
           --version {{.ARGOCD_CHART_VERSION}} \
@@ -390,15 +425,15 @@ tasks:
           --wait --timeout 5m
         echo "  ArgoCD installed"
 
-        # Step 4: Apply hub application
+        # Step 5: Apply hub application
         echo ""
-        echo "Step 4: Applying hub application..."
+        echo "Step 5: Applying hub application..."
         kubectl --context {{.CONTEXT}} apply -f platform/hub/bootstrap/hub-application.yaml
         echo "  Hub application applied"
 
-        # Step 5: Wait for child apps (≥15 apps)
+        # Step 6: Wait for child apps (≥15 apps)
         echo ""
-        echo "Step 5: Waiting for child apps to be created..."
+        echo "Step 6: Waiting for child apps to be created..."
         for i in $(seq 1 60); do
           COUNT=$(kubectl --context {{.CONTEXT}} get applications -n argocd --no-headers 2>/dev/null | wc -l)
           if [ "$COUNT" -ge 15 ]; then
@@ -412,9 +447,9 @@ tasks:
           sleep 5
         done
 
-        # Step 6: OpenBao init/unseal
+        # Step 7: OpenBao init/unseal
         echo ""
-        echo "Step 6: Checking OpenBao..."
+        echo "Step 7: Checking OpenBao..."
         for i in $(seq 1 30); do
           if kubectl --context {{.CONTEXT}} get pod openbao-0 -n openbao &>/dev/null; then
             echo "  OpenBao pod exists"
@@ -501,9 +536,9 @@ tasks:
           ROOT_TOKEN=$(jq -r '.root_token' {{.OPENBAO_KEYS_FILE}} 2>/dev/null || echo "")
         fi
 
-        # Step 7: Restore credentials from .secrets/
+        # Step 8: Restore credentials from .secrets/
         echo ""
-        echo "Step 7: Restoring credentials from {{.SECRETS_DIR}}/..."
+        echo "Step 8: Restoring credentials from {{.SECRETS_DIR}}/..."
 
         if [ -n "$ROOT_TOKEN" ]; then
           # GCP credentials (file-based approach for JSON with special chars)
@@ -559,9 +594,9 @@ tasks:
           echo "  WARNING: No root token available, skipping credential restore"
         fi
 
-        # Step 8: Create ESO token
+        # Step 9: Create ESO token
         echo ""
-        echo "Step 8: Creating ESO token..."
+        echo "Step 9: Creating ESO token..."
         if [ -n "$ROOT_TOKEN" ]; then
           for i in $(seq 1 30); do
             if kubectl --context {{.CONTEXT}} get namespace external-secrets &>/dev/null; then
@@ -585,9 +620,9 @@ tasks:
           echo "  WARNING: No root token available, skipping ESO token creation"
         fi
 
-        # Step 9: Wait for 80%+ apps synced
+        # Step 10: Wait for 80%+ apps synced
         echo ""
-        echo "Step 9: Waiting for apps to sync (80%+ target)..."
+        echo "Step 10: Waiting for apps to sync (80%+ target)..."
         for i in $(seq 1 120); do
           TOTAL=$(kubectl --context {{.CONTEXT}} get applications -n argocd --no-headers 2>/dev/null | wc -l)
           SYNCED=$(kubectl --context {{.CONTEXT}} get applications -n argocd -o jsonpath='{.items[?(@.status.sync.status=="Synced")].metadata.name}' 2>/dev/null | wc -w)
@@ -602,7 +637,7 @@ tasks:
           sleep 5
         done
 
-        # Step 10: Status summary
+        # Step 11: Status summary
         echo ""
         echo "=============================================="
         echo "  DEPLOY COMPLETE"
