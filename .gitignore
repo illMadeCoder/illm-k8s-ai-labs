@@ -7,3 +7,6 @@
 vault-keys.json
 *.pem
 *.key
+
+# Credential auto-restore directory
+.secrets/
