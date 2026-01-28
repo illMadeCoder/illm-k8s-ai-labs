@@ -9,19 +9,24 @@ metadata:
     argocd.argoproj.io/sync-wave: "1"
 spec:
   project: default
-  source:
-    repoURL: https://github.com/rancher/local-path-provisioner.git
-    targetRevision: v0.0.30
-    path: deploy/chart/local-path-provisioner
-    helm:
-      valuesObject:
-        storageClass:
-          name: local-path
-          defaultClass: false
-        nodePathMap:
-          - node: DEFAULT_PATH_FOR_NON_LISTED_NODES
-            paths:
-              - /opt/local-path-provisioner
+  sources:
+    # Namespace with pod-security labels (helper pods need privileged)
+    - repoURL: https://github.com/illmade/illm-k8s-ai-lab.git
+      targetRevision: HEAD
+      path: platform/hub/manifests/local-path-provisioner
+    # Helm chart from upstream
+    - repoURL: https://github.com/rancher/local-path-provisioner.git
+      targetRevision: v0.0.30
+      path: deploy/chart/local-path-provisioner
+      helm:
+        valuesObject:
+          storageClass:
+            name: local-path
+            defaultClass: false
+          nodePathMap:
+            - node: DEFAULT_PATH_FOR_NON_LISTED_NODES
+              paths:
+                - /opt/local-path-provisioner
   destination:
     server: https://kubernetes.default.svc
     namespace: local-path-storage
@@ -30,5 +35,4 @@ spec:
       prune: true
       selfHeal: true
     syncOptions:
-      - CreateNamespace=true
       - ServerSideApply=true
