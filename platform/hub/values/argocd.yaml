@@ -70,6 +70,9 @@ configs:
     resource.customizations.ignoreDifferences.apps_ReplicaSet: |
       jsonPointers:
         - /status/terminatingReplicas
+    resource.customizations.ignoreDifferences.apps_StatefulSet: |
+      jsonPointers:
+        - /status/terminatingReplicas
 
     resource.customizations.health.pkg.crossplane.io_Provider: |
       hs = {}
