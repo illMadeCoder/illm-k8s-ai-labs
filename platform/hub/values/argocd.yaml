@@ -16,13 +16,13 @@ server:
     # kube-vip pool: DNS=.240, ArgoCD=.241, OpenBao=.242
     loadBalancerIP: 192.168.1.241
 
-  # Use internal TLS certificate (issued by OpenBao internal CA)
-  # Includes SANs for both external domain and internal service names
+  # TLS disabled - Tailscale provides encryption for external access
+  # Internal LAN access doesn't require TLS
   certificate:
-    enabled: false  # We manage cert via cert-manager, not ArgoCD
-  certificateSecret:
-    enabled: true
-    name: argocd-server-internal-tls  # Created by cert-manager from OpenBao PKI
+    enabled: false
+  # Run in insecure mode (no TLS) - traffic is encrypted by Tailscale
+  extraArgs:
+    - --insecure
 
 # Webhook Configuration
 # For local development, webhook secret is optional (smee.io URL is obscure enough)
