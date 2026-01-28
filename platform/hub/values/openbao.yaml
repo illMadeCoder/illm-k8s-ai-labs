@@ -1,9 +1,11 @@
 # OpenBao Helm values for Talos hub
 #
-# Uses file storage with PVC (local-path-provisioner) for persistence.
+# Uses file storage with a fixed hostPath for persistence.
+# Data lives at /var/lib/openbao on the Talos node (EPHEMERAL partition),
+# surviving etcd STATE wipes across teardown/deploy cycles.
 #
 # After bootstrap, OpenBao needs to be initialized and unsealed:
-#   - First run: `bao operator init` (saves keys to ~/.illmlab/openbao-keys-talos.json)
+#   - First run: `bao operator init` (saves keys to .secrets/ and ~/.illmlab/)
 #   - Subsequent runs: `bao operator unseal` with saved keys
 
 global:
@@ -28,13 +30,9 @@ server:
   service:
     type: ClusterIP
 
-  # File storage configuration using local-path-retain (Retain policy)
-  # PV survives PVC deletion so secrets persist across cluster resets
+  # Disable PVC — using hostPath instead so data survives etcd wipes
   dataStorage:
-    enabled: true
-    size: 10Gi
-    storageClass: local-path-retain
-    accessMode: ReadWriteOnce
+    enabled: false
 
   # Standalone mode (no HA for home lab)
   standalone:
@@ -56,9 +54,16 @@ server:
   ha:
     enabled: false
 
-  # No hostPath - using PVC with local-path instead
-  volumes: []
-  volumeMounts: []
+  # hostPath volume — fixed path on EPHEMERAL partition
+  # Survives STATE wipe (teardown), lost only on full disk reimage
+  volumes:
+    - name: openbao-data
+      hostPath:
+        path: /var/lib/openbao
+        type: DirectoryOrCreate
+  volumeMounts:
+    - name: openbao-data
+      mountPath: /openbao/data
 
 # Injector for automatic secret injection into pods
 injector:
