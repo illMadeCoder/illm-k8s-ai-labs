@@ -406,6 +406,18 @@ tasks:
           sleep 5
         done
 
+        # Clean up stale node objects from previous cluster incarnation
+        STALE_NODES=$(kubectl --context {{.CONTEXT}} get nodes -o jsonpath='{range .items[?(@.status.conditions[?(@.type=="Ready")].status=="Unknown")]}{.metadata.name}{"\n"}{end}' 2>/dev/null)
+        if [ -z "$STALE_NODES" ]; then
+          STALE_NODES=$(kubectl --context {{.CONTEXT}} get nodes --field-selector spec.unschedulable=true -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' 2>/dev/null)
+        fi
+        if [ -n "$STALE_NODES" ]; then
+          for NODE in $STALE_NODES; do
+            echo "  Deleting stale node: $NODE"
+            kubectl --context {{.CONTEXT}} delete node "$NODE" 2>/dev/null || true
+          done
+        fi
+
         # Step 4: Install ArgoCD via Helm
         echo ""
         echo "Step 4: Installing ArgoCD via Helm..."
