@@ -304,12 +304,14 @@ tasks:
         # Step 1: Backup OpenBao keys to .secrets/ (safety net)
         echo "Step 1: Backing up OpenBao keys..."
         mkdir -p {{.SECRETS_DIR}}
-        if [ -f "{{.OPENBAO_KEYS_FILE}}" ]; then
-          cp "{{.OPENBAO_KEYS_FILE}}" "{{.SECRETS_DIR}}/openbao-keys.json"
+        if [ -f {{.OPENBAO_KEYS_FILE}} ]; then
+          cp {{.OPENBAO_KEYS_FILE}} "{{.SECRETS_DIR}}/openbao-keys.json"
           chmod 600 "{{.SECRETS_DIR}}/openbao-keys.json"
           echo "  Keys backed up to {{.SECRETS_DIR}}/openbao-keys.json"
+        elif [ -f "{{.SECRETS_DIR}}/openbao-keys.json" ]; then
+          echo "  Keys already in {{.SECRETS_DIR}}/openbao-keys.json"
         else
-          echo "  No keys file at {{.OPENBAO_KEYS_FILE}} (skipping)"
+          echo "  No keys file found (skipping)"
         fi
 
         # Step 2: Reset Talos (wipe STATE only, keep EPHEMERAL)
@@ -676,9 +678,11 @@ tasks:
         echo "=============================================="
         echo ""
 
+        # Use --insecure: after STATE wipe the node boots into maintenance mode
+        # with different TLS, so authenticated talosctl calls fail
         for i in $(seq 1 60); do
-          if talosctl --nodes {{.TALOS_IP}} version &>/dev/null; then
-            echo "  Talos node is back online"
+          if talosctl --nodes {{.TALOS_IP}} version --insecure &>/dev/null; then
+            echo "  Talos node is back online (maintenance mode)"
             break
           fi
           if [ "$i" -eq 60 ]; then
