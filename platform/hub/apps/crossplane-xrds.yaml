@@ -2,6 +2,11 @@
 #
 # Installs the cloud abstraction layer - XRDs provide unified APIs
 # for Database, Cache, ObjectStorage, Queue, and ExperimentCluster.
+#
+# NOTE: Automatic sync disabled until compositions are updated to use
+# Crossplane Pipeline mode (required for environment configs). The current
+# compositions use the older Patch & Transform format with environment
+# section which is not supported.
 
 apiVersion: argoproj.io/v1alpha1
 kind: Application
@@ -36,9 +41,10 @@ spec:
       jqPathExpressions:
         - .status
   syncPolicy:
-    automated:
-      prune: true
-      selfHeal: true
+    # Disabled until compositions are updated to Pipeline mode
+    # automated:
+    #   prune: true
+    #   selfHeal: true
     syncOptions:
       - CreateNamespace=true
       - RespectIgnoreDifferences=true

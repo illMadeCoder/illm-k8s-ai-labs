@@ -30,6 +30,7 @@ spec:
       verifyImages:
         - imageReferences:
             - "ghcr.io/illmadecoder/*"
+          mutateDigest: false  # Required for Audit mode
           attestors:
             - entries:
                 - keyless:
