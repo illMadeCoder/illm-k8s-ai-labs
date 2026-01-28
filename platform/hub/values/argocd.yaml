@@ -60,6 +60,17 @@ dex:
 # healthy when its "Installed" condition is True (CRDs are registered).
 configs:
   cm:
+    # Fix: K8s 1.35 added .status.terminatingReplicas to Deployments/ReplicaSets.
+    # ArgoCD's structured merge diff doesn't have this field in its schema, causing
+    # all apps with Deployments to show sync status "Unknown" with ComparisonError.
+    # Ignore this field globally until ArgoCD ships an updated K8s schema.
+    resource.customizations.ignoreDifferences.apps_Deployment: |
+      jsonPointers:
+        - /status/terminatingReplicas
+    resource.customizations.ignoreDifferences.apps_ReplicaSet: |
+      jsonPointers:
+        - /status/terminatingReplicas
+
     resource.customizations.health.pkg.crossplane.io_Provider: |
       hs = {}
       if obj.status ~= nil and obj.status.conditions ~= nil then
