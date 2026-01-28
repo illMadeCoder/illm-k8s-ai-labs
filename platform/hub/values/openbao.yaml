@@ -65,6 +65,15 @@ server:
     - name: openbao-data
       mountPath: /openbao/data
 
+  # OpenBao runs as uid=100(openbao) gid=1000(openbao)
+  # fsGroup ensures the hostPath directory is group-writable
+  statefulSet:
+    securityContext:
+      pod:
+        runAsUser: 100
+        runAsGroup: 1000
+        fsGroup: 1000
+
 # Injector for automatic secret injection into pods
 injector:
   enabled: true

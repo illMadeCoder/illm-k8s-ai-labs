@@ -342,8 +342,8 @@ tasks:
           echo "  Node is running (config already applied)"
         else
           echo "  Node may be in maintenance mode, applying machine config..."
-          if [ -f "{{.TALOS_CONTROLPLANE_CONFIG}}" ]; then
-            talosctl apply-config --nodes {{.TALOS_IP}} --file "{{.TALOS_CONTROLPLANE_CONFIG}}" --insecure
+          if [ -f {{.TALOS_CONTROLPLANE_CONFIG}} ]; then
+            talosctl apply-config --nodes {{.TALOS_IP}} --file {{.TALOS_CONTROLPLANE_CONFIG}} --insecure
             echo "  Config applied, waiting for node to boot..."
             for i in $(seq 1 60); do
               if talosctl --nodes {{.TALOS_IP}} version &>/dev/null; then
@@ -358,7 +358,7 @@ tasks:
               sleep 10
             done
           else
-            echo "  ERROR: No machine config at {{.TALOS_CONTROLPLANE_CONFIG}}"
+            echo "  ERROR: No machine config found at {{.TALOS_CONTROLPLANE_CONFIG}}"
             exit 1
           fi
         fi
@@ -391,10 +391,20 @@ tasks:
           sleep 5
         done
 
+        # Clean up stale node objects from previous cluster incarnation
+        STALE_NODES=$(kubectl --context {{.CONTEXT}} get nodes --field-selector spec.unschedulable=true -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' 2>/dev/null)
+        if [ -n "$STALE_NODES" ]; then
+          for NODE in $STALE_NODES; do
+            echo "  Deleting stale node: $NODE"
+            kubectl --context {{.CONTEXT}} delete node "$NODE" 2>/dev/null || true
+          done
+        fi
+
         echo "  Waiting for node to be Ready..."
         for i in $(seq 1 60); do
-          READY=$(kubectl --context {{.CONTEXT}} get nodes -o jsonpath='{.items[0].status.conditions[?(@.type=="Ready")].status}' 2>/dev/null || echo "")
-          if [ "$READY" = "True" ]; then
+          # Check if ANY node is Ready (not just items[0], which may be stale)
+          READY_COUNT=$(kubectl --context {{.CONTEXT}} get nodes -o jsonpath='{range .items[*]}{.status.conditions[?(@.type=="Ready")].status}{"\n"}{end}' 2>/dev/null | grep -c "True" || echo "0")
+          if [ "$READY_COUNT" -ge 1 ]; then
             echo "  Node is Ready"
             break
           fi
@@ -405,18 +415,6 @@ tasks:
           echo "  Waiting for node Ready... ($i/60)"
           sleep 5
         done
-
-        # Clean up stale node objects from previous cluster incarnation
-        STALE_NODES=$(kubectl --context {{.CONTEXT}} get nodes -o jsonpath='{range .items[?(@.status.conditions[?(@.type=="Ready")].status=="Unknown")]}{.metadata.name}{"\n"}{end}' 2>/dev/null)
-        if [ -z "$STALE_NODES" ]; then
-          STALE_NODES=$(kubectl --context {{.CONTEXT}} get nodes --field-selector spec.unschedulable=true -o jsonpath='{range .items[*]}{.metadata.name}{"\n"}{end}' 2>/dev/null)
-        fi
-        if [ -n "$STALE_NODES" ]; then
-          for NODE in $STALE_NODES; do
-            echo "  Deleting stale node: $NODE"
-            kubectl --context {{.CONTEXT}} delete node "$NODE" 2>/dev/null || true
-          done
-        fi
 
         # Step 4: Install ArgoCD via Helm
         echo ""
