@@ -66,7 +66,18 @@ server:
       mountPath: /openbao/data
 
   # OpenBao runs as uid=100(openbao) gid=1000(openbao)
-  # fsGroup ensures the hostPath directory is group-writable
+  # fsGroup doesn't apply to hostPath volumes, so use an init container
+  # to chown the data directory on first boot
+  extraInitContainers:
+    - name: chown-data
+      image: busybox:1.36
+      command: ["sh", "-c", "chown -R 100:1000 /openbao/data"]
+      volumeMounts:
+        - name: openbao-data
+          mountPath: /openbao/data
+      securityContext:
+        runAsUser: 0
+
   statefulSet:
     securityContext:
       pod:
