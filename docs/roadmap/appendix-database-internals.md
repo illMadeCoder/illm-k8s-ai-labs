@@ -700,6 +700,27 @@
   - [ ] Non-blocking under certain failure assumptions
   - [ ] Why rarely used: network partitions violate assumptions
   - [ ] Comparison: 2PC blocking vs 3PC complexity
+- [ ] The cost of 2PC — latency and throughput analysis:
+  - [ ] Network round-trips: minimum 2 RTTs (prepare + commit) per participant
+  - [ ] Lock hold duration: rows locked from prepare until commit/abort across all participants
+  - [ ] Coordinator log fsync: forced WAL flush at prepare and commit (2 fsyncs on coordinator)
+  - [ ] Participant log fsync: forced WAL flush at prepare (1 fsync per participant)
+  - [ ] Tail latency amplification: transaction latency = slowest participant + coordinator
+  - [ ] Throughput ceiling: lock contention grows non-linearly with participant count
+  - [ ] Failure penalty: in-doubt state holds locks until coordinator recovers (minutes to hours)
+  - [ ] Cross-datacenter 2PC: RTT penalty makes prepare phase 10-100x slower than local
+- [ ] Benchmarking 2PC cost on Kubernetes:
+  - [ ] Deploy PostgreSQL with `postgres_fdw` for cross-database 2PC (`PREPARE TRANSACTION`)
+  - [ ] Measure single-node transaction vs 2-participant vs 3-participant latency
+  - [ ] Measure throughput degradation as participant count increases (2, 3, 5 nodes)
+  - [ ] Simulate coordinator crash mid-prepare: measure lock hold duration and recovery time
+  - [ ] Compare 2PC latency: same-node pods vs cross-node vs cross-cluster
+  - [ ] Quantify the "2PC tax": overhead ratio vs local single-database transaction
+- [ ] Why systems avoid 2PC:
+  - [ ] Google Spanner: uses TrueTime + Paxos instead of 2PC for most transactions
+  - [ ] CockroachDB: parallel commits optimization to reduce 2PC to 1 RTT in common case
+  - [ ] Kafka transactions: optimistic 2PC with async commit (different trade-off)
+  - [ ] Microservices: sagas preferred because 2PC couples availability of all participants
 - [ ] Saga orchestration:
   - [ ] Central saga execution coordinator (SEC)
   - [ ] Explicit state machine defining step sequence
