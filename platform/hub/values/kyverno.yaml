@@ -23,6 +23,15 @@ admissionController:
     requests:
       cpu: 100m
       memory: 128Mi
+  container:
+    # Generous startup probe for single-node cluster where API server may be slow
+    startupProbe:
+      httpGet:
+        path: /health/liveness
+        port: 9443
+        scheme: HTTPS
+      failureThreshold: 30
+      periodSeconds: 10
   # Use Ignore so pods can still be created when Kyverno is unhealthy
   # For homelab, availability > strict policy enforcement
   webhookConfiguration:

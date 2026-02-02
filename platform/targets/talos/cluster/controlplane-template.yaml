@@ -103,12 +103,21 @@ cluster:
 
     controllerManager:
         image: registry.k8s.io/kube-controller-manager:v1.35.0
+        extraArgs:
+            # Longer lease for single-node: etcd is local, no split-brain risk
+            leader-elect-lease-duration: "30s"
+            leader-elect-renew-deadline: "20s"
+            leader-elect-retry-period: "5s"
 
     proxy:
         image: registry.k8s.io/kube-proxy:v1.35.0
 
     scheduler:
         image: registry.k8s.io/kube-scheduler:v1.35.0
+        extraArgs:
+            leader-elect-lease-duration: "30s"
+            leader-elect-renew-deadline: "20s"
+            leader-elect-retry-period: "5s"
 
     discovery:
         enabled: true

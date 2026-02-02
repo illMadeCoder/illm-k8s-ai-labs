@@ -31,11 +31,13 @@ spec:
     server: https://kubernetes.default.svc
     namespace: seaweedfs
   ignoreDifferences:
-    # StatefulSet status fields
     - group: apps
       kind: StatefulSet
-      jsonPointers:
-        - /status
+      jqPathExpressions:
+        - .spec.volumeClaimTemplates[]?.spec.volumeMode
+        - .spec.volumeClaimTemplates[]?.apiVersion
+        - .spec.volumeClaimTemplates[]?.kind
+        - .spec.volumeClaimTemplates[]?.status
   syncPolicy:
     automated:
       prune: true
@@ -43,3 +45,4 @@ spec:
     syncOptions:
       - CreateNamespace=true
       - ServerSideApply=true
+      - RespectIgnoreDifferences=true
