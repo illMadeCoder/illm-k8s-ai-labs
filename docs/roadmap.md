@@ -272,25 +272,22 @@ See [Phase 1](docs/roadmap/phase-01-platform-bootstrap.md) for full details.
 
 ## Hub Infrastructure Updates (2026-01)
 
-### Istio Service Mesh for Hub
+### Crossplane v2 Upgrade
 
-Replaced Traefik with Istio for hub ingress and mTLS between services. This is infrastructure setup, not Phase 7 experiments (which will compare meshes).
+Upgraded from Crossplane v1.18.1 to v2.1.3. All compositions converted to Pipeline mode using `function-patch-and-transform` v0.7.0 + `function-auto-ready` v0.3.0.
 
-- [x] Deploy Istio via ArgoCD (istio-base, istio-cni, istio-istiod, istio-ingress)
-- [x] Configure CNI plugin for Talos compatibility (no iptables in containers)
-- [x] Replace Traefik with Istio ingress gateway
-- [x] Configure Tailscale LoadBalancer for external access
-- [x] Create VirtualServices for path-based routing (/grafana, /mimir, /loki, /tempo, /argocd, /openbao, /kiali)
-- [x] Enable sidecar injection for namespaces (observability, seaweedfs, argocd, openbao)
-- [x] Configure mTLS with PeerAuthentication (STRICT) and DestinationRules (ISTIO_MUTUAL)
-- [x] Deploy Kiali for service graph visualization
-- [x] Configure Tempo tracing integration
+- [x] Upgrade Crossplane to v2.1.3
+- [x] Convert storage compositions (AWS, Azure, GCP) to Pipeline mode
+- [x] Add GCP GCS composition for ObjectStorage XRD
+- [x] Remove legacy compositions (cache, database, queue, experiment-cluster) that fail Pipeline validation
+- [x] Document in [ADR-013](docs/adrs/ADR-013-crossplane-v2-upgrade.md)
+
+### Istio Service Mesh for Hub (Deferred)
+
+Previously deployed on Kind cluster; disabled on current Talos rebuild. Apps parked in `platform/hub/apps/disabled/` for Phase 7 re-activation.
+
+- [x] Deploy Istio via ArgoCD (istio-base, istio-cni, istio-istiod, istio-ingress) — *completed on Kind, disabled on Talos*
 - [x] Document in [ADR-014](docs/adrs/ADR-014-service-mesh-istio.md)
-
-**Lessons Learned:**
-- Kyverno excluded from mesh - init containers need K8s API access before sidecar starts
-- `pilot.cni.enabled: true` is the critical setting (not just `global.istio_cni.enabled`)
-- Services without sidecars need `mode: DISABLE` in DestinationRules
 
 ### SeaweedFS Fix
 

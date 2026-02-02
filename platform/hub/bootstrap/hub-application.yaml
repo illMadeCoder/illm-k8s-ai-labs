@@ -21,6 +21,12 @@ spec:
   destination:
     server: https://kubernetes.default.svc
     namespace: argocd
+  ignoreDifferences:
+    - group: argoproj.io
+      kind: Application
+      jqPathExpressions:
+        - .metadata.finalizers
+        - .metadata.labels["argocd.argoproj.io/instance"]
   syncPolicy:
     automated:
       prune: true

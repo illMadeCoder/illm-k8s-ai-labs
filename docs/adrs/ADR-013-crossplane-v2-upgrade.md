@@ -2,7 +2,7 @@
 
 ## Status
 
-Proposed
+Accepted (2026-01-28 — Crossplane v2.1.3 deployed on hub cluster)
 
 ## Context
 

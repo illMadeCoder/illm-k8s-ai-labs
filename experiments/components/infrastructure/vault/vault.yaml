@@ -1,4 +1,6 @@
 ---
+# DEPRECATED: Replaced by OpenBao (platform/hub/apps/openbao.yaml).
+# Kept for reference only — not deployed on hub cluster.
 apiVersion: argoproj.io/v1alpha1
 kind: Application
 metadata:
