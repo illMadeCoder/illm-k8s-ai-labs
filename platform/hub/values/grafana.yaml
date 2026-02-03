@@ -46,7 +46,7 @@ datasources:
 
       - name: Mimir (Gateway Lab)
         type: prometheus
-        url: http://mimir-distributor.observability.svc.cluster.local:8080/prometheus
+        url: http://mimir-gateway.observability.svc.cluster.local/prometheus
         access: proxy
         jsonData:
           httpMethod: POST
