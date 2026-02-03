@@ -1,0 +1,22 @@
+---
+# GKE cluster for Phase 4 gateway experiments
+# Provisions: VPC, Subnet, GKE Cluster, Node Pool
+#
+# Prerequisites - enable GCP APIs:
+#   gcloud services enable compute.googleapis.com --project=illm-k8s-ai-lab
+#   gcloud services enable container.googleapis.com --project=illm-k8s-ai-lab
+#
+# To provision: kubectl apply -f gateway-cluster.yaml
+# To destroy:   kubectl delete -f gateway-cluster.yaml
+apiVersion: illm.io/v1alpha1
+kind: GKECluster
+metadata:
+  name: gateway-lab
+  namespace: default
+spec:
+  region: us-central1
+  nodeCount: 2
+  machineType: e2-medium
+  diskSizeGb: 50
+  kubernetesVersion: "1.30"
+  preemptible: true  # Cost savings for lab use
