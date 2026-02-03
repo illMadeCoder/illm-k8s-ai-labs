@@ -1,0 +1,35 @@
+# Grafana Alloy Helm values for GKE gateway cluster
+# Install: helm upgrade --install alloy grafana/alloy -n observability -f alloy-values.yaml
+alloy:
+  configMap:
+    content: |
+      // Scrape Envoy Gateway controller metrics
+      prometheus.scrape "envoy_gateway" {
+        targets = [
+          {"__address__" = "envoy-gateway.envoy-gateway-system.svc:19001"},
+        ]
+        metrics_path = "/metrics"
+        scrape_interval = "30s"
+        forward_to = [prometheus.remote_write.mimir.receiver]
+      }
+
+      // Scrape Envoy proxy metrics (data plane)
+      // Requires envoy-proxy-metrics Service (see envoy-proxy-metrics-svc.yaml)
+      prometheus.scrape "envoy_proxy" {
+        targets = [
+          {"__address__" = "envoy-proxy-metrics.envoy-gateway-system.svc:19001"},
+        ]
+        metrics_path = "/stats/prometheus"
+        scrape_interval = "30s"
+        forward_to = [prometheus.remote_write.mimir.receiver]
+      }
+
+      // Remote write to Hub Mimir via Tailscale egress
+      prometheus.remote_write "mimir" {
+        endpoint {
+          url = "http://mimir-hub.observability.svc:8080/api/v1/push"
+          headers = {
+            "X-Scope-OrgID" = "gateway-lab",
+          }
+        }
+      }

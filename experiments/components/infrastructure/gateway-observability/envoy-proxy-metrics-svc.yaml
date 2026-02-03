@@ -1,0 +1,17 @@
+# Service to expose Envoy proxy metrics endpoint
+# Apply on GKE cluster: kubectl apply -f envoy-proxy-metrics-svc.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: envoy-proxy-metrics
+  namespace: envoy-gateway-system
+spec:
+  selector:
+    app.kubernetes.io/component: proxy
+    app.kubernetes.io/managed-by: envoy-gateway
+    app.kubernetes.io/name: envoy
+  ports:
+    - name: metrics
+      port: 19001
+      targetPort: 19001
+      protocol: TCP

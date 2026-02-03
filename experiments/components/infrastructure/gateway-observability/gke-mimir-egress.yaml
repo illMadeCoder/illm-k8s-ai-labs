@@ -1,0 +1,17 @@
+# Tailscale egress to hub Mimir
+# Apply on GKE cluster after creating observability namespace
+apiVersion: v1
+kind: Service
+metadata:
+  name: mimir-hub
+  namespace: observability
+  annotations:
+    tailscale.com/tailnet-fqdn: mimir-hub.tailbdf608.ts.net
+spec:
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080
+      protocol: TCP
+  type: ExternalName
+  externalName: placeholder
