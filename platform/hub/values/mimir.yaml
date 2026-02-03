@@ -4,7 +4,9 @@
 
 mimir:
   structuredConfig:
-    # Connect querier directly to query-frontend (no scheduler)
+    # No query-scheduler — querier connects directly to query-frontend
+    frontend:
+      scheduler_address: ""
     frontend_worker:
       scheduler_address: ""
       frontend_address: mimir-query-frontend.observability.svc:9095
