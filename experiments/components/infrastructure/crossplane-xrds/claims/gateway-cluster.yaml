@@ -8,15 +8,16 @@
 #
 # To provision: kubectl apply -f gateway-cluster.yaml
 # To destroy:   kubectl delete -f gateway-cluster.yaml
+#
+# Cost: ~$50/month (zonal) vs ~$150/month (regional)
 apiVersion: illm.io/v1alpha1
 kind: GKECluster
 metadata:
   name: gateway-lab
   namespace: default
 spec:
-  region: us-central1
+  zone: us-central1-a      # Zonal cluster (cheaper than regional)
   nodeCount: 2
   machineType: e2-medium
   diskSizeGb: 50
-  kubernetesVersion: "1.30"
-  preemptible: true  # Cost savings for lab use
+  preemptible: true        # Spot VMs for lab use

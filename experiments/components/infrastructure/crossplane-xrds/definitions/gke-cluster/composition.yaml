@@ -84,9 +84,17 @@ spec:
                     string:
                       type: Format
                       fmt: "%s-subnet"
+              # Extract region from zone (e.g., us-central1-a -> us-central1)
               - type: FromCompositeFieldPath
-                fromFieldPath: spec.region
+                fromFieldPath: spec.zone
                 toFieldPath: spec.forProvider.region
+                transforms:
+                  - type: string
+                    string:
+                      type: Regexp
+                      regexp:
+                        match: '^(.+)-[a-z]$'
+                        group: 1
 
           # GKE Cluster (control plane)
           - name: gke-cluster
@@ -107,10 +115,10 @@ spec:
                   ipAllocationPolicy:
                     clusterSecondaryRangeName: pods
                     servicesSecondaryRangeName: services
-                  # Minimal logging/monitoring for cost savings
-                  loggingService: none
+                  # Lab cluster settings
+                  deletionProtection: false  # Allow easy cleanup
+                  loggingService: none       # Use own observability stack
                   monitoringService: none
-                  # Release channel for auto-upgrades
                   releaseChannel:
                     channel: REGULAR
                 writeConnectionSecretToRef:
@@ -127,8 +135,9 @@ spec:
                     string:
                       type: Format
                       fmt: "illm-%s"
+              # Use zone for zonal cluster (cheaper than regional)
               - type: FromCompositeFieldPath
-                fromFieldPath: spec.region
+                fromFieldPath: spec.zone
                 toFieldPath: spec.forProvider.location
               - type: FromCompositeFieldPath
                 fromFieldPath: metadata.name

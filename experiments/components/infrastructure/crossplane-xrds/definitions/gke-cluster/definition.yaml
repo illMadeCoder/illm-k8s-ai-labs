@@ -26,13 +26,11 @@ spec:
           properties:
             spec:
               type: object
-              required:
-                - region
               properties:
-                region:
+                zone:
                   type: string
-                  description: GCP region (e.g., us-central1)
-                  default: us-central1
+                  description: GCP zone for zonal cluster (e.g., us-central1-a). Cheaper than regional.
+                  default: us-central1-a
                 nodeCount:
                   type: integer
                   description: Number of nodes per zone
@@ -68,9 +66,9 @@ spec:
                   type: string
                   description: Cluster status (PROVISIONING, RUNNING, etc.)
       additionalPrinterColumns:
-        - name: Region
+        - name: Zone
           type: string
-          jsonPath: .spec.region
+          jsonPath: .spec.zone
         - name: Nodes
           type: integer
           jsonPath: .spec.nodeCount
