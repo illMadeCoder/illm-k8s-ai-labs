@@ -105,17 +105,14 @@ spec:
                   subnetworkSelector:
                     matchControllerRef: true
                   ipAllocationPolicy:
-                    - clusterSecondaryRangeName: pods
-                      servicesSecondaryRangeName: services
-                  # Workload Identity for secure pod auth
-                  workloadIdentityConfig:
-                    - workloadPool: ""  # Will be patched
+                    clusterSecondaryRangeName: pods
+                    servicesSecondaryRangeName: services
                   # Minimal logging/monitoring for cost savings
                   loggingService: none
                   monitoringService: none
                   # Release channel for auto-upgrades
                   releaseChannel:
-                    - channel: REGULAR
+                    channel: REGULAR
                 writeConnectionSecretToRef:
                   namespace: crossplane-system
             patches:
@@ -162,18 +159,18 @@ spec:
                   clusterSelector:
                     matchControllerRef: true
                   nodeConfig:
-                    - oauthScopes:
-                        - https://www.googleapis.com/auth/cloud-platform
-                      # Secure defaults
-                      shieldedInstanceConfig:
-                        - enableIntegrityMonitoring: true
-                          enableSecureBoot: true
+                    oauthScopes:
+                      - https://www.googleapis.com/auth/cloud-platform
+                    # Secure defaults
+                    shieldedInstanceConfig:
+                      enableIntegrityMonitoring: true
+                      enableSecureBoot: true
                   management:
-                    - autoRepair: true
-                      autoUpgrade: true
+                    autoRepair: true
+                    autoUpgrade: true
                   upgradeSettings:
-                    - maxSurge: 1
-                      maxUnavailable: 0
+                    maxSurge: 1
+                    maxUnavailable: 0
             patches:
               - type: FromCompositeFieldPath
                 fromFieldPath: metadata.name
@@ -196,13 +193,13 @@ spec:
                 toFieldPath: spec.forProvider.nodeCount
               - type: FromCompositeFieldPath
                 fromFieldPath: spec.machineType
-                toFieldPath: spec.forProvider.nodeConfig[0].machineType
+                toFieldPath: spec.forProvider.nodeConfig.machineType
               - type: FromCompositeFieldPath
                 fromFieldPath: spec.diskSizeGb
-                toFieldPath: spec.forProvider.nodeConfig[0].diskSizeGb
+                toFieldPath: spec.forProvider.nodeConfig.diskSizeGb
               - type: FromCompositeFieldPath
                 fromFieldPath: spec.preemptible
-                toFieldPath: spec.forProvider.nodeConfig[0].preemptible
+                toFieldPath: spec.forProvider.nodeConfig.preemptible
 
     - step: auto-ready
       functionRef:
