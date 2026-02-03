@@ -4,6 +4,10 @@
 
 mimir:
   structuredConfig:
+    # Connect querier directly to query-frontend (no scheduler)
+    frontend_worker:
+      frontend_address: mimir-query-frontend-headless.observability.svc:9095
+
     common:
       storage:
         backend: s3
