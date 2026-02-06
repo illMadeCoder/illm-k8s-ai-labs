@@ -45,7 +45,7 @@ A **benchmarking-focused** Kubernetes experiment lab for **Cloud Architect**, **
 |-------|-------|--------|---------|
 | 1 | [Platform Bootstrap & GitOps](docs/roadmap/phase-01-platform-bootstrap.md) | Complete | Hub, orchestrator, Argo Workflows, Crossplane |
 | 2 | [CI/CD & Supply Chain](docs/roadmap/phase-02-cicd-supply-chain.md) | Complete | Image building, scanning, SBOM, signing |
-| 3 | [Observability](docs/roadmap/phase-03-observability.md) | Complete | Prometheus, Loki, Tempo, Grafana, SLOs |
+| 3 | [Observability](docs/roadmap/phase-03-observability.md) | In Progress | Prometheus, Loki, Tempo, Grafana, SLOs |
 | 4 | [Traffic Management](docs/roadmap/phase-04-traffic-management.md) | In Progress | Gateway API, ingress comparison, GKE target cluster |
 | 5 | [Data & Persistence](docs/roadmap/phase-05-data-persistence.md) | Not Started | PostgreSQL, Redis, backup, benchmark |
 | 6 | [Security & Policy](docs/roadmap/phase-06-security-policy.md) | Not Started | TLS, secrets (ESO), RBAC, Kyverno, NetworkPolicy |
@@ -234,11 +234,11 @@ See [Phase 1](docs/roadmap/phase-01-platform-bootstrap.md) for full details.
 
 ---
 
-## Phase 3: Observability (Complete)
+## Phase 3: Observability (In Progress)
 
 **Architecture:** See [ADR-011: Observability Architecture](docs/adrs/ADR-011-observability-architecture.md) for the holistic view of how metrics, logs, traces, and storage integrate.
 
-**Phase 3 Complete** - Full observability stack deployed: Prometheus/Mimir (metrics), Loki (logs), Tempo (traces), Grafana (dashboards), Pyrra (SLOs). Tutorial scenarios created for each component.
+**Phase 3.1-3.2 Complete** - Prometheus/Grafana metrics stack deployed with tutorial. SeaweedFS object storage deployed. Remaining: ELK stack, distributed tracing (Tempo/Jaeger), SLOs (Pyrra), cost management — tutorial content written but components not yet deployed.
 
 <details>
 <summary>Phase 3 Details (click to expand)</summary>
@@ -256,26 +256,38 @@ See [Phase 1](docs/roadmap/phase-01-platform-bootstrap.md) for full details.
 
 ### Phase 3.3: Logging (Loki vs ELK)
 
-- [x] Create `loki-tutorial`, `elk-tutorial`, `logging-comparison` experiments
+- [x] Create `loki-tutorial` experiment (Loki, Promtail, Grafana — all components exist)
+- [ ] Deploy Elasticsearch, Kibana, Fluent-Bit components
+- [ ] Create `elk-tutorial` experiment
+- [ ] Create `logging-comparison` experiment
 
 ### Phase 3.4: Distributed Tracing (Tempo vs Jaeger)
 
-- [x] Create `otel-demo` multi-service app, `otel-tutorial`, `tracing-comparison` experiments
+- [ ] Deploy OpenTelemetry Collector, Tempo, Jaeger components
+- [ ] Create `otel-demo` multi-service app
+- [ ] Create `otel-tutorial` experiment
+- [ ] Create `tracing-comparison` experiment
 
 ### Phase 3.5: SLOs & Error Budgets
 
-- [x] Deploy Pyrra, create `slo-tutorial` experiment
+- [ ] Deploy Pyrra component
+- [ ] Create `slo-tutorial` experiment
 
 ### Phase 3.6: Observability Cost Management
 
-- [x] Create `observability-cost-tutorial` experiment
+- [ ] Create `cardinality-generator` component
+- [ ] Create `observability-cost-tutorial` experiment
 
 </details>
 
-**Optional Tutorials** (for refreshers):
-- `loki-tutorial`, `elk-tutorial`, `logging-comparison`
-- `otel-tutorial`, `tracing-comparison`
-- `slo-tutorial`, `observability-cost-tutorial`
+**Tutorial content written** (in `experiments/*/tutorial.yaml`, not yet deployable):
+- `elk-tutorial`, `logging-comparison` (need ELK components)
+- `otel-tutorial`, `tracing-comparison` (need Tempo/Jaeger/OTel components)
+- `slo-tutorial` (needs Pyrra component)
+- `observability-cost-tutorial` (needs cardinality-generator component)
+
+**Deployable tutorials:**
+- `prometheus-tutorial`, `loki-tutorial` (all components exist)
 
 ---
 
@@ -289,8 +301,9 @@ See [Phase 1](docs/roadmap/phase-01-platform-bootstrap.md) for full details.
 
 ### Infrastructure Setup
 
-- [x] Create `gateway-tutorial` experiment scenario (Parts 1-5 including gRPC)
-- [x] Create `gateway-comparison` experiment (nginx vs Traefik vs Envoy Gateway)
+- [ ] Deploy ingress-nginx, envoy-gateway, traefik components
+- [ ] Create `gateway-tutorial` experiment (tutorial content written, components not deployed)
+- [ ] Create `gateway-comparison` experiment (tutorial content written, components not deployed)
 - [ ] Add `provider-gcp-container` for GKE provisioning
 - [ ] Create GKE XRD and composition (Pipeline mode)
 - [ ] Deploy Envoy Gateway on remote cluster
