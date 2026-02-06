@@ -103,13 +103,10 @@ func (m *ApplicationManager) CreateApplication(ctx context.Context, experimentNa
 		}
 	}
 
-	// If no sources, use a placeholder
+	// If no sources resolved, skip creating the application
 	if len(sources) == 0 {
-		sources = append(sources, map[string]interface{}{
-			"repoURL":        "https://github.com/argoproj/argocd-example-apps.git",
-			"targetRevision": "HEAD",
-			"path":           "guestbook",
-		})
+		log.Info("No components resolved for target, skipping application creation", "target", target.Name)
+		return nil
 	}
 
 	// Build Application spec
