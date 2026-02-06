@@ -1,7 +1,0 @@
-# Loadgen cluster - generates load against target
-size: small
-provider: azure  # or aws
-
-# Specific overrides (optional)
-# nodes: 2
-# vm_size: Standard_D2s_v3

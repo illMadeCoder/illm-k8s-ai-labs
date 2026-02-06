@@ -138,119 +138,29 @@ tasks:
         kubectl --context {{.TALOS_CONTEXT}} get namespaces
 
   up:
-    desc: "Deploy experiment to Talos target: task talos:up -- <name>"
+    desc: "Deploy experiment to Talos: task talos:up -- <name>"
     cmds:
       - |
         if [ -z "{{.CLI_ARGS}}" ]; then
           echo "Usage: task talos:up -- <experiment-name>"
           echo ""
-          echo "Deploys experiment to Talos target cluster via ArgoCD."
+          echo "Applies the Experiment CR; the operator handles deployment to Talos."
           exit 1
         fi
 
         EXP_NAME="{{.CLI_ARGS}}"
-        EXP_PATH="experiments/$EXP_NAME"
+        EXP_FILE="experiments/$EXP_NAME/experiment.yaml"
 
-        if [ ! -d "$EXP_PATH" ]; then
-          echo "ERROR: Experiment not found at $EXP_PATH"
+        if [ ! -f "$EXP_FILE" ]; then
+          echo "ERROR: No experiment.yaml found at $EXP_FILE"
           exit 1
         fi
 
-        echo "=============================================="
-        echo "  DEPLOYING TO TALOS: $EXP_NAME"
-        echo "=============================================="
+        echo "Applying experiment: $EXP_NAME (targeting Talos)"
+        kubectl --context {{.HUB_CONTEXT}} apply -f "$EXP_FILE"
         echo ""
-
-        # Check for target folder (experiments deploy to target)
-        TARGET_DIR="$EXP_PATH/legacy/target"
-        if [ ! -d "$TARGET_DIR" ]; then
-          echo "ERROR: No target/ folder found in experiment"
-          exit 1
-        fi
-
-        ARGOCD_APP="$TARGET_DIR/argocd/app.yaml"
-        if [ ! -f "$ARGOCD_APP" ]; then
-          echo "ERROR: No argocd/app.yaml found in target/"
-          exit 1
-        fi
-
-        # Step 1: Create a modified app pointing to Talos
-        echo "Step 1: Creating ArgoCD app for Talos target..."
-        APP_NAME="${EXP_NAME}-talos"
-
-        # Read app.yaml and modify destination to Talos
-        # - Change app name from *-target to *-talos
-        # - Replace destination.name with destination.server (Talos URL)
-        cat "$ARGOCD_APP" | \
-          sed "s|name: ${EXP_NAME}-target|name: ${APP_NAME}|" | \
-          sed -E 's|name: target( +#.*)?$|server: https://{{.TALOS_IP}}:6443|' | \
-          kubectl --context {{.HUB_CONTEXT}} apply -f -
-
-        # Step 2: Force sync
-        echo ""
-        echo "Step 2: Triggering sync..."
-        kubectl --context {{.HUB_CONTEXT}} patch app "$APP_NAME" -n argocd \
-          --type merge -p '{"metadata":{"annotations":{"argocd.argoproj.io/refresh":"hard"}}}' 2>/dev/null || true
-
-        # Step 3: Wait for sync (not health - LoadBalancer services stay Progressing without MetalLB)
-        echo ""
-        echo "Step 3: Waiting for app to sync..."
-        for i in $(seq 1 60); do
-          SYNC=$(kubectl --context {{.HUB_CONTEXT}} get application "$APP_NAME" -n argocd -o jsonpath='{.status.sync.status}' 2>/dev/null || echo "Unknown")
-          HEALTH=$(kubectl --context {{.HUB_CONTEXT}} get application "$APP_NAME" -n argocd -o jsonpath='{.status.health.status}' 2>/dev/null || echo "Unknown")
-
-          if [ "$SYNC" = "Synced" ]; then
-            echo "  App Synced! (Health: $HEALTH)"
-            # Wait a bit more for pods to start
-            sleep 10
-            break
-          fi
-          echo "  Status: $SYNC / $HEALTH ($i/60)"
-          sleep 3
-        done
-
-        # Step 4: Label ALL experiment namespaces for privileged pods (Talos enforces PSS)
-        # Multi-namespace experiments (logging-comparison) create loki, elasticsearch, monitoring, etc.
-        # DaemonSets like promtail, node-exporter, fluent-bit need hostPath/hostNetwork
-        echo ""
-        echo "Step 4: Labeling namespaces for privileged workloads..."
-        PRESERVED="{{.PRESERVED_NS}}"
-        for ns in $(kubectl --context {{.TALOS_CONTEXT}} get namespaces -o jsonpath='{.items[*].metadata.name}'); do
-          if ! echo " $PRESERVED " | grep -q " $ns "; then
-            kubectl --context {{.TALOS_CONTEXT}} label namespace "$ns" \
-              pod-security.kubernetes.io/enforce=privileged \
-              pod-security.kubernetes.io/warn=restricted \
-              --overwrite 2>/dev/null || true
-            echo "  Labeled namespace: $ns"
-          fi
-        done
-
-        # Step 5: Restart DaemonSets to pick up PSS label changes
-        # DaemonSet pods may have been rejected before namespace labeling
-        echo ""
-        echo "Step 5: Restarting DaemonSets..."
-        for ns in $(kubectl --context {{.TALOS_CONTEXT}} get namespaces -o jsonpath='{.items[*].metadata.name}'); do
-          if ! echo " $PRESERVED " | grep -q " $ns "; then
-            for ds in $(kubectl --context {{.TALOS_CONTEXT}} get daemonsets -n "$ns" -o name 2>/dev/null); do
-              echo "  Restarting $ds in $ns"
-              kubectl --context {{.TALOS_CONTEXT}} rollout restart "$ds" -n "$ns" 2>/dev/null || true
-            done
-          fi
-        done
-
-        # Wait for DaemonSets to become ready
-        echo "  Waiting for DaemonSets to stabilize..."
-        sleep 10
-
-        echo ""
-        echo "=============================================="
-        echo "  DEPLOYED TO TALOS: $EXP_NAME"
-        echo "=============================================="
-        echo ""
-        echo "  kubectl context: {{.TALOS_CONTEXT}}"
-        echo "  ArgoCD app: $APP_NAME"
-        echo ""
-        echo "To reset: task talos:reset"
+        echo "Experiment CR applied. The operator will reconcile."
+        echo "Watch progress: kubectl --context {{.HUB_CONTEXT}} get experiment $EXP_NAME -w"
 
   down:
     desc: "Remove experiment from Talos: task talos:down -- <name>"
@@ -262,15 +172,14 @@ tasks:
         fi
 
         EXP_NAME="{{.CLI_ARGS}}"
-        APP_NAME="${EXP_NAME}-talos"
+        EXP_FILE="experiments/$EXP_NAME/experiment.yaml"
 
-        echo "Removing experiment: $EXP_NAME"
+        echo "Deleting experiment: $EXP_NAME"
 
-        # Remove ArgoCD app
-        if kubectl --context {{.HUB_CONTEXT}} get app "$APP_NAME" -n argocd >/dev/null 2>&1; then
-          echo "  Removing finalizer and deleting app..."
-          kubectl --context {{.HUB_CONTEXT}} patch app "$APP_NAME" -n argocd -p '{"metadata":{"finalizers":null}}' --type=merge 2>/dev/null || true
-          kubectl --context {{.HUB_CONTEXT}} delete app "$APP_NAME" -n argocd --wait=false 2>/dev/null || true
+        if [ -f "$EXP_FILE" ]; then
+          kubectl --context {{.HUB_CONTEXT}} delete -f "$EXP_FILE" 2>/dev/null || true
+        else
+          kubectl --context {{.HUB_CONTEXT}} delete experiment "$EXP_NAME" 2>/dev/null || true
         fi
 
-        echo "Done. Run 'task talos:reset' for full cleanup."
+        echo "Experiment deleted. Run 'task talos:reset' for full namespace cleanup."

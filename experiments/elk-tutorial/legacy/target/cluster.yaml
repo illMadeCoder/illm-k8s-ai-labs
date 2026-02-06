@@ -1,8 +1,0 @@
-# Target cluster for ELK tutorial
-# Runs Elasticsearch, Kibana, Fluent Bit, and log-generator
-size: medium
-provider: kind
-
-# Elasticsearch needs more RAM (JVM heap)
-# nodes: 1
-# memory: 4Gi

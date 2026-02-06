@@ -1,6 +1,0 @@
-# TSDB Comparison Tutorial - Target Cluster
-# Runs all 3 TSDBs (Prometheus, Victoria Metrics, Mimir) plus supporting services
-# Requires medium size for adequate RAM (~4GB for observability stack)
-
-size: medium
-provider: kind
