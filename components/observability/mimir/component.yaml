@@ -1,0 +1,41 @@
+apiVersion: experiments.illm.io/v1alpha1
+kind: Component
+metadata:
+  name: mimir
+spec:
+  type: app
+  description: "Grafana Mimir distributed TSDB in monolithic mode"
+  sources:
+    - repoURL: https://grafana.github.io/helm-charts
+      targetRevision: "5.5.1"
+      chart: mimir-distributed
+      helm:
+        releaseName: mimir
+        parameters:
+          - name: deploymentMode
+            value: monolithic
+          - name: mimir.structuredConfig.common.storage.backend
+            value: s3
+          - name: mimir.structuredConfig.blocks_storage.tsdb.block_ranges_period
+            value: "2h"
+          - name: monolithic.replicas
+            value: "1"
+          - name: monolithic.resources.requests.cpu
+            value: 100m
+          - name: monolithic.resources.requests.memory
+            value: 256Mi
+          - name: monolithic.resources.limits.memory
+            value: 1Gi
+          - name: monolithic.persistentVolume.enabled
+            value: "false"
+          - name: minio.enabled
+            value: "false"
+  parameters:
+    - name: deploymentMode
+      type: string
+      default: monolithic
+      description: "Deployment mode (monolithic, distributed)"
+  observability:
+    serviceMonitor: false
+    podLabels:
+      app.kubernetes.io/name: mimir

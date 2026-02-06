@@ -1,0 +1,35 @@
+apiVersion: experiments.illm.io/v1alpha1
+kind: Component
+metadata:
+  name: minio
+spec:
+  type: app
+  description: "MinIO S3-compatible object storage"
+  sources:
+    - repoURL: https://charts.min.io/
+      targetRevision: "5.4.0"
+      chart: minio
+      helm:
+        releaseName: minio
+        parameters:
+          - name: mode
+            value: standalone
+          - name: rootUser
+            value: admin
+          - name: rootPassword
+            value: minio123
+          - name: resources.requests.memory
+            value: 512Mi
+          - name: persistence.enabled
+            value: "true"
+          - name: persistence.size
+            value: 10Gi
+  parameters:
+    - name: mode
+      type: string
+      default: standalone
+      description: "MinIO deployment mode (standalone, distributed)"
+  observability:
+    serviceMonitor: false
+    podLabels:
+      app: minio

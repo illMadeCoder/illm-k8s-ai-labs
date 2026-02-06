@@ -1,0 +1,43 @@
+apiVersion: experiments.illm.io/v1alpha1
+kind: Component
+metadata:
+  name: jaeger
+spec:
+  type: app
+  description: "Jaeger distributed tracing system (all-in-one mode)"
+  sources:
+    - repoURL: https://jaegertracing.github.io/helm-charts
+      targetRevision: "3.3.1"
+      chart: jaeger
+      helm:
+        releaseName: jaeger
+        parameters:
+          - name: allInOne.enabled
+            value: "true"
+          - name: allInOne.image
+            value: jaegertracing/all-in-one
+          - name: allInOne.tag
+            value: "1.62"
+          - name: storage.type
+            value: memory
+          - name: collector.enabled
+            value: "false"
+          - name: query.enabled
+            value: "false"
+          - name: agent.enabled
+            value: "false"
+          - name: cassandra.enabled
+            value: "false"
+          - name: elasticsearch.enabled
+            value: "false"
+          - name: kafka.enabled
+            value: "false"
+  parameters:
+    - name: storage.type
+      type: string
+      default: memory
+      description: "Storage backend (memory, elasticsearch, cassandra)"
+  observability:
+    serviceMonitor: false
+    podLabels:
+      app.kubernetes.io/name: jaeger

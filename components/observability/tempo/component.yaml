@@ -1,0 +1,35 @@
+apiVersion: experiments.illm.io/v1alpha1
+kind: Component
+metadata:
+  name: tempo
+spec:
+  type: app
+  description: "Grafana Tempo distributed tracing backend"
+  sources:
+    - repoURL: https://grafana.github.io/helm-charts
+      targetRevision: "1.10.3"
+      chart: tempo
+      helm:
+        releaseName: tempo
+        parameters:
+          - name: tempo.receivers.otlp.protocols.grpc.endpoint
+            value: "0.0.0.0:4317"
+          - name: tempo.receivers.otlp.protocols.http.endpoint
+            value: "0.0.0.0:4318"
+          - name: tempo.storage.trace.backend
+            value: local
+          - name: tempo.storage.trace.local.path
+            value: /var/tempo/traces
+          - name: tempo.storage.trace.wal.path
+            value: /var/tempo/wal
+          - name: tempo.retention
+            value: "24h"
+  parameters:
+    - name: tempo.retention
+      type: string
+      default: "24h"
+      description: "Trace retention period"
+  observability:
+    serviceMonitor: false
+    podLabels:
+      app.kubernetes.io/name: tempo

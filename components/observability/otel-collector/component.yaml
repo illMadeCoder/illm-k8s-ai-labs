@@ -1,0 +1,31 @@
+apiVersion: experiments.illm.io/v1alpha1
+kind: Component
+metadata:
+  name: otel-collector
+spec:
+  type: app
+  description: "OpenTelemetry Collector for trace/metric/log collection and export"
+  sources:
+    - repoURL: https://open-telemetry.github.io/opentelemetry-helm-charts
+      targetRevision: "0.140.0"
+      chart: opentelemetry-collector
+      helm:
+        releaseName: otel-collector
+        parameters:
+          - name: mode
+            value: deployment
+          - name: image.repository
+            value: otel/opentelemetry-collector-contrib
+          - name: ports.otlp.enabled
+            value: "true"
+          - name: ports.otlp-http.enabled
+            value: "true"
+  parameters:
+    - name: mode
+      type: string
+      default: deployment
+      description: "Collector deployment mode (deployment, daemonset, statefulset)"
+  observability:
+    serviceMonitor: true
+    podLabels:
+      app.kubernetes.io/name: opentelemetry-collector

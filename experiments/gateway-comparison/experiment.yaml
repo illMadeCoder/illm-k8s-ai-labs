@@ -1,0 +1,42 @@
+apiVersion: experiments.illm.io/v1alpha1
+kind: Experiment
+metadata:
+  name: gateway-comparison
+  namespace: experiments
+spec:
+  description: "Gateway comparison - NGINX Ingress vs Traefik vs Envoy Gateway feature and performance analysis"
+  ttlDays: 7
+
+  targets:
+    - name: app
+      cluster:
+        type: gke
+        preemptible: true
+      components:
+        - app: nginx-ingress
+        - app: traefik
+        - app: envoy-gateway
+        - app: nginx
+          params:
+            replicaCount: "2"
+
+  workflow:
+    template: gateway-comparison-validation
+    completion:
+      mode: manual
+
+  tutorial:
+    exposeKubeconfig: true
+    services:
+      - name: nginx-ingress
+        target: app
+        service: ingress-nginx-controller
+        namespace: gateway-comparison
+      - name: traefik
+        target: app
+        service: traefik
+        namespace: gateway-comparison
+      - name: envoy-gateway
+        target: app
+        service: envoy-gateway
+        namespace: gateway-comparison

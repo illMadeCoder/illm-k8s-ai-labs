@@ -1,0 +1,35 @@
+apiVersion: experiments.illm.io/v1alpha1
+kind: Component
+metadata:
+  name: nginx-ingress
+spec:
+  type: app
+  description: "NGINX Ingress Controller for Kubernetes"
+  sources:
+    - repoURL: https://kubernetes.github.io/ingress-nginx
+      targetRevision: "4.11.3"
+      chart: ingress-nginx
+      helm:
+        releaseName: ingress-nginx
+        parameters:
+          - name: controller.service.type
+            value: LoadBalancer
+          - name: controller.resources.requests.cpu
+            value: 100m
+          - name: controller.resources.requests.memory
+            value: 128Mi
+          - name: controller.resources.limits.cpu
+            value: 500m
+          - name: controller.resources.limits.memory
+            value: 256Mi
+          - name: controller.admissionWebhooks.enabled
+            value: "true"
+  parameters:
+    - name: controller.service.type
+      type: string
+      default: LoadBalancer
+      description: "Service type for the ingress controller"
+  observability:
+    serviceMonitor: false
+    podLabels:
+      app.kubernetes.io/name: ingress-nginx

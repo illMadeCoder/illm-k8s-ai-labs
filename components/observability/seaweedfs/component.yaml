@@ -1,0 +1,35 @@
+apiVersion: experiments.illm.io/v1alpha1
+kind: Component
+metadata:
+  name: seaweedfs
+spec:
+  type: app
+  description: "SeaweedFS S3-compatible object storage for observability backends"
+  sources:
+    - repoURL: https://seaweedfs.github.io/seaweedfs/helm
+      targetRevision: "4.0.0"
+      chart: seaweedfs
+      helm:
+        releaseName: seaweedfs
+        parameters:
+          - name: master.replicas
+            value: "1"
+          - name: volume.replicas
+            value: "1"
+          - name: filer.replicas
+            value: "1"
+          - name: s3.enabled
+            value: "true"
+  parameters:
+    - name: master.replicas
+      type: int
+      default: "1"
+      description: "Number of SeaweedFS master replicas"
+    - name: s3.enabled
+      type: bool
+      default: "true"
+      description: "Enable S3 API gateway"
+  observability:
+    serviceMonitor: false
+    podLabels:
+      app.kubernetes.io/name: seaweedfs

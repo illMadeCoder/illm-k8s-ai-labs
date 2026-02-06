@@ -1,0 +1,47 @@
+apiVersion: experiments.illm.io/v1alpha1
+kind: Experiment
+metadata:
+  name: tsdb-comparison
+  namespace: experiments
+spec:
+  description: "TSDB comparison - Prometheus vs VictoriaMetrics vs Mimir resource efficiency and query performance"
+  ttlDays: 7
+
+  targets:
+    - name: app
+      cluster:
+        type: gke
+        preemptible: true
+      components:
+        - app: kube-prometheus-stack
+          params:
+            grafana.enabled: "true"
+            prometheus.prometheusSpec.retention: "24h"
+            alertmanager.enabled: "false"
+        - app: victoria-metrics
+        - app: mimir
+        - app: minio
+        - app: cardinality-generator
+
+  workflow:
+    template: tsdb-comparison-validation
+    completion:
+      mode: manual
+
+  tutorial:
+    exposeKubeconfig: true
+    services:
+      - name: grafana
+        target: app
+        service: kube-prometheus-stack-grafana
+        namespace: tsdb-comparison
+      - name: prometheus
+        target: app
+        service: kube-prometheus-stack-prometheus
+        namespace: tsdb-comparison
+        port: 9090
+      - name: victoria-metrics
+        target: app
+        service: victoria-metrics-victoria-metrics-single-server
+        namespace: tsdb-comparison
+        port: 8428

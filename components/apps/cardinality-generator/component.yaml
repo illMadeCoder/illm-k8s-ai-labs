@@ -1,0 +1,16 @@
+apiVersion: experiments.illm.io/v1alpha1
+kind: Component
+metadata:
+  name: cardinality-generator
+spec:
+  type: app
+  description: "Generates high-cardinality Prometheus metrics for cost analysis experiments"
+  sources:
+    - repoURL: https://github.com/illMadeCoder/illm-k8s-ai-labs.git
+      targetRevision: HEAD
+      path: components/apps/cardinality-generator/k8s
+  observability:
+    serviceMonitor: true
+    podLabels:
+      app: cardinality-generator
+    metricsPort: 8080

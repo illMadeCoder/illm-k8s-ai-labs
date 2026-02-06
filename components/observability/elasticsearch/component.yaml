@@ -1,0 +1,46 @@
+apiVersion: experiments.illm.io/v1alpha1
+kind: Component
+metadata:
+  name: elasticsearch
+spec:
+  type: app
+  description: "Elasticsearch search and analytics engine for log storage"
+  sources:
+    - repoURL: https://helm.elastic.co
+      targetRevision: "8.5.1"
+      chart: elasticsearch
+      helm:
+        releaseName: elasticsearch
+        parameters:
+          - name: replicas
+            value: "1"
+          - name: minimumMasterNodes
+            value: "1"
+          - name: esJavaOpts
+            value: "-Xmx1g -Xms1g"
+          - name: resources.requests.cpu
+            value: 500m
+          - name: resources.requests.memory
+            value: 1Gi
+          - name: resources.limits.cpu
+            value: "1"
+          - name: resources.limits.memory
+            value: 2Gi
+          - name: volumeClaimTemplate.resources.requests.storage
+            value: 10Gi
+          - name: persistence.enabled
+            value: "false"
+          - name: antiAffinity
+            value: soft
+          - name: esConfig.elasticsearch\.yml
+            value: "xpack.security.enabled: false\nxpack.security.enrollment.enabled: false"
+            forceString: true
+  parameters:
+    - name: replicas
+      type: int
+      default: "1"
+      description: "Number of Elasticsearch replicas"
+  observability:
+    serviceMonitor: false
+    podLabels:
+      app: elasticsearch-master

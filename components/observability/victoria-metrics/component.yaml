@@ -1,0 +1,35 @@
+apiVersion: experiments.illm.io/v1alpha1
+kind: Component
+metadata:
+  name: victoria-metrics
+spec:
+  type: app
+  description: "VictoriaMetrics single-node time series database"
+  sources:
+    - repoURL: https://victoriametrics.github.io/helm-charts
+      targetRevision: "0.14.2"
+      chart: victoria-metrics-single
+      helm:
+        releaseName: victoria-metrics
+        parameters:
+          - name: server.retentionPeriod
+            value: "1d"
+          - name: server.resources.requests.cpu
+            value: 100m
+          - name: server.resources.requests.memory
+            value: 256Mi
+          - name: server.resources.limits.cpu
+            value: 500m
+          - name: server.resources.limits.memory
+            value: 512Mi
+          - name: server.persistentVolume.enabled
+            value: "false"
+  parameters:
+    - name: server.retentionPeriod
+      type: string
+      default: "1d"
+      description: "Data retention period"
+  observability:
+    serviceMonitor: false
+    podLabels:
+      app: server

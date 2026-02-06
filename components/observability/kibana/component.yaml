@@ -1,0 +1,33 @@
+apiVersion: experiments.illm.io/v1alpha1
+kind: Component
+metadata:
+  name: kibana
+spec:
+  type: app
+  description: "Kibana visualization dashboard for Elasticsearch"
+  sources:
+    - repoURL: https://helm.elastic.co
+      targetRevision: "8.5.1"
+      chart: kibana
+      helm:
+        releaseName: kibana
+        parameters:
+          - name: resources.requests.cpu
+            value: 100m
+          - name: resources.requests.memory
+            value: 512Mi
+          - name: resources.limits.cpu
+            value: 500m
+          - name: resources.limits.memory
+            value: 1Gi
+          - name: service.type
+            value: ClusterIP
+  parameters:
+    - name: service.type
+      type: string
+      default: ClusterIP
+      description: "Kibana service type"
+  observability:
+    serviceMonitor: false
+    podLabels:
+      app: kibana

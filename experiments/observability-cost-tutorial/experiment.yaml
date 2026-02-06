@@ -1,0 +1,46 @@
+apiVersion: experiments.illm.io/v1alpha1
+kind: Experiment
+metadata:
+  name: observability-cost-tutorial
+  namespace: experiments
+spec:
+  description: "Observability cost management - cardinality explosion, log volume, retention strategies"
+  ttlDays: 7
+
+  targets:
+    - name: app
+      cluster:
+        type: gke
+        preemptible: true
+      components:
+        - app: kube-prometheus-stack
+          params:
+            grafana.enabled: "true"
+            prometheus.prometheusSpec.retention: "3d"
+            alertmanager.enabled: "false"
+        - app: loki
+        - app: promtail
+        - app: log-generator
+        - app: cardinality-generator
+
+  workflow:
+    template: observability-cost-validation
+    completion:
+      mode: manual
+
+  tutorial:
+    exposeKubeconfig: true
+    services:
+      - name: grafana
+        target: app
+        service: kube-prometheus-stack-grafana
+        namespace: observability-cost-tutorial
+      - name: prometheus
+        target: app
+        service: kube-prometheus-stack-prometheus
+        namespace: observability-cost-tutorial
+        port: 9090
+      - name: loki
+        target: app
+        service: loki-gateway
+        namespace: observability-cost-tutorial

@@ -1,0 +1,31 @@
+apiVersion: experiments.illm.io/v1alpha1
+kind: Component
+metadata:
+  name: fluent-bit
+spec:
+  type: app
+  description: "Fluent Bit lightweight log processor and forwarder"
+  sources:
+    - repoURL: https://fluent.github.io/helm-charts
+      targetRevision: "0.47.10"
+      chart: fluent-bit
+      helm:
+        releaseName: fluent-bit
+        parameters:
+          - name: resources.requests.cpu
+            value: 20m
+          - name: resources.requests.memory
+            value: 64Mi
+          - name: resources.limits.cpu
+            value: 200m
+          - name: resources.limits.memory
+            value: 128Mi
+  parameters:
+    - name: config.outputs
+      type: string
+      default: ""
+      description: "Fluent Bit output configuration"
+  observability:
+    serviceMonitor: false
+    podLabels:
+      app.kubernetes.io/name: fluent-bit

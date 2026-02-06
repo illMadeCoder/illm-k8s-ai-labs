@@ -1,0 +1,44 @@
+apiVersion: experiments.illm.io/v1alpha1
+kind: Experiment
+metadata:
+  name: seaweedfs-tutorial
+  namespace: experiments
+spec:
+  description: "SeaweedFS object storage tutorial - S3 API, volume packing, LOSF problem"
+  ttlDays: 7
+
+  targets:
+    - name: app
+      cluster:
+        type: gke
+        preemptible: true
+      components:
+        - app: seaweedfs
+        - app: kube-prometheus-stack
+          params:
+            prometheus.enabled: "true"
+            grafana.enabled: "true"
+            alertmanager.enabled: "false"
+
+  workflow:
+    template: seaweedfs-validation
+    completion:
+      mode: manual
+
+  tutorial:
+    exposeKubeconfig: true
+    services:
+      - name: seaweedfs-s3
+        target: app
+        service: seaweedfs-s3
+        namespace: seaweedfs-tutorial
+        port: 8333
+      - name: seaweedfs-filer
+        target: app
+        service: seaweedfs-filer
+        namespace: seaweedfs-tutorial
+        port: 8888
+      - name: grafana
+        target: app
+        service: kube-prometheus-stack-grafana
+        namespace: seaweedfs-tutorial

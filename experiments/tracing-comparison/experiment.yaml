@@ -1,0 +1,47 @@
+apiVersion: experiments.illm.io/v1alpha1
+kind: Experiment
+metadata:
+  name: tracing-comparison
+  namespace: experiments
+spec:
+  description: "Tempo vs Jaeger tracing comparison - architecture, query languages, features"
+  ttlDays: 7
+
+  targets:
+    - name: app
+      cluster:
+        type: gke
+        preemptible: true
+      components:
+        - app: otel-collector
+        - app: tempo
+        - app: jaeger
+        - app: kube-prometheus-stack
+          params:
+            prometheus.enabled: "true"
+            grafana.enabled: "true"
+            alertmanager.enabled: "false"
+        - app: otel-demo
+
+  workflow:
+    template: tracing-comparison-validation
+    completion:
+      mode: manual
+
+  tutorial:
+    exposeKubeconfig: true
+    services:
+      - name: grafana
+        target: app
+        service: kube-prometheus-stack-grafana
+        namespace: tracing-comparison
+      - name: tempo
+        target: app
+        service: tempo
+        namespace: tracing-comparison
+        port: 3100
+      - name: jaeger
+        target: app
+        service: jaeger-query
+        namespace: tracing-comparison
+        port: 16686

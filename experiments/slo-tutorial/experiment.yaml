@@ -1,0 +1,51 @@
+apiVersion: experiments.illm.io/v1alpha1
+kind: Experiment
+metadata:
+  name: slo-tutorial
+  namespace: experiments
+spec:
+  description: "SLO tutorial - Pyrra SLO management, error budgets, multi-burn-rate alerting"
+  ttlDays: 7
+
+  targets:
+    - name: app
+      cluster:
+        type: gke
+        preemptible: true
+      components:
+        - app: kube-prometheus-stack
+          params:
+            grafana.enabled: "true"
+            prometheus.prometheusSpec.retention: "24h"
+        - app: pyrra
+          params:
+            prometheusUrl: "http://prometheus-operated.slo-tutorial.svc:9090"
+        - app: metrics-app
+
+  workflow:
+    template: slo-validation
+    completion:
+      mode: manual
+
+  tutorial:
+    exposeKubeconfig: true
+    services:
+      - name: grafana
+        target: app
+        service: kube-prometheus-stack-grafana
+        namespace: slo-tutorial
+      - name: prometheus
+        target: app
+        service: kube-prometheus-stack-prometheus
+        namespace: slo-tutorial
+        port: 9090
+      - name: pyrra
+        target: app
+        service: pyrra
+        namespace: slo-tutorial
+        port: 9099
+      - name: metrics-app
+        target: app
+        service: metrics-app
+        namespace: slo-tutorial
+        port: 8080

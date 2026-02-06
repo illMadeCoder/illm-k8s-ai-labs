@@ -1,0 +1,46 @@
+apiVersion: experiments.illm.io/v1alpha1
+kind: Experiment
+metadata:
+  name: otel-tutorial
+  namespace: experiments
+spec:
+  description: "OpenTelemetry distributed tracing tutorial - OTel Collector, Tempo, TraceQL"
+  ttlDays: 7
+
+  targets:
+    - name: app
+      cluster:
+        type: gke
+        preemptible: true
+      components:
+        - app: otel-collector
+        - app: tempo
+        - app: kube-prometheus-stack
+          params:
+            prometheus.enabled: "true"
+            grafana.enabled: "true"
+            alertmanager.enabled: "false"
+        - app: otel-demo
+
+  workflow:
+    template: otel-validation
+    completion:
+      mode: manual
+
+  tutorial:
+    exposeKubeconfig: true
+    services:
+      - name: grafana
+        target: app
+        service: kube-prometheus-stack-grafana
+        namespace: otel-tutorial
+      - name: tempo
+        target: app
+        service: tempo
+        namespace: otel-tutorial
+        port: 3100
+      - name: user-service
+        target: app
+        service: user-service
+        namespace: otel-tutorial
+        port: 8080

@@ -1,0 +1,29 @@
+apiVersion: experiments.illm.io/v1alpha1
+kind: Component
+metadata:
+  name: envoy-gateway
+spec:
+  type: app
+  description: "Envoy Gateway - Gateway API implementation using Envoy proxy"
+  sources:
+    - repoURL: https://charts.gateway.envoyproxy.io
+      targetRevision: "v1.2.4"
+      chart: gateway-helm
+      helm:
+        releaseName: envoy-gateway
+        parameters:
+          - name: deployment.replicas
+            value: "1"
+          - name: deployment.pod.resources.requests.cpu
+            value: 100m
+          - name: deployment.pod.resources.requests.memory
+            value: 256Mi
+  parameters:
+    - name: deployment.replicas
+      type: int
+      default: "1"
+      description: "Number of Envoy Gateway controller replicas"
+  observability:
+    serviceMonitor: false
+    podLabels:
+      app.kubernetes.io/name: envoy-gateway

@@ -1,0 +1,29 @@
+apiVersion: experiments.illm.io/v1alpha1
+kind: Component
+metadata:
+  name: pyrra
+spec:
+  type: app
+  description: "Pyrra SLO management with Kubernetes operator mode"
+  sources:
+    - repoURL: https://rlex.github.io/helm-charts
+      targetRevision: "0.12.0"
+      chart: pyrra
+      helm:
+        releaseName: pyrra
+        parameters:
+          - name: genericRules.enabled
+            value: "true"
+          - name: kubernetesOperator.enabled
+            value: "true"
+          - name: installCRDs
+            value: "true"
+  parameters:
+    - name: prometheusUrl
+      type: string
+      default: "http://prometheus-operated:9090"
+      description: "Prometheus URL for Pyrra to query"
+  observability:
+    serviceMonitor: false
+    podLabels:
+      app.kubernetes.io/name: pyrra
