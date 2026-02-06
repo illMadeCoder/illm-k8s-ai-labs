@@ -97,20 +97,6 @@ func (r *ExperimentReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 		return ctrl.Result{Requeue: true}, nil
 	}
 
-	// Check TTL and auto-delete if exceeded
-	ttlDays := experiment.Spec.TTLDays
-	if ttlDays == 0 {
-		ttlDays = 1 // Default to 1 day
-	}
-	if crossplane.ShouldDeleteCluster(experiment.CreationTimestamp.Time, ttlDays) {
-		log.Info("Experiment TTL exceeded, deleting", "ttlDays", ttlDays, "age", time.Since(experiment.CreationTimestamp.Time))
-		if err := r.Delete(ctx, experiment); err != nil {
-			log.Error(err, "Failed to delete expired experiment")
-			return ctrl.Result{}, err
-		}
-		return ctrl.Result{}, nil
-	}
-
 	// Phase-based reconciliation
 	switch experiment.Status.Phase {
 	case "", experimentsv1alpha1.PhasePending:
@@ -122,9 +108,7 @@ func (r *ExperimentReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 	case experimentsv1alpha1.PhaseRunning:
 		return r.reconcileRunning(ctx, experiment)
 	case experimentsv1alpha1.PhaseComplete, experimentsv1alpha1.PhaseFailed:
-		// Terminal states - requeue to check TTL periodically
-		// Check TTL every hour for completed experiments
-		return ctrl.Result{RequeueAfter: 1 * time.Hour}, nil
+		return r.reconcileComplete(ctx, experiment)
 	}
 
 	return ctrl.Result{}, nil
@@ -137,64 +121,7 @@ func (r *ExperimentReconciler) handleDeletion(ctx context.Context, exp *experime
 	if controllerutil.ContainsFinalizer(exp, experimentFinalizer) {
 		log.Info("Cleaning up experiment resources")
 
-		// Delete ArgoCD Applications
-		for _, target := range exp.Spec.Targets {
-			if err := r.ArgoCD.AppManager.DeleteApplication(ctx, exp.Name, target.Name); err != nil {
-				log.Error(err, "Failed to delete application", "target", target.Name)
-				// Continue with other deletions
-			}
-		}
-
-		// Unregister clusters from ArgoCD
-		clusterNames := []string{}
-		for i := range exp.Spec.Targets {
-			if i >= len(exp.Status.Targets) || exp.Status.Targets[i].ClusterName == "" {
-				continue
-			}
-			clusterNames = append(clusterNames, exp.Status.Targets[i].ClusterName)
-		}
-		if err := r.ArgoCD.DeleteClusterAndApps(ctx, exp.Name, exp.Spec.Targets, clusterNames); err != nil {
-			log.Error(err, "Failed to unregister clusters from ArgoCD")
-		}
-
-		// Delete clusters
-		for i, target := range exp.Spec.Targets {
-			if i >= len(exp.Status.Targets) || exp.Status.Targets[i].ClusterName == "" {
-				continue
-			}
-
-			clusterName := exp.Status.Targets[i].ClusterName
-			log.Info("Deleting cluster", "cluster", clusterName, "type", target.Cluster.Type)
-
-			if err := r.ClusterManager.DeleteCluster(ctx, clusterName, target.Cluster.Type); err != nil {
-				log.Error(err, "Failed to delete cluster", "cluster", clusterName)
-				// Continue with other clusters, don't block finalizer removal
-			}
-		}
-
-		// Delete kubeconfig secrets in experiments namespace (owned by experiment, so
-		// normally GC'd, but explicit delete is cleaner for fast cleanup)
-		if exp.Status.TutorialStatus != nil {
-			for targetName, secretName := range exp.Status.TutorialStatus.KubeconfigSecrets {
-				secret := &corev1.Secret{}
-				if err := r.Get(ctx, types.NamespacedName{
-					Name:      secretName,
-					Namespace: exp.Namespace,
-				}, secret); err == nil {
-					if err := r.Delete(ctx, secret); err != nil {
-						log.Error(err, "Failed to delete kubeconfig secret", "target", targetName, "secret", secretName)
-					}
-				}
-			}
-		}
-
-		// Delete Argo Workflows
-		if exp.Status.WorkflowStatus != nil && exp.Status.WorkflowStatus.Name != "" {
-			if err := r.Workflow.DeleteWorkflow(ctx, exp.Status.WorkflowStatus.Name); err != nil {
-				log.Error(err, "Failed to delete workflow", "workflow", exp.Status.WorkflowStatus.Name)
-				// Continue - don't block finalizer removal
-			}
-		}
+		r.cleanupResources(ctx, exp)
 
 		// Remove finalizer
 		controllerutil.RemoveFinalizer(exp, experimentFinalizer)
@@ -205,6 +132,107 @@ func (r *ExperimentReconciler) handleDeletion(ctx context.Context, exp *experime
 	}
 
 	return ctrl.Result{}, nil
+}
+
+// reconcileComplete handles the Complete/Failed phase — cleans up expensive resources
+// while preserving the Experiment CR as a historical record.
+func (r *ExperimentReconciler) reconcileComplete(ctx context.Context, exp *experimentsv1alpha1.Experiment) (ctrl.Result, error) {
+	log := logf.FromContext(ctx)
+
+	// Idempotency: skip if resources already cleaned
+	if exp.Status.ResourcesCleaned {
+		return ctrl.Result{}, nil
+	}
+
+	log.Info("Cleaning up resources for completed experiment", "phase", exp.Status.Phase)
+
+	r.cleanupResources(ctx, exp)
+
+	// Record completion timestamp and cleanup status
+	now := metav1.Now()
+	if exp.Status.CompletedAt == nil {
+		exp.Status.CompletedAt = &now
+	}
+	exp.Status.ResourcesCleaned = true
+
+	if err := r.Status().Update(ctx, exp); err != nil {
+		log.Error(err, "Failed to update status after cleanup")
+		return ctrl.Result{}, err
+	}
+
+	// Remove finalizer — no more sub-resources to protect
+	if controllerutil.ContainsFinalizer(exp, experimentFinalizer) {
+		controllerutil.RemoveFinalizer(exp, experimentFinalizer)
+		if err := r.Update(ctx, exp); err != nil {
+			log.Error(err, "Failed to remove finalizer after cleanup")
+			return ctrl.Result{}, err
+		}
+	}
+
+	log.Info("Experiment resources cleaned, CR preserved as history", "completedAt", now.Time)
+	return ctrl.Result{}, nil
+}
+
+// cleanupResources deletes expensive sub-resources (ArgoCD apps, cluster secrets,
+// GKE clusters, kubeconfig secrets, Argo Workflows). Shared by handleDeletion and
+// reconcileComplete.
+func (r *ExperimentReconciler) cleanupResources(ctx context.Context, exp *experimentsv1alpha1.Experiment) {
+	log := logf.FromContext(ctx)
+
+	// Delete ArgoCD Applications
+	for _, target := range exp.Spec.Targets {
+		if err := r.ArgoCD.AppManager.DeleteApplication(ctx, exp.Name, target.Name); err != nil {
+			log.Error(err, "Failed to delete application", "target", target.Name)
+		}
+	}
+
+	// Unregister clusters from ArgoCD
+	clusterNames := []string{}
+	for i := range exp.Spec.Targets {
+		if i >= len(exp.Status.Targets) || exp.Status.Targets[i].ClusterName == "" {
+			continue
+		}
+		clusterNames = append(clusterNames, exp.Status.Targets[i].ClusterName)
+	}
+	if err := r.ArgoCD.DeleteClusterAndApps(ctx, exp.Name, exp.Spec.Targets, clusterNames); err != nil {
+		log.Error(err, "Failed to unregister clusters from ArgoCD")
+	}
+
+	// Delete clusters
+	for i, target := range exp.Spec.Targets {
+		if i >= len(exp.Status.Targets) || exp.Status.Targets[i].ClusterName == "" {
+			continue
+		}
+
+		clusterName := exp.Status.Targets[i].ClusterName
+		log.Info("Deleting cluster", "cluster", clusterName, "type", target.Cluster.Type)
+
+		if err := r.ClusterManager.DeleteCluster(ctx, clusterName, target.Cluster.Type); err != nil {
+			log.Error(err, "Failed to delete cluster", "cluster", clusterName)
+		}
+	}
+
+	// Delete kubeconfig secrets in experiments namespace
+	if exp.Status.TutorialStatus != nil {
+		for targetName, secretName := range exp.Status.TutorialStatus.KubeconfigSecrets {
+			secret := &corev1.Secret{}
+			if err := r.Get(ctx, types.NamespacedName{
+				Name:      secretName,
+				Namespace: exp.Namespace,
+			}, secret); err == nil {
+				if err := r.Delete(ctx, secret); err != nil {
+					log.Error(err, "Failed to delete kubeconfig secret", "target", targetName, "secret", secretName)
+				}
+			}
+		}
+	}
+
+	// Delete Argo Workflows
+	if exp.Status.WorkflowStatus != nil && exp.Status.WorkflowStatus.Name != "" {
+		if err := r.Workflow.DeleteWorkflow(ctx, exp.Status.WorkflowStatus.Name); err != nil {
+			log.Error(err, "Failed to delete workflow", "workflow", exp.Status.WorkflowStatus.Name)
+		}
+	}
 }
 
 // reconcilePending handles the Pending phase - creates cluster resources

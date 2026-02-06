@@ -369,6 +369,10 @@ func (in *ExperimentStatus) DeepCopyInto(out *ExperimentStatus) {
 		*out = new(TutorialStatus)
 		(*in).DeepCopyInto(*out)
 	}
+	if in.CompletedAt != nil {
+		in, out := &in.CompletedAt, &out.CompletedAt
+		*out = (*in).DeepCopy()
+	}
 	if in.Conditions != nil {
 		in, out := &in.Conditions, &out.Conditions
 		*out = make([]v1.Condition, len(*in))

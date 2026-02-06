@@ -210,6 +210,14 @@ type ExperimentStatus struct {
 	// +optional
 	TutorialStatus *TutorialStatus `json:"tutorialStatus,omitempty"`
 
+	// CompletedAt is the timestamp when the experiment reached a terminal state
+	// +optional
+	CompletedAt *metav1.Time `json:"completedAt,omitempty"`
+
+	// ResourcesCleaned indicates whether expensive resources (clusters, apps) have been cleaned up
+	// +optional
+	ResourcesCleaned bool `json:"resourcesCleaned,omitempty"`
+
 	// Conditions
 	// +listType=map
 	// +listMapKey=type

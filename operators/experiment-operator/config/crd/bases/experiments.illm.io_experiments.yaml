@@ -220,6 +220,11 @@ spec:
           status:
             description: status defines the observed state of Experiment
             properties:
+              completedAt:
+                description: CompletedAt is the timestamp when the experiment reached
+                  a terminal state
+                format: date-time
+                type: string
               conditions:
                 description: Conditions
                 items:
@@ -298,6 +303,10 @@ spec:
                   - Failed
                 description: Phase of the experiment
                 type: string
+              resourcesCleaned:
+                description: ResourcesCleaned indicates whether expensive resources
+                  (clusters, apps) have been cleaned up
+                type: boolean
               targets:
                 description: Target statuses
                 items:
