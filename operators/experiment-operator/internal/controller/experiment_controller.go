@@ -28,6 +28,7 @@ import (
 	logf "sigs.k8s.io/controller-runtime/pkg/log"
 
 	experimentsv1alpha1 "github.com/illmadecoder/experiment-operator/api/v1alpha1"
+	"github.com/illmadecoder/experiment-operator/internal/argocd"
 	"github.com/illmadecoder/experiment-operator/internal/crossplane"
 )
 
@@ -40,6 +41,7 @@ type ExperimentReconciler struct {
 	client.Client
 	Scheme         *runtime.Scheme
 	ClusterManager *crossplane.ClusterManager
+	ArgoCD         *argocd.Client
 }
 
 // +kubebuilder:rbac:groups=experiments.illm.io,resources=experiments,verbs=get;list;watch;create;update;patch;delete
@@ -123,7 +125,27 @@ func (r *ExperimentReconciler) handleDeletion(ctx context.Context, exp *experime
 	if controllerutil.ContainsFinalizer(exp, experimentFinalizer) {
 		log.Info("Cleaning up experiment resources")
 
-		// Delete clusters for each target
+		// Delete ArgoCD Applications
+		for _, target := range exp.Spec.Targets {
+			if err := r.ArgoCD.AppManager.DeleteApplication(ctx, exp.Name, target.Name); err != nil {
+				log.Error(err, "Failed to delete application", "target", target.Name)
+				// Continue with other deletions
+			}
+		}
+
+		// Unregister clusters from ArgoCD
+		clusterNames := []string{}
+		for i := range exp.Spec.Targets {
+			if i >= len(exp.Status.Targets) || exp.Status.Targets[i].ClusterName == "" {
+				continue
+			}
+			clusterNames = append(clusterNames, exp.Status.Targets[i].ClusterName)
+		}
+		if err := r.ArgoCD.DeleteClusterAndApps(ctx, exp.Name, exp.Spec.Targets, clusterNames); err != nil {
+			log.Error(err, "Failed to unregister clusters from ArgoCD")
+		}
+
+		// Delete clusters
 		for i, target := range exp.Spec.Targets {
 			if i >= len(exp.Status.Targets) || exp.Status.Targets[i].ClusterName == "" {
 				continue
@@ -138,7 +160,6 @@ func (r *ExperimentReconciler) handleDeletion(ctx context.Context, exp *experime
 			}
 		}
 
-		// TODO Phase 3: Delete ArgoCD Applications
 		// TODO Phase 5: Delete Argo Workflows
 
 		// Remove finalizer
@@ -254,8 +275,46 @@ func (r *ExperimentReconciler) reconcileProvisioning(ctx context.Context, exp *e
 		return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
 	}
 
-	// TODO Phase 3: Register clusters with ArgoCD
-	// TODO Phase 3: Create ArgoCD Applications for each target
+	// Register clusters with ArgoCD and create Applications
+	for i, target := range exp.Spec.Targets {
+		if exp.Status.Targets[i].Phase != "Ready" {
+			continue
+		}
+
+		clusterName := exp.Status.Targets[i].ClusterName
+		endpoint := exp.Status.Targets[i].Endpoint
+
+		// For hub cluster, use in-cluster server
+		server := endpoint
+		if target.Cluster.Type == "hub" {
+			server = "https://kubernetes.default.svc"
+		} else if server == "" {
+			server = "https://" + endpoint
+		}
+
+		// Get kubeconfig for non-hub clusters
+		var kubeconfig []byte
+		var err error
+		if target.Cluster.Type != "hub" {
+			kubeconfig, err = r.ClusterManager.GetClusterKubeconfig(ctx, clusterName, target.Cluster.Type)
+			if err != nil {
+				log.Error(err, "Failed to get kubeconfig", "cluster", clusterName)
+				// Use a placeholder kubeconfig for now
+				kubeconfig = []byte("# Placeholder kubeconfig")
+			}
+		} else {
+			// For hub cluster, no separate kubeconfig needed
+			kubeconfig = []byte("# In-cluster")
+		}
+
+		// Register cluster and create applications
+		if err := r.ArgoCD.RegisterClusterAndCreateApps(ctx, exp.Name, target, clusterName, kubeconfig, server); err != nil {
+			log.Error(err, "Failed to register cluster and create apps", "cluster", clusterName)
+			continue
+		}
+
+		log.Info("Registered cluster with ArgoCD and created applications", "cluster", clusterName)
+	}
 
 	// All clusters ready, transition to Ready phase
 	exp.Status.Phase = experimentsv1alpha1.PhaseReady
@@ -272,14 +331,49 @@ func (r *ExperimentReconciler) reconcileReady(ctx context.Context, exp *experime
 	log := logf.FromContext(ctx)
 	log.Info("Reconciling Ready phase")
 
-	// TODO Phase 3: Check ArgoCD Application health
+	// Check if all ArgoCD Applications are healthy
+	allHealthy := true
+	for i, target := range exp.Spec.Targets {
+		if len(target.Components) == 0 {
+			// No components to deploy, mark as ready
+			continue
+		}
+
+		healthy, err := r.ArgoCD.AppManager.IsApplicationHealthy(ctx, exp.Name, target.Name)
+		if err != nil {
+			log.Error(err, "Failed to check application health", "target", target.Name)
+			allHealthy = false
+			continue
+		}
+
+		if !healthy {
+			log.Info("Application not healthy yet", "target", target.Name)
+			allHealthy = false
+			continue
+		}
+
+		// Get deployed components
+		components, err := r.ArgoCD.AppManager.GetApplicationComponents(ctx, exp.Name, target.Name)
+		if err != nil {
+			log.Error(err, "Failed to get application components", "target", target.Name)
+		} else {
+			exp.Status.Targets[i].Components = components
+			log.Info("Application is healthy", "target", target.Name, "components", len(components))
+		}
+	}
+
+	if !allHealthy {
+		// Requeue after 15 seconds to check again
+		if err := r.Status().Update(ctx, exp); err != nil {
+			log.Error(err, "Failed to update status")
+			return ctrl.Result{}, err
+		}
+		return ctrl.Result{RequeueAfter: 15 * time.Second}, nil
+	}
+
 	// TODO Phase 5: Submit Argo Workflow
 	// For now, transition to Running
 	exp.Status.Phase = experimentsv1alpha1.PhaseRunning
-	// exp.Status.WorkflowStatus = &experimentsv1alpha1.WorkflowStatus{
-	// 	Name:  fmt.Sprintf("%s-workflow", exp.Name),
-	// 	Phase: "Running",
-	// }
 
 	if err := r.Status().Update(ctx, exp); err != nil {
 		log.Error(err, "Failed to update status to Running")

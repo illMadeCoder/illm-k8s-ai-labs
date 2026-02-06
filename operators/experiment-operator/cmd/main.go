@@ -36,6 +36,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/webhook"
 
 	experimentsv1alpha1 "github.com/illmadecoder/experiment-operator/api/v1alpha1"
+	"github.com/illmadecoder/experiment-operator/internal/argocd"
 	"github.com/illmadecoder/experiment-operator/internal/controller"
 	"github.com/illmadecoder/experiment-operator/internal/crossplane"
 	// +kubebuilder:scaffold:imports
@@ -183,6 +184,7 @@ func main() {
 		Client:         mgr.GetClient(),
 		Scheme:         mgr.GetScheme(),
 		ClusterManager: crossplane.NewClusterManager(mgr.GetClient()),
+		ArgoCD:         argocd.NewClient(mgr.GetClient()),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Experiment")
 		os.Exit(1)
