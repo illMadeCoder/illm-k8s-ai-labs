@@ -134,7 +134,7 @@ Foundation              Stateful + Security        Complexity
 - [x] Add dns-stack to Kind app-of-apps
 - [x] Add Argo Workflows to Kind app-of-apps
 - [x] Test Kind hub bootstrap end-to-end
-- [x] Update `kind:conduct` for orchestrator pattern (parallel provisioning)
+- [x] Update `hub:up` for orchestrator pattern (parallel provisioning)
 - [x] Add OpenBao to Kind app-of-apps
 - [x] Add Crossplane to Kind app-of-apps
 - [x] Test full hub bootstrap with all components

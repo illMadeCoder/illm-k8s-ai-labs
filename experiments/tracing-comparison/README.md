@@ -41,7 +41,7 @@ This scenario deploys both Tempo and Jaeger to receive the same traces via dual-
 
 ```bash
 # Deploy the comparison environment
-task kind:conduct -- tracing-comparison
+task hub:up -- tracing-comparison
 
 # Wait for pods
 kubectl get pods -n tracing-comparison -w

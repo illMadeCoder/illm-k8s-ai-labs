@@ -39,7 +39,9 @@ This tutorial takes you from Prometheus fundamentals through production-grade ob
 
 ```bash
 # Initialize station monitoring systems
-task kind:conduct -- prometheus-tutorial
+task hub:up -- prometheus-tutorial
+# Or for interactive tutorial mode:
+# task hub:tutorial -- prometheus-tutorial
 ```
 
 ## Table of Contents
@@ -87,7 +89,7 @@ task kind:conduct -- prometheus-tutorial
 
 ### Setup: Get Your Environment IPs
 
-When you run `task kind:conduct -- prometheus-tutorial`, you'll see output like:
+When you run `task hub:up -- prometheus-tutorial`, you'll see output like:
 
 ```
   Prometheus: http://172.19.255.200:9090

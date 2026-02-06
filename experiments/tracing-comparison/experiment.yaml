@@ -1,10 +1,10 @@
 apiVersion: experiments.illm.io/v1alpha1
 kind: Experiment
 metadata:
-  name: loki-tutorial
+  name: tracing-comparison
   namespace: experiments
 spec:
-  description: "Loki log aggregation tutorial with LogQL learning"
+  description: "Tracing backend comparison - Tempo vs Jaeger"
   ttlDays: 7
 
   targets:
@@ -12,20 +12,16 @@ spec:
       cluster:
         type: vcluster
       components:
-        - app: loki
-        - app: promtail
+        - app: opentelemetry-collector
+        - app: tempo
+        - app: jaeger
         - app: kube-prometheus-stack
           params:
-            prometheus.enabled: "false"
-            alertmanager.enabled: "false"
             grafana.enabled: "true"
-        - app: log-generator
-      observability:
-        enabled: true
-        transport: direct
+        - app: otel-demo-app
 
   workflow:
-    template: loki-validation
+    template: tracing-comparison-validation
     completion:
       mode: manual
 
@@ -35,8 +31,9 @@ spec:
       - name: grafana
         target: app
         service: kube-prometheus-stack-grafana
-        namespace: loki-tutorial
-      - name: loki
+        namespace: tracing-comparison
+      - name: jaeger
         target: app
-        service: loki-gateway
-        namespace: loki-tutorial
+        service: jaeger-query
+        namespace: tracing-comparison
+        port: 16686

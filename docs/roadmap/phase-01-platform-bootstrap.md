@@ -54,7 +54,7 @@
 │  │   (root)    │ │  Workflows  │ │ (provisions)│ │  (secrets)  │   │
 │  └─────────────┘ └─────────────┘ └─────────────┘ └─────────────┘   │
 │        │                               │                            │
-│        │ task hub:conduct             │ provisions in PARALLEL     │
+│        │ task hub:up                  │ provisions in PARALLEL     │
 └────────┼───────────────────────────────┼────────────────────────────┘
          │                               │
          │         ┌─────────────────────┼─────────────────────┐
@@ -73,7 +73,7 @@
 
 **Experiment Lifecycle:**
 ```bash
-task hub:conduct -- http-baseline
+task hub:up -- http-baseline
   ├── 1. Hub provisions ALL clusters in PARALLEL:
   │     ├── http-baseline-orchestrator (Kind or cloud via Crossplane)
   │     ├── http-baseline-target
@@ -129,7 +129,7 @@ platform/
 │   ├── values/                        # Helm values for hub components
 │   ├── manifests/                     # Raw K8s manifests
 │   ├── cluster/                       # Kind cluster provisioning
-│   │   └── Taskfile.yaml              # task hub:bootstrap, hub:conduct, etc.
+│   │   └── Taskfile.yaml              # task hub:bootstrap, hub:up, hub:tutorial, etc.
 │   └── bootstrap/                     # Initial ArgoCD setup
 │       ├── argocd-values-kind.yaml    # ArgoCD + app-of-apps reference
 │       └── hub-application.yaml       # Root app-of-apps
@@ -307,7 +307,7 @@ task talos:bootstrap
 
 **Goal:** Set up Argo Workflows for experiment orchestration
 
-*Argo Workflows runs on both the hub (for provisioning) and orchestrator (for experiment execution). This section covers hub deployment - orchestrator bootstrap happens during `kind:conduct`.*
+*Argo Workflows runs on both the hub (for provisioning) and orchestrator (for experiment execution). This section covers hub deployment - orchestrator bootstrap happens during `hub:up`.*
 
 **Learning objectives:**
 - Understand Argo Workflows role in experiment lifecycle
@@ -336,7 +336,7 @@ task talos:bootstrap
   - [ ] Wait for apps to sync
   - [ ] Run load test (k6)
   - [ ] Collect results
-- [ ] Integration with `task hub:conduct`:
+- [ ] Integration with `task hub:up`:
   - [ ] Submit workflow to hub
   - [ ] Wait for completion
   - [ ] Report results

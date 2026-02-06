@@ -37,12 +37,54 @@ type ExperimentSpec struct {
 	// +required
 	Workflow WorkflowSpec `json:"workflow"`
 
+	// Tutorial configuration for interactive learning
+	// +optional
+	Tutorial *TutorialSpec `json:"tutorial,omitempty"`
+
 	// TTL in days - experiment will be auto-deleted after this many days
 	// +optional
 	// +kubebuilder:default=1
 	// +kubebuilder:validation:Minimum=0
 	// +kubebuilder:validation:Maximum=365
 	TTLDays int `json:"ttlDays,omitempty"`
+}
+
+// TutorialSpec defines tutorial configuration for interactive experiments
+type TutorialSpec struct {
+	// Path to tutorial file relative to experiment directory, default "tutorial.yaml"
+	// +optional
+	Path string `json:"path,omitempty"`
+
+	// Expose kubeconfig for user kubectl access to target clusters
+	// +optional
+	ExposeKubeconfig bool `json:"exposeKubeconfig,omitempty"`
+
+	// Services to discover on target clusters
+	// +optional
+	Services []TutorialServiceRef `json:"services,omitempty"`
+}
+
+// TutorialServiceRef references a service to discover on a target cluster
+type TutorialServiceRef struct {
+	// Name is a friendly name for the service (e.g., "grafana")
+	// +required
+	Name string `json:"name"`
+
+	// Target is the target name from spec.targets
+	// +required
+	Target string `json:"target"`
+
+	// Service is the Kubernetes service name
+	// +required
+	Service string `json:"service"`
+
+	// Namespace is the Kubernetes namespace of the service
+	// +required
+	Namespace string `json:"namespace"`
+
+	// Port is the service port (optional, uses first port if unset)
+	// +optional
+	Port int `json:"port,omitempty"`
 }
 
 // Target defines a deployment target (cluster + components)
@@ -126,9 +168,9 @@ type WorkflowSpec struct {
 
 // CompletionSpec defines when experiment completes
 type CompletionSpec struct {
-	// Mode: workflow (wait for workflow completion)
+	// Mode: workflow (auto-complete after workflow), manual (stay Running until user tears down)
 	// +required
-	// +kubebuilder:validation:Enum=workflow
+	// +kubebuilder:validation:Enum=workflow;manual
 	Mode string `json:"mode"`
 }
 
@@ -161,11 +203,41 @@ type ExperimentStatus struct {
 	// +optional
 	WorkflowStatus *WorkflowStatus `json:"workflowStatus,omitempty"`
 
+	// Tutorial status (populated when spec.tutorial is set)
+	// +optional
+	TutorialStatus *TutorialStatus `json:"tutorialStatus,omitempty"`
+
 	// Conditions
 	// +listType=map
 	// +listMapKey=type
 	// +optional
 	Conditions []metav1.Condition `json:"conditions,omitempty"`
+}
+
+// TutorialStatus represents the observed state of tutorial resources
+type TutorialStatus struct {
+	// Discovered services with resolved endpoints
+	// +optional
+	Services []DiscoveredService `json:"services,omitempty"`
+
+	// KubeconfigSecrets maps target names to kubeconfig secret names in the experiments namespace
+	// +optional
+	KubeconfigSecrets map[string]string `json:"kubeconfigSecrets,omitempty"`
+}
+
+// DiscoveredService represents a service discovered on a target cluster
+type DiscoveredService struct {
+	// Name is the friendly service name from spec.tutorial.services
+	// +required
+	Name string `json:"name"`
+
+	// Endpoint is the resolved service endpoint (LoadBalancer IP or ClusterIP)
+	// +optional
+	Endpoint string `json:"endpoint,omitempty"`
+
+	// Ready indicates whether the service is accessible
+	// +optional
+	Ready bool `json:"ready,omitempty"`
 }
 
 // ExperimentPhase represents the current phase of an experiment
@@ -197,6 +269,10 @@ type TargetStatus struct {
 
 	// +optional
 	Components []string `json:"components,omitempty"`
+
+	// KubeconfigSecret is the name of the secret containing the kubeconfig for this target
+	// +optional
+	KubeconfigSecret string `json:"kubeconfigSecret,omitempty"`
 }
 
 // WorkflowStatus represents the status of the experiment workflow

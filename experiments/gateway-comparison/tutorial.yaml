@@ -1,5 +1,5 @@
 # Tutorial configuration
-# When this file exists, `task hub:conduct` runs in interactive mode
+# Tutorial content rendered by `labctl tutorial gateway-comparison`
 
 title: "GATEWAY SHOWDOWN - Three Controllers, One Ring"
 description: |

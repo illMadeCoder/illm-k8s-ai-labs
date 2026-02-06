@@ -1,10 +1,10 @@
 apiVersion: experiments.illm.io/v1alpha1
 kind: Experiment
 metadata:
-  name: loki-tutorial
+  name: observability-cost-tutorial
   namespace: experiments
 spec:
-  description: "Loki log aggregation tutorial with LogQL learning"
+  description: "Observability cost tutorial - understanding and optimizing telemetry costs"
   ttlDays: 7
 
   targets:
@@ -12,20 +12,16 @@ spec:
       cluster:
         type: vcluster
       components:
-        - app: loki
-        - app: promtail
         - app: kube-prometheus-stack
           params:
-            prometheus.enabled: "false"
-            alertmanager.enabled: "false"
             grafana.enabled: "true"
+        - app: loki
+        - app: promtail
+        - app: cardinality-generator
         - app: log-generator
-      observability:
-        enabled: true
-        transport: direct
 
   workflow:
-    template: loki-validation
+    template: observability-cost-validation
     completion:
       mode: manual
 
@@ -35,8 +31,9 @@ spec:
       - name: grafana
         target: app
         service: kube-prometheus-stack-grafana
-        namespace: loki-tutorial
-      - name: loki
+        namespace: observability-cost-tutorial
+      - name: prometheus
         target: app
-        service: loki-gateway
-        namespace: loki-tutorial
+        service: kube-prometheus-stack-prometheus
+        namespace: observability-cost-tutorial
+        port: 9090

@@ -5,7 +5,7 @@ metadata:
   namespace: experiments
 spec:
   description: "Prometheus metrics collection tutorial with Grafana dashboards"
-  ttlDays: 1
+  ttlDays: 7
 
   targets:
     - name: app
@@ -25,4 +25,27 @@ spec:
   workflow:
     template: prometheus-validation
     completion:
-      mode: workflow
+      mode: manual
+
+  tutorial:
+    exposeKubeconfig: true
+    services:
+      - name: grafana
+        target: app
+        service: kube-prometheus-stack-grafana
+        namespace: prometheus-tutorial
+      - name: prometheus
+        target: app
+        service: kube-prometheus-stack-prometheus
+        namespace: prometheus-tutorial
+        port: 9090
+      - name: metrics-app
+        target: app
+        service: metrics-app
+        namespace: prometheus-tutorial
+        port: 8080
+      - name: station-monitor
+        target: app
+        service: station-monitor
+        namespace: prometheus-tutorial
+        port: 8080

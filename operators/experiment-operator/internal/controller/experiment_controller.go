@@ -18,11 +18,14 @@ package controller
 
 import (
 	"context"
+	"fmt"
 	"time"
 
+	corev1 "k8s.io/api/core/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
+	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
@@ -160,6 +163,22 @@ func (r *ExperimentReconciler) handleDeletion(ctx context.Context, exp *experime
 			if err := r.ClusterManager.DeleteCluster(ctx, clusterName, target.Cluster.Type); err != nil {
 				log.Error(err, "Failed to delete cluster", "cluster", clusterName)
 				// Continue with other clusters, don't block finalizer removal
+			}
+		}
+
+		// Delete kubeconfig secrets in experiments namespace (owned by experiment, so
+		// normally GC'd, but explicit delete is cleaner for fast cleanup)
+		if exp.Status.TutorialStatus != nil {
+			for targetName, secretName := range exp.Status.TutorialStatus.KubeconfigSecrets {
+				secret := &corev1.Secret{}
+				if err := r.Get(ctx, types.NamespacedName{
+					Name:      secretName,
+					Namespace: exp.Namespace,
+				}, secret); err == nil {
+					if err := r.Delete(ctx, secret); err != nil {
+						log.Error(err, "Failed to delete kubeconfig secret", "target", targetName, "secret", secretName)
+					}
+				}
 			}
 		}
 
@@ -325,6 +344,14 @@ func (r *ExperimentReconciler) reconcileProvisioning(ctx context.Context, exp *e
 		log.Info("Registered cluster with ArgoCD and created applications", "cluster", clusterName)
 	}
 
+	// Copy kubeconfigs to experiments namespace for tutorial access
+	if exp.Spec.Tutorial != nil && exp.Spec.Tutorial.ExposeKubeconfig {
+		if err := r.copyKubeconfigSecrets(ctx, exp); err != nil {
+			log.Error(err, "Failed to copy kubeconfig secrets for tutorial")
+			// Non-fatal: continue with phase transition
+		}
+	}
+
 	// All clusters ready, transition to Ready phase
 	exp.Status.Phase = experimentsv1alpha1.PhaseReady
 	if err := r.Status().Update(ctx, exp); err != nil {
@@ -378,6 +405,14 @@ func (r *ExperimentReconciler) reconcileReady(ctx context.Context, exp *experime
 			return ctrl.Result{}, err
 		}
 		return ctrl.Result{RequeueAfter: 15 * time.Second}, nil
+	}
+
+	// Discover tutorial services on target clusters
+	if exp.Spec.Tutorial != nil && len(exp.Spec.Tutorial.Services) > 0 {
+		if err := r.discoverTutorialServices(ctx, exp); err != nil {
+			log.Error(err, "Failed to discover tutorial services")
+			// Non-fatal: services may become available later
+		}
 	}
 
 	// Submit Argo Workflow for validation
@@ -436,6 +471,16 @@ func (r *ExperimentReconciler) reconcileRunning(ctx context.Context, exp *experi
 	if workflow.IsTerminal(result.Phase) {
 		if workflow.IsSucceeded(result.Phase) {
 			log.Info("Workflow succeeded", "workflow", exp.Status.WorkflowStatus.Name)
+			// In manual mode, stay in Running after workflow succeeds
+			// User controls lifecycle via hub:down; TTL is the safety net
+			if exp.Spec.Workflow.Completion.Mode == "manual" {
+				log.Info("Manual completion mode: staying in Running phase")
+				if err := r.Status().Update(ctx, exp); err != nil {
+					log.Error(err, "Failed to update workflow status")
+					return ctrl.Result{}, err
+				}
+				return ctrl.Result{RequeueAfter: 1 * time.Hour}, nil
+			}
 			exp.Status.Phase = experimentsv1alpha1.PhaseComplete
 		} else {
 			log.Info("Workflow failed", "workflow", exp.Status.WorkflowStatus.Name, "phase", result.Phase, "message", result.Message)
@@ -451,6 +496,191 @@ func (r *ExperimentReconciler) reconcileRunning(ctx context.Context, exp *experi
 		return ctrl.Result{}, err
 	}
 	return ctrl.Result{RequeueAfter: 15 * time.Second}, nil
+}
+
+// copyKubeconfigSecrets copies kubeconfig secrets from crossplane-system to experiments namespace
+// so that labctl can read them without needing access to crossplane-system.
+func (r *ExperimentReconciler) copyKubeconfigSecrets(ctx context.Context, exp *experimentsv1alpha1.Experiment) error {
+	log := logf.FromContext(ctx)
+
+	if exp.Status.TutorialStatus == nil {
+		exp.Status.TutorialStatus = &experimentsv1alpha1.TutorialStatus{
+			KubeconfigSecrets: make(map[string]string),
+		}
+	}
+	if exp.Status.TutorialStatus.KubeconfigSecrets == nil {
+		exp.Status.TutorialStatus.KubeconfigSecrets = make(map[string]string)
+	}
+
+	for i, target := range exp.Spec.Targets {
+		if target.Cluster.Type == "hub" {
+			continue // Hub cluster uses in-cluster config
+		}
+		if i >= len(exp.Status.Targets) || exp.Status.Targets[i].ClusterName == "" {
+			continue
+		}
+
+		clusterName := exp.Status.Targets[i].ClusterName
+		srcSecretName := fmt.Sprintf("%s-kubeconfig", clusterName)
+		dstSecretName := fmt.Sprintf("%s-%s-kubeconfig", exp.Name, target.Name)
+
+		// Read source secret from crossplane-system
+		srcSecret := &corev1.Secret{}
+		if err := r.Get(ctx, types.NamespacedName{
+			Name:      srcSecretName,
+			Namespace: "crossplane-system",
+		}, srcSecret); err != nil {
+			log.Error(err, "Failed to read kubeconfig secret", "secret", srcSecretName)
+			continue
+		}
+
+		// Create destination secret in experiments namespace
+		dstSecret := &corev1.Secret{
+			ObjectMeta: metav1.ObjectMeta{
+				Name:      dstSecretName,
+				Namespace: exp.Namespace,
+				Labels: map[string]string{
+					"experiment": exp.Name,
+					"target":     target.Name,
+				},
+			},
+			Data: srcSecret.Data,
+		}
+
+		// Set owner reference for garbage collection
+		if err := controllerutil.SetOwnerReference(exp, dstSecret, r.Scheme); err != nil {
+			log.Error(err, "Failed to set owner reference on kubeconfig secret", "secret", dstSecretName)
+			continue
+		}
+
+		// Create or update the secret
+		existing := &corev1.Secret{}
+		if err := r.Get(ctx, types.NamespacedName{
+			Name:      dstSecretName,
+			Namespace: exp.Namespace,
+		}, existing); err != nil {
+			if errors.IsNotFound(err) {
+				if err := r.Create(ctx, dstSecret); err != nil {
+					log.Error(err, "Failed to create kubeconfig secret", "secret", dstSecretName)
+					continue
+				}
+			} else {
+				log.Error(err, "Failed to check for existing kubeconfig secret", "secret", dstSecretName)
+				continue
+			}
+		} else {
+			existing.Data = srcSecret.Data
+			if err := r.Update(ctx, existing); err != nil {
+				log.Error(err, "Failed to update kubeconfig secret", "secret", dstSecretName)
+				continue
+			}
+		}
+
+		exp.Status.Targets[i].KubeconfigSecret = dstSecretName
+		exp.Status.TutorialStatus.KubeconfigSecrets[target.Name] = dstSecretName
+		log.Info("Copied kubeconfig secret", "src", srcSecretName, "dst", dstSecretName)
+	}
+
+	return nil
+}
+
+// discoverTutorialServices queries target clusters for services listed in spec.tutorial.services
+// and populates status.tutorialStatus.services with resolved endpoints.
+func (r *ExperimentReconciler) discoverTutorialServices(ctx context.Context, exp *experimentsv1alpha1.Experiment) error {
+	log := logf.FromContext(ctx)
+
+	if exp.Status.TutorialStatus == nil {
+		exp.Status.TutorialStatus = &experimentsv1alpha1.TutorialStatus{}
+	}
+
+	var discovered []experimentsv1alpha1.DiscoveredService
+
+	for _, svcRef := range exp.Spec.Tutorial.Services {
+		ds := experimentsv1alpha1.DiscoveredService{
+			Name:  svcRef.Name,
+			Ready: false,
+		}
+
+		// Find the target and its kubeconfig
+		var targetIdx int = -1
+		for i, t := range exp.Spec.Targets {
+			if t.Name == svcRef.Target {
+				targetIdx = i
+				break
+			}
+		}
+
+		if targetIdx < 0 || targetIdx >= len(exp.Status.Targets) {
+			log.Info("Target not found for service discovery", "service", svcRef.Name, "target", svcRef.Target)
+			discovered = append(discovered, ds)
+			continue
+		}
+
+		target := exp.Spec.Targets[targetIdx]
+
+		// For hub cluster, query using the reconciler's client directly
+		if target.Cluster.Type == "hub" {
+			svc := &corev1.Service{}
+			if err := r.Get(ctx, types.NamespacedName{
+				Name:      svcRef.Service,
+				Namespace: svcRef.Namespace,
+			}, svc); err != nil {
+				log.Error(err, "Failed to get service", "service", svcRef.Service, "namespace", svcRef.Namespace)
+				discovered = append(discovered, ds)
+				continue
+			}
+			ds.Endpoint = resolveServiceEndpoint(svc, svcRef.Port)
+			ds.Ready = ds.Endpoint != ""
+		} else {
+			// For remote clusters, we'd need a client built from the kubeconfig.
+			// For now, mark as pending — labctl does live discovery against the target.
+			log.Info("Service discovery for remote clusters deferred to labctl",
+				"service", svcRef.Name, "target", svcRef.Target)
+		}
+
+		discovered = append(discovered, ds)
+	}
+
+	exp.Status.TutorialStatus.Services = discovered
+	return nil
+}
+
+// resolveServiceEndpoint returns the best endpoint for a service (LoadBalancer IP preferred, then ClusterIP).
+func resolveServiceEndpoint(svc *corev1.Service, port int) string {
+	var host string
+
+	// Prefer LoadBalancer IP
+	if svc.Spec.Type == corev1.ServiceTypeLoadBalancer {
+		for _, ingress := range svc.Status.LoadBalancer.Ingress {
+			if ingress.IP != "" {
+				host = ingress.IP
+				break
+			}
+			if ingress.Hostname != "" {
+				host = ingress.Hostname
+				break
+			}
+		}
+	}
+
+	// Fall back to ClusterIP
+	if host == "" {
+		host = svc.Spec.ClusterIP
+	}
+
+	if host == "" || host == "None" {
+		return ""
+	}
+
+	// Determine port
+	if port == 0 && len(svc.Spec.Ports) > 0 {
+		port = int(svc.Spec.Ports[0].Port)
+	}
+
+	if port != 0 && port != 80 && port != 443 {
+		return fmt.Sprintf("http://%s:%d", host, port)
+	}
+	return fmt.Sprintf("http://%s", host)
 }
 
 // SetupWithManager sets up the controller with the Manager.

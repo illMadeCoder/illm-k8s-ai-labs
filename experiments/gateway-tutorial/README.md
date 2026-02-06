@@ -21,7 +21,7 @@ This tutorial teaches the evolution of Kubernetes traffic management:
 task hub:experiment -- gateway-tutorial
 
 # Or run interactively
-task hub:conduct -- gateway-tutorial
+task hub:tutorial -- gateway-tutorial
 ```
 
 ## Architecture

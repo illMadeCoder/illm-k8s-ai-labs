@@ -5,7 +5,9 @@ Learn log aggregation with Grafana Loki and LogQL.
 ## Quick Start
 
 ```bash
-task kind:conduct -- loki-tutorial
+task hub:up -- loki-tutorial
+# Or for interactive tutorial mode:
+# task hub:tutorial -- loki-tutorial
 ```
 
 ## Architecture

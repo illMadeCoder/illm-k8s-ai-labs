@@ -1,0 +1,20 @@
+apiVersion: experiments.illm.io/v1alpha1
+kind: Experiment
+metadata:
+  name: cicd-fundamentals
+  namespace: experiments
+spec:
+  description: "CI/CD fundamentals - GitHub Actions, supply chain security, GitOps"
+  ttlDays: 3
+
+  targets:
+    - name: app
+      cluster:
+        type: vcluster
+      components:
+        - app: hello-app
+
+  workflow:
+    template: cicd-validation
+    completion:
+      mode: workflow

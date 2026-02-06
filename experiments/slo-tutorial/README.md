@@ -47,7 +47,9 @@ This tutorial covers:
 
 ```bash
 # Deploy the tutorial
-task kind:conduct -- slo-tutorial
+task hub:up -- slo-tutorial
+# Or for interactive tutorial mode:
+# task hub:tutorial -- slo-tutorial
 
 # Wait for all pods to be ready
 kubectl get pods -n slo-tutorial -w

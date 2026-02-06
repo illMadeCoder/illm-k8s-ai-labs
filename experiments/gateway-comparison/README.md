@@ -19,7 +19,7 @@ This scenario deploys identical routing configurations on three gateway implemen
 task hub:experiment -- gateway-comparison
 
 # Or run interactively
-task hub:conduct -- gateway-comparison
+task hub:tutorial -- gateway-comparison
 ```
 
 ## Architecture

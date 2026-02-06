@@ -1,10 +1,10 @@
 apiVersion: experiments.illm.io/v1alpha1
 kind: Experiment
 metadata:
-  name: loki-tutorial
+  name: slo-tutorial
   namespace: experiments
 spec:
-  description: "Loki log aggregation tutorial with LogQL learning"
+  description: "SLO tutorial - Service Level Objectives and error budgets with Pyrra"
   ttlDays: 7
 
   targets:
@@ -12,20 +12,14 @@ spec:
       cluster:
         type: vcluster
       components:
-        - app: loki
-        - app: promtail
         - app: kube-prometheus-stack
           params:
-            prometheus.enabled: "false"
-            alertmanager.enabled: "false"
             grafana.enabled: "true"
-        - app: log-generator
-      observability:
-        enabled: true
-        transport: direct
+        - app: pyrra
+        - app: metrics-app
 
   workflow:
-    template: loki-validation
+    template: slo-validation
     completion:
       mode: manual
 
@@ -35,8 +29,14 @@ spec:
       - name: grafana
         target: app
         service: kube-prometheus-stack-grafana
-        namespace: loki-tutorial
-      - name: loki
+        namespace: slo-tutorial
+      - name: prometheus
         target: app
-        service: loki-gateway
-        namespace: loki-tutorial
+        service: kube-prometheus-stack-prometheus
+        namespace: slo-tutorial
+        port: 9090
+      - name: pyrra
+        target: app
+        service: pyrra
+        namespace: slo-tutorial
+        port: 9099

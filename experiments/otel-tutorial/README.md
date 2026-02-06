@@ -55,7 +55,9 @@ This tutorial covers:
 
 ```bash
 # Deploy the tutorial
-task kind:conduct -- otel-tutorial
+task hub:up -- otel-tutorial
+# Or for interactive tutorial mode:
+# task hub:tutorial -- otel-tutorial
 
 # Wait for all pods to be ready
 kubectl get pods -n otel-tutorial -w

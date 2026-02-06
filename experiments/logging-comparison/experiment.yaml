@@ -1,10 +1,10 @@
 apiVersion: experiments.illm.io/v1alpha1
 kind: Experiment
 metadata:
-  name: loki-tutorial
+  name: logging-comparison
   namespace: experiments
 spec:
-  description: "Loki log aggregation tutorial with LogQL learning"
+  description: "Logging stack comparison - Loki vs Elasticsearch side by side"
   ttlDays: 7
 
   targets:
@@ -14,18 +14,18 @@ spec:
       components:
         - app: loki
         - app: promtail
+        - app: elasticsearch
+        - app: fluent-bit
+        - app: kibana
         - app: kube-prometheus-stack
           params:
             prometheus.enabled: "false"
             alertmanager.enabled: "false"
             grafana.enabled: "true"
         - app: log-generator
-      observability:
-        enabled: true
-        transport: direct
 
   workflow:
-    template: loki-validation
+    template: logging-comparison-validation
     completion:
       mode: manual
 
@@ -35,8 +35,9 @@ spec:
       - name: grafana
         target: app
         service: kube-prometheus-stack-grafana
-        namespace: loki-tutorial
-      - name: loki
+        namespace: logging-comparison
+      - name: kibana
         target: app
-        service: loki-gateway
-        namespace: loki-tutorial
+        service: kibana
+        namespace: logging-comparison
+        port: 5601

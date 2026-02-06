@@ -79,14 +79,15 @@ docs/
 # Prerequisites: Docker, kubectl, task (go-task.dev), helm
 
 task hub:bootstrap                      # Create cluster + GitOps
-task hub:conduct -- prometheus-tutorial # Run an experiment
+task hub:up -- prometheus-tutorial      # Deploy an experiment
+task hub:tutorial -- prometheus-tutorial # Interactive tutorial
 task hub:down -- prometheus-tutorial
 task hub:destroy
 ```
 
 ## Experiments
 
-Run `task hub:conduct -- <name>` to deploy any scenario:
+Run `task hub:up -- <name>` to deploy any scenario (or `task hub:tutorial -- <name>` for interactive mode):
 
 | Scenario | What You Learn |
 |----------|----------------|

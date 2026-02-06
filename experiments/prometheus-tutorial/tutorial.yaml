@@ -1,5 +1,5 @@
 # Tutorial configuration
-# When this file exists, `task kind:conduct` runs in interactive mode
+# Tutorial content rendered by `labctl tutorial prometheus-tutorial`
 
 title: "CLOUDBREAK STATION - Systems Monitoring Division"
 description: |

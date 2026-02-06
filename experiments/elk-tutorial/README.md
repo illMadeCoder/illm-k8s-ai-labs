@@ -5,7 +5,9 @@ Learn log aggregation with Elasticsearch, Kibana, and KQL/Lucene.
 ## Quick Start
 
 ```bash
-task kind:conduct -- elk-tutorial
+task hub:up -- elk-tutorial
+# Or for interactive tutorial mode:
+# task hub:tutorial -- elk-tutorial
 ```
 
 ## Architecture

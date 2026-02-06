@@ -1,0 +1,37 @@
+apiVersion: experiments.illm.io/v1alpha1
+kind: Experiment
+metadata:
+  name: elk-tutorial
+  namespace: experiments
+spec:
+  description: "ELK stack tutorial - Elasticsearch, Kibana, and KQL/Lucene queries"
+  ttlDays: 7
+
+  targets:
+    - name: app
+      cluster:
+        type: vcluster
+      components:
+        - app: elasticsearch
+        - app: kibana
+        - app: fluent-bit
+        - app: log-generator
+
+  workflow:
+    template: elk-validation
+    completion:
+      mode: manual
+
+  tutorial:
+    exposeKubeconfig: true
+    services:
+      - name: elasticsearch
+        target: app
+        service: elasticsearch
+        namespace: elk-tutorial
+        port: 9200
+      - name: kibana
+        target: app
+        service: kibana
+        namespace: elk-tutorial
+        port: 5601

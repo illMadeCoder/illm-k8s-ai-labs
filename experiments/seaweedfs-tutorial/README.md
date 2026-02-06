@@ -46,7 +46,9 @@ With SeaweedFS: instant retrieval.
 
 ```bash
 # Run the experiment
-task kind:conduct -- seaweedfs-tutorial
+task hub:up -- seaweedfs-tutorial
+# Or for interactive tutorial mode:
+# task hub:tutorial -- seaweedfs-tutorial
 ```
 
 ## Architecture

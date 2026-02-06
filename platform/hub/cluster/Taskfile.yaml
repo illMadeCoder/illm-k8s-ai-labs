@@ -8,7 +8,8 @@ version: '3'
 #   task hub:status                 # Show hub status
 #   task hub:password               # Get ArgoCD password
 #   task hub:list                   # List experiments
-#   task hub:conduct -- <name>      # Run experiment (interactive)
+#   task hub:up -- <name>            # Deploy experiment
+#   task hub:tutorial -- <name>      # Run tutorial (interactive TUI)
 #   task hub:up -- <name>           # Deploy experiment
 #   task hub:down -- <name>         # Destroy experiment clusters
 
@@ -424,8 +425,30 @@ tasks:
         echo "  kubectl get experiment $EXP_NAME -w"
         echo "  kubectl get experiments -A"
         echo ""
+        if [ -f "experiments/$EXP_NAME/tutorial.yaml" ]; then
+          echo "Run the tutorial:"
+          echo "  task hub:tutorial -- $EXP_NAME"
+          echo ""
+        fi
         echo "Clean up when done:"
         echo "  task hub:down -- $EXP_NAME"
+
+  tutorial:
+    desc: "Run tutorial: task hub:tutorial -- <name>"
+    cmds:
+      - |
+        if [ -z "{{.CLI_ARGS}}" ]; then
+          echo "Usage: task hub:tutorial -- <experiment-name>"
+          echo ""
+          echo "Available tutorials:"
+          for dir in experiments/*/; do
+            name=$(basename "$dir")
+            [ "$name" = "_template" ] && continue
+            [ -f "$dir/tutorial.yaml" ] && echo "  $name"
+          done
+          exit 1
+        fi
+        labctl tutorial {{.CLI_ARGS}}
 
   status:experiment:
     desc: "Show experiment status: task hub:status:experiment -- <name>"
@@ -461,8 +484,12 @@ tasks:
           kubectl --context kind-{{.HUB_CLUSTER}} delete experiment "$EXP_NAME" 2>/dev/null || true
         fi
 
+        # Clean up local kubeconfig files
+        rm -f "$HOME/.illmlab/kubeconfig-$EXP_NAME-"* 2>/dev/null
+
         echo "Experiment CR deleted. The operator will clean up:"
         echo "  - Delete ArgoCD Applications"
         echo "  - Deprovision clusters"
+        echo "  - Remove kubeconfig secrets"
         echo "Done."
 

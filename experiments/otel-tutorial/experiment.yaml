@@ -1,10 +1,10 @@
 apiVersion: experiments.illm.io/v1alpha1
 kind: Experiment
 metadata:
-  name: loki-tutorial
+  name: otel-tutorial
   namespace: experiments
 spec:
-  description: "Loki log aggregation tutorial with LogQL learning"
+  description: "OpenTelemetry tutorial - distributed tracing with OTel Collector and Tempo"
   ttlDays: 7
 
   targets:
@@ -12,20 +12,15 @@ spec:
       cluster:
         type: vcluster
       components:
-        - app: loki
-        - app: promtail
+        - app: opentelemetry-collector
+        - app: tempo
         - app: kube-prometheus-stack
           params:
-            prometheus.enabled: "false"
-            alertmanager.enabled: "false"
             grafana.enabled: "true"
-        - app: log-generator
-      observability:
-        enabled: true
-        transport: direct
+        - app: otel-demo-app
 
   workflow:
-    template: loki-validation
+    template: otel-validation
     completion:
       mode: manual
 
@@ -35,8 +30,4 @@ spec:
       - name: grafana
         target: app
         service: kube-prometheus-stack-grafana
-        namespace: loki-tutorial
-      - name: loki
-        target: app
-        service: loki-gateway
-        namespace: loki-tutorial
+        namespace: otel-tutorial

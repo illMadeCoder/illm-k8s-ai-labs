@@ -47,7 +47,9 @@ Observability can become one of the largest infrastructure costs. This tutorial 
 
 ```bash
 # Deploy the tutorial
-task kind:conduct -- observability-cost-tutorial
+task hub:up -- observability-cost-tutorial
+# Or for interactive tutorial mode:
+# task hub:tutorial -- observability-cost-tutorial
 
 # Wait for pods
 kubectl get pods -n observability-cost -w
