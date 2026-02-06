@@ -63,7 +63,7 @@ spec:
     # Load Testing - K6
     - repoURL: https://github.com/illMadeCoder/illm-k8s-ai-labs.git
       targetRevision: HEAD
-      path: components/workflows/k6
+      path: components/testing/k6
       directory:
         recurse: false
         include: 'k6-operator.yaml'
