@@ -1,0 +1,35 @@
+apiVersion: experiments.illm.io/v1alpha1
+kind: Component
+metadata:
+  name: kube-prometheus-stack
+spec:
+  type: app
+  description: "Prometheus, Grafana, and Alertmanager via kube-prometheus-stack Helm chart"
+  sources:
+    - repoURL: https://prometheus-community.github.io/helm-charts
+      targetRevision: "79.9.0"
+      path: kube-prometheus-stack
+      helm:
+        releaseName: kube-prometheus-stack
+        parameters:
+          - name: grafana.enabled
+            value: "true"
+          - name: prometheus.prometheusSpec.retention
+            value: "24h"
+  parameters:
+    - name: grafana.enabled
+      type: bool
+      default: "true"
+      description: "Enable Grafana dashboard"
+    - name: prometheus.prometheusSpec.retention
+      type: string
+      default: "24h"
+      description: "Prometheus data retention period"
+    - name: alertmanager.enabled
+      type: bool
+      default: "true"
+      description: "Enable Alertmanager"
+  observability:
+    serviceMonitor: true
+    podLabels:
+      app.kubernetes.io/name: kube-prometheus-stack

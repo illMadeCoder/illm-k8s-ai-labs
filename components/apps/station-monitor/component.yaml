@@ -1,0 +1,16 @@
+apiVersion: experiments.illm.io/v1alpha1
+kind: Component
+metadata:
+  name: station-monitor
+spec:
+  type: app
+  description: "Station monitoring app for Prometheus tutorial (Sector 12 mystery)"
+  sources:
+    - repoURL: https://github.com/illMadeCoder/illm-k8s-ai-labs.git
+      targetRevision: HEAD
+      path: experiments/components/apps/station-monitor/k8s
+  observability:
+    serviceMonitor: true
+    podLabels:
+      app: station-monitor
+    metricsPort: 8080

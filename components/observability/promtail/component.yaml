@@ -1,0 +1,21 @@
+apiVersion: experiments.illm.io/v1alpha1
+kind: Component
+metadata:
+  name: promtail
+spec:
+  type: app
+  description: "Promtail log collector for shipping logs to Loki"
+  sources:
+    - repoURL: https://grafana.github.io/helm-charts
+      targetRevision: "6.16.6"
+      path: promtail
+      helm:
+        releaseName: promtail
+  parameters:
+    - name: config.clients[0].url
+      type: string
+      default: "http://loki:3100/loki/api/v1/push"
+      description: "Loki push endpoint"
+  observability:
+    podLabels:
+      app.kubernetes.io/name: promtail

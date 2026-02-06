@@ -1,0 +1,26 @@
+apiVersion: experiments.illm.io/v1alpha1
+kind: Component
+metadata:
+  name: loki
+spec:
+  type: app
+  description: "Loki log aggregation system via Grafana Helm chart"
+  sources:
+    - repoURL: https://grafana.github.io/helm-charts
+      targetRevision: "6.28.0"
+      path: loki
+      helm:
+        releaseName: loki
+  parameters:
+    - name: loki.auth_enabled
+      type: bool
+      default: "false"
+      description: "Enable multi-tenancy authentication"
+    - name: singleBinary.replicas
+      type: int
+      default: "1"
+      description: "Number of Loki single-binary replicas"
+  observability:
+    serviceMonitor: true
+    podLabels:
+      app.kubernetes.io/name: loki
