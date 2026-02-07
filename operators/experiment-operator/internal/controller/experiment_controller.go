@@ -40,6 +40,8 @@ import (
 	experimentsv1alpha1 "github.com/illmadecoder/experiment-operator/api/v1alpha1"
 	"github.com/illmadecoder/experiment-operator/internal/argocd"
 	"github.com/illmadecoder/experiment-operator/internal/crossplane"
+	"github.com/illmadecoder/experiment-operator/internal/metrics"
+	"github.com/illmadecoder/experiment-operator/internal/storage"
 	"github.com/illmadecoder/experiment-operator/internal/workflow"
 )
 
@@ -54,6 +56,8 @@ type ExperimentReconciler struct {
 	ClusterManager *crossplane.ClusterManager
 	ArgoCD         *argocd.Client
 	Workflow       *workflow.Manager
+	S3Client       *storage.Client
+	MimirURL       string
 }
 
 // +kubebuilder:rbac:groups=experiments.illm.io,resources=experiments,verbs=get;list;watch;create;update;patch;delete
@@ -148,6 +152,20 @@ func (r *ExperimentReconciler) reconcileComplete(ctx context.Context, exp *exper
 		return ctrl.Result{}, nil
 	}
 
+	// Collect and store experiment results before cleanup
+	if exp.Status.ResultsURL == "" {
+		if err := r.collectAndStoreResults(ctx, exp); err != nil {
+			log.Error(err, "Failed to collect experiment results — will retry")
+			if updateErr := r.Status().Update(ctx, exp); updateErr != nil {
+				return ctrl.Result{}, updateErr
+			}
+			return ctrl.Result{RequeueAfter: 15 * time.Second}, nil
+		}
+		if err := r.Status().Update(ctx, exp); err != nil {
+			return ctrl.Result{}, err
+		}
+	}
+
 	log.Info("Cleaning up resources for completed experiment", "phase", exp.Status.Phase)
 
 	cleanupErr := r.cleanupResources(ctx, exp)
@@ -185,6 +203,48 @@ func (r *ExperimentReconciler) reconcileComplete(ctx context.Context, exp *exper
 
 	log.Info("Experiment resources cleaned, CR preserved as history", "completedAt", now.Time)
 	return ctrl.Result{}, nil
+}
+
+// collectAndStoreResults gathers experiment metrics and uploads them to S3.
+func (r *ExperimentReconciler) collectAndStoreResults(ctx context.Context, exp *experimentsv1alpha1.Experiment) error {
+	log := logf.FromContext(ctx)
+
+	if r.S3Client == nil {
+		log.Info("S3 client not configured, skipping results collection")
+		exp.Status.ResultsURL = "disabled"
+		return nil
+	}
+
+	prefix := exp.Name
+
+	// Build summary
+	summary := metrics.CollectSummary(exp)
+
+	// Collect Mimir snapshot (best-effort)
+	mimirData, err := metrics.CollectMimirSnapshot(ctx, r.MimirURL, exp)
+	if err != nil {
+		log.Error(err, "Mimir snapshot failed — continuing without metrics")
+	}
+	summary.MimirMetrics = mimirData
+
+	// Estimate cost
+	summary.CostEstimate = metrics.EstimateCost(exp)
+
+	// Upload summary
+	if err := r.S3Client.PutJSON(ctx, prefix+"/summary.json", summary); err != nil {
+		return fmt.Errorf("upload summary.json: %w", err)
+	}
+
+	// Upload Mimir snapshot separately for easier tooling consumption
+	if mimirData != nil {
+		if err := r.S3Client.PutJSON(ctx, prefix+"/mimir-snapshot.json", mimirData); err != nil {
+			log.Error(err, "Failed to upload mimir-snapshot.json — non-fatal")
+		}
+	}
+
+	exp.Status.ResultsURL = fmt.Sprintf("s3://experiment-results/%s/", prefix)
+	log.Info("Experiment results stored", "url", exp.Status.ResultsURL)
+	return nil
 }
 
 // cleanupResources deletes expensive sub-resources (ArgoCD apps, cluster secrets,

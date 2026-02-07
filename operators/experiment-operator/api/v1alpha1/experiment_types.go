@@ -218,6 +218,10 @@ type ExperimentStatus struct {
 	// +optional
 	ResourcesCleaned bool `json:"resourcesCleaned,omitempty"`
 
+	// ResultsURL is the S3 path where experiment results are stored
+	// +optional
+	ResultsURL string `json:"resultsURL,omitempty"`
+
 	// Conditions
 	// +listType=map
 	// +listMapKey=type
@@ -307,6 +311,7 @@ type WorkflowStatus struct {
 // +kubebuilder:printcolumn:name="Targets",type=string,JSONPath=`.spec.targets[*].name`
 // +kubebuilder:printcolumn:name="Workflow",type=string,JSONPath=`.status.workflowStatus.phase`
 // +kubebuilder:printcolumn:name="Cleaned",type=boolean,JSONPath=`.status.resourcesCleaned`
+// +kubebuilder:printcolumn:name="Results",type=string,JSONPath=`.status.resultsURL`,priority=1
 // +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`
 
 // Experiment is the Schema for the experiments API

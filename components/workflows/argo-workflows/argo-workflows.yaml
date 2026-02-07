@@ -58,7 +58,16 @@ spec:
         useDefaultArtifactRepo: true
         artifactRepository:
           archiveLogs: true
-          emptyDir: {}
+          s3:
+            bucket: experiment-results
+            endpoint: seaweedfs-s3.seaweedfs.svc.cluster.local:8333
+            insecure: true
+            accessKeySecret:
+              name: seaweedfs-s3-creds
+              key: accessKey
+            secretKeySecret:
+              name: seaweedfs-s3-creds
+              key: secretKey
         mainContainer:
           resources:
             requests:

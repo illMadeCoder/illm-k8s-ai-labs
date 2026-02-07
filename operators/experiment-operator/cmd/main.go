@@ -39,6 +39,7 @@ import (
 	"github.com/illmadecoder/experiment-operator/internal/argocd"
 	"github.com/illmadecoder/experiment-operator/internal/controller"
 	"github.com/illmadecoder/experiment-operator/internal/crossplane"
+	"github.com/illmadecoder/experiment-operator/internal/storage"
 	"github.com/illmadecoder/experiment-operator/internal/workflow"
 	// +kubebuilder:scaffold:imports
 )
@@ -181,12 +182,25 @@ func main() {
 		os.Exit(1)
 	}
 
+	// Initialize S3 client for experiment results storage (optional)
+	var s3Client *storage.Client
+	s3Endpoint := getEnvOrDefault("S3_ENDPOINT", "seaweedfs-s3.seaweedfs.svc.cluster.local:8333")
+	s3Bucket := getEnvOrDefault("S3_BUCKET", "experiment-results")
+	s3Client, err = storage.NewClient(s3Endpoint, "any", "any", s3Bucket)
+	if err != nil {
+		setupLog.Error(err, "Failed to create S3 client — results collection disabled")
+	}
+
+	mimirURL := getEnvOrDefault("MIMIR_URL", "http://mimir-gateway.observability.svc:80")
+
 	if err := (&controller.ExperimentReconciler{
 		Client:         mgr.GetClient(),
 		Scheme:         mgr.GetScheme(),
 		ClusterManager: crossplane.NewClusterManager(mgr.GetClient()),
 		ArgoCD:         argocd.NewClient(mgr.GetClient()),
 		Workflow:       workflow.NewManager(mgr.GetClient()),
+		S3Client:       s3Client,
+		MimirURL:       mimirURL,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Experiment")
 		os.Exit(1)
@@ -207,4 +221,11 @@ func main() {
 		setupLog.Error(err, "problem running manager")
 		os.Exit(1)
 	}
+}
+
+func getEnvOrDefault(key, defaultValue string) string {
+	if v := os.Getenv(key); v != "" {
+		return v
+	}
+	return defaultValue
 }

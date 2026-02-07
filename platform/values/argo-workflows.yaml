@@ -50,10 +50,17 @@ workflow:
   rbac:
     create: true
 
-# Artifact storage disabled for Phase 1 (simple workflows don't need it)
-# MinIO will be added in Phase 4.3 (Observability) for:
-#   - Argo Workflows artifacts
-#   - Loki log chunks
-#   - Thanos metrics
-#   - Tempo traces
-useDefaultArtifactRepo: false
+# Artifact storage — SeaweedFS S3 for experiment results and workflow logs
+useDefaultArtifactRepo: true
+artifactRepository:
+  archiveLogs: true
+  s3:
+    bucket: experiment-results
+    endpoint: seaweedfs-s3.seaweedfs.svc.cluster.local:8333
+    insecure: true
+    accessKeySecret:
+      name: seaweedfs-s3-creds
+      key: accessKey
+    secretKeySecret:
+      name: seaweedfs-s3-creds
+      key: secretKey

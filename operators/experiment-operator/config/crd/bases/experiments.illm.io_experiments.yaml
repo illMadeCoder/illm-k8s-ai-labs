@@ -27,6 +27,10 @@ spec:
     - jsonPath: .status.resourcesCleaned
       name: Cleaned
       type: boolean
+    - jsonPath: .status.resultsURL
+      name: Results
+      priority: 1
+      type: string
     - jsonPath: .metadata.creationTimestamp
       name: Age
       type: date
@@ -310,6 +314,10 @@ spec:
                 description: ResourcesCleaned indicates whether expensive resources
                   (clusters, apps) have been cleaned up
                 type: boolean
+              resultsURL:
+                description: ResultsURL is the S3 path where experiment results are
+                  stored
+                type: string
               targets:
                 description: Target statuses
                 items:
