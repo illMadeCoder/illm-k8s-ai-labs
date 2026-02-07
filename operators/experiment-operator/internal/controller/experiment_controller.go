@@ -122,7 +122,10 @@ func (r *ExperimentReconciler) handleDeletion(ctx context.Context, exp *experime
 	if controllerutil.ContainsFinalizer(exp, experimentFinalizer) {
 		log.Info("Cleaning up experiment resources")
 
-		r.cleanupResources(ctx, exp)
+		if err := r.cleanupResources(ctx, exp); err != nil {
+			log.Error(err, "Cleanup failed during deletion, retrying")
+			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+		}
 
 		// Remove finalizer
 		controllerutil.RemoveFinalizer(exp, experimentFinalizer)
@@ -147,12 +150,22 @@ func (r *ExperimentReconciler) reconcileComplete(ctx context.Context, exp *exper
 
 	log.Info("Cleaning up resources for completed experiment", "phase", exp.Status.Phase)
 
-	r.cleanupResources(ctx, exp)
+	cleanupErr := r.cleanupResources(ctx, exp)
 
-	// Record completion timestamp and cleanup status
+	// Record completion timestamp
 	now := metav1.Now()
 	if exp.Status.CompletedAt == nil {
 		exp.Status.CompletedAt = &now
+	}
+
+	// Only mark cleaned if all expensive resources were successfully deleted
+	if cleanupErr != nil {
+		log.Error(cleanupErr, "Cleanup incomplete — cloud resources may still be running")
+		// Requeue to retry cleanup
+		if err := r.Status().Update(ctx, exp); err != nil {
+			return ctrl.Result{}, err
+		}
+		return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
 	}
 	exp.Status.ResourcesCleaned = true
 
@@ -177,8 +190,9 @@ func (r *ExperimentReconciler) reconcileComplete(ctx context.Context, exp *exper
 // cleanupResources deletes expensive sub-resources (ArgoCD apps, cluster secrets,
 // GKE clusters, kubeconfig secrets, Argo Workflows). Shared by handleDeletion and
 // reconcileComplete.
-func (r *ExperimentReconciler) cleanupResources(ctx context.Context, exp *experimentsv1alpha1.Experiment) {
+func (r *ExperimentReconciler) cleanupResources(ctx context.Context, exp *experimentsv1alpha1.Experiment) error {
 	log := logf.FromContext(ctx)
+	var clusterDeleteErr error
 
 	// Delete ArgoCD Applications
 	for _, target := range exp.Spec.Targets {
@@ -199,7 +213,7 @@ func (r *ExperimentReconciler) cleanupResources(ctx context.Context, exp *experi
 		log.Error(err, "Failed to unregister clusters from ArgoCD")
 	}
 
-	// Delete clusters
+	// Delete clusters — this is the expensive resource, errors are fatal
 	for i, target := range exp.Spec.Targets {
 		if i >= len(exp.Status.Targets) || exp.Status.Targets[i].ClusterName == "" {
 			continue
@@ -210,6 +224,7 @@ func (r *ExperimentReconciler) cleanupResources(ctx context.Context, exp *experi
 
 		if err := r.ClusterManager.DeleteCluster(ctx, clusterName, target.Cluster.Type); err != nil {
 			log.Error(err, "Failed to delete cluster", "cluster", clusterName)
+			clusterDeleteErr = err
 		}
 	}
 
@@ -234,6 +249,8 @@ func (r *ExperimentReconciler) cleanupResources(ctx context.Context, exp *experi
 			log.Error(err, "Failed to delete workflow", "workflow", exp.Status.WorkflowStatus.Name)
 		}
 	}
+
+	return clusterDeleteErr
 }
 
 // reconcilePending handles the Pending phase - creates cluster resources

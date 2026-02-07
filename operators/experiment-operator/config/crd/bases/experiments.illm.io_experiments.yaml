@@ -24,6 +24,9 @@ spec:
     - jsonPath: .status.workflowStatus.phase
       name: Workflow
       type: string
+    - jsonPath: .status.resourcesCleaned
+      name: Cleaned
+      type: boolean
     - jsonPath: .metadata.creationTimestamp
       name: Age
       type: date
