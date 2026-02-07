@@ -61,7 +61,9 @@ type ExperimentReconciler struct {
 // +kubebuilder:rbac:groups=experiments.illm.io,resources=experiments,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=experiments.illm.io,resources=experiments/status,verbs=get;update;patch
 // +kubebuilder:rbac:groups=experiments.illm.io,resources=experiments/finalizers,verbs=update
+// +kubebuilder:rbac:groups="",resources=namespaces,verbs=get;list;watch;create;update;patch
 // +kubebuilder:rbac:groups="",resources=secrets,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups="",resources=services,verbs=get;list;watch
 // +kubebuilder:rbac:groups=argoproj.io,resources=applications,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=argoproj.io,resources=workflows,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=experiments.illm.io,resources=components,verbs=get;list;watch
