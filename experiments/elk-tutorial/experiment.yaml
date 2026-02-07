@@ -1,7 +1,7 @@
 apiVersion: experiments.illm.io/v1alpha1
 kind: Experiment
 metadata:
-  name: elk-tutorial
+  generateName: elk-tutorial-
   namespace: experiments
 spec:
   description: "ELK stack tutorial - Elasticsearch, Kibana, Fluent Bit log analytics"

@@ -1,7 +1,7 @@
 apiVersion: experiments.illm.io/v1alpha1
 kind: Experiment
 metadata:
-  name: hello-app
+  generateName: hello-app-
   namespace: experiments
 spec:
   description: "Simple hello world app with k6 load generation"

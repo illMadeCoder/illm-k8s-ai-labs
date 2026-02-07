@@ -1,7 +1,7 @@
 apiVersion: experiments.illm.io/v1alpha1
 kind: Experiment
 metadata:
-  name: observability-cost-tutorial
+  generateName: observability-cost-tutorial-
   namespace: experiments
 spec:
   description: "Observability cost management - cardinality explosion, log volume, retention strategies"

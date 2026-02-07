@@ -1,7 +1,7 @@
 apiVersion: experiments.illm.io/v1alpha1
 kind: Experiment
 metadata:
-  name: tsdb-comparison
+  generateName: tsdb-comparison-
   namespace: experiments
 spec:
   description: "TSDB comparison - Prometheus vs VictoriaMetrics vs Mimir resource efficiency and query performance"

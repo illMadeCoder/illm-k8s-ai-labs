@@ -1,7 +1,7 @@
 apiVersion: experiments.illm.io/v1alpha1
 kind: Experiment
 metadata:
-  name: seaweedfs-tutorial
+  generateName: seaweedfs-tutorial-
   namespace: experiments
 spec:
   description: "SeaweedFS object storage tutorial - S3 API, volume packing, LOSF problem"

@@ -1,7 +1,7 @@
 apiVersion: experiments.illm.io/v1alpha1
 kind: Experiment
 metadata:
-  name: logging-comparison
+  generateName: logging-comparison-
   namespace: experiments
 spec:
   description: "Loki vs Elasticsearch logging comparison - architecture, resource usage, query performance"

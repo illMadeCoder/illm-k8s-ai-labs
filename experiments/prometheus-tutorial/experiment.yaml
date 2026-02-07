@@ -1,7 +1,7 @@
 apiVersion: experiments.illm.io/v1alpha1
 kind: Experiment
 metadata:
-  name: prometheus-tutorial
+  generateName: prometheus-tutorial-
   namespace: experiments
 spec:
   description: "Prometheus metrics collection tutorial with Grafana dashboards"

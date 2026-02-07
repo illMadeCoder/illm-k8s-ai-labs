@@ -1,7 +1,7 @@
 apiVersion: experiments.illm.io/v1alpha1
 kind: Experiment
 metadata:
-  name: tracing-comparison
+  generateName: tracing-comparison-
   namespace: experiments
 spec:
   description: "Tempo vs Jaeger tracing comparison - architecture, query languages, features"

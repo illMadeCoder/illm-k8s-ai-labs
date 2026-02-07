@@ -1,7 +1,7 @@
 apiVersion: experiments.illm.io/v1alpha1
 kind: Experiment
 metadata:
-  name: slo-tutorial
+  generateName: slo-tutorial-
   namespace: experiments
 spec:
   description: "SLO tutorial - Pyrra SLO management, error budgets, multi-burn-rate alerting"

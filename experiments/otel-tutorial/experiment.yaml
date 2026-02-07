@@ -1,7 +1,7 @@
 apiVersion: experiments.illm.io/v1alpha1
 kind: Experiment
 metadata:
-  name: otel-tutorial
+  generateName: otel-tutorial-
   namespace: experiments
 spec:
   description: "OpenTelemetry distributed tracing tutorial - OTel Collector, Tempo, TraceQL"

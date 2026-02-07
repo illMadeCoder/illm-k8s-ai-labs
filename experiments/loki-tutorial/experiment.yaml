@@ -1,7 +1,7 @@
 apiVersion: experiments.illm.io/v1alpha1
 kind: Experiment
 metadata:
-  name: loki-tutorial
+  generateName: loki-tutorial-
   namespace: experiments
 spec:
   description: "Loki log aggregation tutorial with LogQL learning"
