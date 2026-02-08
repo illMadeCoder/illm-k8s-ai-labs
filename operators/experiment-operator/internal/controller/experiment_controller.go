@@ -152,6 +152,13 @@ func (r *ExperimentReconciler) reconcileComplete(ctx context.Context, exp *exper
 		return ctrl.Result{}, nil
 	}
 
+	// Record completion timestamp before results collection so that
+	// summary.json gets a real CompletedAt, durationSeconds, and costEstimate.
+	now := metav1.Now()
+	if exp.Status.CompletedAt == nil {
+		exp.Status.CompletedAt = &now
+	}
+
 	// Collect and store experiment results before cleanup
 	if exp.Status.ResultsURL == "" {
 		if err := r.collectAndStoreResults(ctx, exp); err != nil {
@@ -169,12 +176,6 @@ func (r *ExperimentReconciler) reconcileComplete(ctx context.Context, exp *exper
 	log.Info("Cleaning up resources for completed experiment", "phase", exp.Status.Phase)
 
 	cleanupErr := r.cleanupResources(ctx, exp)
-
-	// Record completion timestamp
-	now := metav1.Now()
-	if exp.Status.CompletedAt == nil {
-		exp.Status.CompletedAt = &now
-	}
 
 	// Only mark cleaned if all expensive resources were successfully deleted
 	if cleanupErr != nil {
@@ -201,7 +202,7 @@ func (r *ExperimentReconciler) reconcileComplete(ctx context.Context, exp *exper
 		}
 	}
 
-	log.Info("Experiment resources cleaned, CR preserved as history", "completedAt", now.Time)
+	log.Info("Experiment resources cleaned, CR preserved as history", "completedAt", exp.Status.CompletedAt.Time)
 	return ctrl.Result{}, nil
 }
 

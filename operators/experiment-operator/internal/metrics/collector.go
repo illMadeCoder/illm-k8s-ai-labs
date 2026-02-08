@@ -165,7 +165,7 @@ func CollectMimirSnapshot(ctx context.Context, mimirURL string, exp *experiments
 func queryMimirRange(ctx context.Context, mimirURL, query string, start, end time.Time) (any, error) {
 	step := selectStep(end.Sub(start))
 
-	u, err := url.Parse(mimirURL + "/api/v1/query_range")
+	u, err := url.Parse(mimirURL + "/prometheus/api/v1/query_range")
 	if err != nil {
 		return nil, fmt.Errorf("parse mimir URL: %w", err)
 	}

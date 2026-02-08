@@ -10,7 +10,7 @@ spec:
   targets:
     - name: app
       cluster:
-        type: vcluster
+        type: hub
       components:
         - app: loki
         - app: promtail
