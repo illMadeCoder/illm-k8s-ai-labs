@@ -65,6 +65,7 @@ type ExperimentReconciler struct {
 	MetricsURL     string
 	AnalyzerImage  string
 	S3Endpoint     string
+	GitHubRepo     string
 }
 
 // +kubebuilder:rbac:groups=experiments.illm.io,resources=experiments,verbs=get;list;watch;create;update;patch;delete
@@ -266,8 +267,8 @@ func (r *ExperimentReconciler) collectAndStoreResults(ctx context.Context, exp *
 	}
 
 	// Launch AI analysis Job (best-effort, non-fatal).
-	// Only analyze Complete experiments. Requires analyzer image and GitClient for repo path.
-	if r.AnalyzerImage != "" && r.GitClient != nil && exp.Status.Phase == experimentsv1alpha1.PhaseComplete {
+	// Only analyze Complete experiments. Requires analyzer image to be configured.
+	if r.AnalyzerImage != "" && exp.Status.Phase == experimentsv1alpha1.PhaseComplete {
 		if err := r.createAnalysisJob(ctx, exp); err != nil {
 			log.Error(err, "Failed to create analysis Job — non-fatal")
 		}
@@ -350,13 +351,14 @@ func (r *ExperimentReconciler) createAnalysisJob(ctx context.Context, exp *exper
 											LocalObjectReference: corev1.LocalObjectReference{
 												Name: "github-api-token",
 											},
-											Key: "token",
+											Key:      "token",
+											Optional: boolPtr(true),
 										},
 									},
 								},
 								{
 									Name:  "GITHUB_REPO",
-									Value: r.GitClient.RepoPath(),
+									Value: r.GitHubRepo,
 								},
 							},
 							Resources: corev1.ResourceRequirements{
@@ -1144,6 +1146,10 @@ func bootstrapClusterRBAC(ctx context.Context, kubeconfig []byte, gcpServiceAcco
 // int32Ptr returns a pointer to an int32 value.
 func int32Ptr(i int32) *int32 {
 	return &i
+}
+
+func boolPtr(b bool) *bool {
+	return &b
 }
 
 // SetupWithManager sets up the controller with the Manager.

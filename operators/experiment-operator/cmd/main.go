@@ -225,6 +225,7 @@ func main() {
 		MetricsURL:     metricsURL,
 		AnalyzerImage:  analyzerImage,
 		S3Endpoint:     s3Endpoint,
+		GitHubRepo:     getEnvOrDefault("GITHUB_REPO", "illMadeCoder/k8s-ai-cloud-testbed"),
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Experiment")
 		os.Exit(1)
