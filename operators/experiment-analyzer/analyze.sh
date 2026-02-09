@@ -65,20 +65,23 @@ FULL_PROMPT="${PROMPT}
 $(cat "${SUMMARY_FILE}")"
 
 echo "==> Running Claude Code analysis..."
-if ! claude -p "${FULL_PROMPT}" --output-format json > "${ANALYSIS_FILE}" 2>&1; then
+STDERR_FILE="${WORK_DIR}/claude_stderr.log"
+if ! claude -p "${FULL_PROMPT}" --output-format json > "${ANALYSIS_FILE}" 2>"${STDERR_FILE}"; then
   echo "ERROR: Claude Code analysis failed"
-  echo "==> Analysis output:"
-  cat "${ANALYSIS_FILE}" || true
+  echo "==> stderr:" && cat "${STDERR_FILE}" || true
+  echo "==> stdout:" && cat "${ANALYSIS_FILE}" || true
   exit 1
 fi
 
 echo "==> Analysis produced ($(wc -c < "${ANALYSIS_FILE}") bytes)"
 
-# The claude --output-format json wraps the result; extract the actual content.
-# The output is a JSON array with a single object containing a "text" field with the analysis.
-# Try to extract the inner JSON from the claude output format.
-if jq -e '.[0].text' "${ANALYSIS_FILE}" > /dev/null 2>&1; then
-  # Claude --output-format json wraps in [{type:"text", text:"..."}]
+# Claude --output-format json outputs newline-delimited JSON (JSONL).
+# The final object has type:"result" with a .result string containing the actual text.
+# Extract the result text from the JSONL stream.
+if RESULT_TEXT=$(jq -rs '[.[] | select(.type == "result")] | last | .result' "${ANALYSIS_FILE}" 2>/dev/null) && [ -n "${RESULT_TEXT}" ] && [ "${RESULT_TEXT}" != "null" ]; then
+  echo "${RESULT_TEXT}" > "${ANALYSIS_FILE}"
+elif jq -e '.[0].text' "${ANALYSIS_FILE}" > /dev/null 2>&1; then
+  # Fallback: array format [{type:"text", text:"..."}]
   INNER_TEXT=$(jq -r '.[0].text' "${ANALYSIS_FILE}")
   echo "${INNER_TEXT}" > "${ANALYSIS_FILE}"
 fi
