@@ -218,8 +218,7 @@ secrets from OpenBao to K8s Secrets via `ClusterSecretStore` named `openbao`.
 | OpenBao Path | K8s Secret | Namespace | Purpose | ExternalSecret Manifest |
 |-------------|------------|-----------|---------|------------------------|
 | `secret/experiment-operator/claude-auth` | `claude-auth` | `experiment-operator-system` | Claude Code OAuth token for AI analysis | `platform/manifests/external-secrets-config/claude-auth-secret.yaml` |
-
-**Note:** `github-api-token` (for site auto-publish) is not yet stored in OpenBao — currently missing. When created, the operator's GitHub client and analyzer Job will use it for committing results to the benchmark site.
+| `secret/experiment-operator/github-api-token` | `github-api-token` | `experiment-operator-system` | GitHub PAT for site auto-publish + analyzer commits | `platform/manifests/external-secrets-config/github-api-token-secret.yaml` |
 
 ### Managing Secrets
 
