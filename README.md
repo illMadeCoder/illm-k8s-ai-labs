@@ -21,9 +21,6 @@ Terminal (Claude Code)
 │    4. Metrics     → collects Prometheus queries   │
 │    5. Storage     → writes results to SeaweedFS  │
 └──────────────────────────────────────────────────┘
-    │
-    ▼
-Benchmark Results Site (GitHub Pages, Astro + Vega-Lite)
 ```
 
 ```bash
@@ -41,44 +38,43 @@ kubectl get experiments -n experiments -w
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│                   Hub Cluster — Talos Linux (on-prem, N100)         │
-│                                                                     │
-│   ┌───────────────────────────────────────────────────────────┐     │
-│   │              Experiment Operator (Go, Kubebuilder)        │     │
-│   │                                                           │     │
-│   │   Drives the full lifecycle:                              │     │
-│   │   Pending → Provisioning → Ready → Running → Complete     │     │
-│   └────┬──────────────┬──────────────┬───────────────────┘     │
-│        │              │              │                         │
-│        ▼              ▼              ▼                         │
-│   Crossplane v2   ArgoCD        Argo Workflows                │
-│   (provisions     (deploys 38   (validation,                  │
-│    GKE/EKS/AKS)   apps)         load gen)                     │
-│                                                               │
-│   ┌─────────────────────────────────────────────────────┐     │
-│   │  VictoriaMetrics │ SeaweedFS S3 │ Kyverno + Cosign  │     │
-│   │  (metrics hub)   │ (results)    │ (policy + signing) │     │
-│   │  OpenBao         │ Loki / Tempo │                    │     │
-│   │  (secrets)       │ (logs/traces)│                    │     │
-│   └─────────────────────────────────────────────────────┘     │
-└───────────────────────────────┬─────────────────────────────────┘
-                                │
-                Crossplane provisions, ArgoCD deploys
-                                │
-              ┌─────────────────┼─────────────────┐
-              ▼                 ▼                  ▼
-     ┌──────────────┐  ┌──────────────┐  ┌──────────────┐
-     │     GKE      │  │     EKS      │  │     AKS      │
-     │  (spot/pre-  │  │  (spot)      │  │  (spot)      │
-     │   emptible)  │  │              │  │              │
-     │              │  │              │  │              │
-     │ Apps + Obs + │  │ Apps + Obs + │  │ Apps + Obs + │
-     │ Load Gen     │  │ Load Gen     │  │ Load Gen     │
-     └──────────────┘  └──────────────┘  └──────────────┘
-              │                 │                  │
-              └─────── metrics flow back ─────────┘
-                        to VictoriaMetrics
+┌─────────────────────────────────────────────────────────────────┐
+│              Hub Cluster — Talos Linux (on-prem, N100)          │
+│                                                                 │
+│  ┌───────────────────────────────────────────────────────────┐  │
+│  │          Experiment Operator (Go, Kubebuilder)            │  │
+│  │                                                           │  │
+│  │  Drives the full lifecycle:                               │  │
+│  │  Pending → Provisioning → Ready → Running → Complete      │  │
+│  └──────┬────────────────┬────────────────┬──────────────────┘  │
+│         │                │                │                     │
+│         ▼                ▼                ▼                     │
+│    Crossplane v2     ArgoCD          Argo Workflows             │
+│    (provisions       (deploys 38     (validation,               │
+│     GKE/EKS/AKS)     apps)           load gen)                 │
+│                                                                 │
+│  ┌───────────────────────────────────────────────────────────┐  │
+│  │ VictoriaMetrics │ SeaweedFS S3 │ Kyverno + Cosign         │  │
+│  │ (metrics hub)   │ (results)    │ (policy + signing)       │  │
+│  │ OpenBao         │ Loki / Tempo │                          │  │
+│  │ (secrets)       │ (logs/traces)│                          │  │
+│  └───────────────────────────────────────────────────────────┘  │
+└────────────────────────────────┬────────────────────────────────┘
+                                 │
+             Crossplane provisions, ArgoCD deploys
+                                 │
+            ┌────────────────────┼────────────────────┐
+            ▼                    ▼                     ▼
+   ┌──────────────┐    ┌──────────────┐    ┌──────────────┐
+   │     GKE      │    │     EKS      │    │     AKS      │
+   │ (preemptible)│    │    (spot)    │    │    (spot)    │
+   │              │    │              │    │              │
+   │  Apps + Obs  │    │  Apps + Obs  │    │  Apps + Obs  │
+   │  + Load Gen  │    │  + Load Gen  │    │  + Load Gen  │
+   └──────────────┘    └──────────────┘    └──────────────┘
+            │                    │                     │
+            └──────── metrics flow back ──────────────┘
+                       to VictoriaMetrics
 ```
 
 ## Getting Started
@@ -94,10 +90,27 @@ kubectl get experiments -n experiments -w
 | **helm** | Initial ArgoCD install only — ArgoCD manages everything after bootstrap |
 | **GCP/AWS/Azure credentials** | For Crossplane to provision experiment clusters (optional for hub-only use) |
 
-### 1. Bootstrap the Hub
+### 1. Fork and Configure
 
-The hub cluster runs all control-plane services. Bootstrap is a three-step process —
-after that, ArgoCD manages everything from Git.
+ArgoCD syncs from Git, so it needs a repo you control.
+
+```bash
+# Fork this repo on GitHub, then clone your fork
+git clone https://github.com/<your-username>/k8s-ai-cloud-testbed.git
+cd k8s-ai-cloud-testbed
+
+# Update the ArgoCD root app to point to your fork
+sed -i 's|illMadeCoder|<your-username>|g' platform/bootstrap/hub-application.yaml
+git commit -am "point ArgoCD at my fork" && git push
+```
+
+All 38 ArgoCD apps reference this repo for values and manifests. If you want
+ArgoCD to sync your own changes, update the `repoURL` in `platform/apps/` too.
+
+### 2. Bootstrap the Hub
+
+The hub cluster runs all control-plane services. Bootstrap is a three-step
+process — after that, ArgoCD manages everything from Git.
 
 ```bash
 # Install kube-vip (LoadBalancer support) and local-path-provisioner (storage)
@@ -114,8 +127,8 @@ helm install argocd argo/argo-cd \
 kubectl apply -f platform/bootstrap/hub-application.yaml
 ```
 
-Once applied, ArgoCD reads `platform/apps/` from this repo and deploys the full
-stack: Crossplane, Kyverno, OpenBao, VictoriaMetrics, SeaweedFS, Argo Workflows,
+ArgoCD reads `platform/apps/` from your fork and deploys the full stack:
+Crossplane, Kyverno, OpenBao, VictoriaMetrics, SeaweedFS, Argo Workflows,
 the experiment operator, and everything else. Sync waves ensure correct ordering.
 
 ```bash
@@ -123,7 +136,7 @@ the experiment operator, and everything else. Sync waves ensure correct ordering
 kubectl get applications -n argocd -w
 ```
 
-### 2. Initialize Secrets
+### 3. Initialize Secrets
 
 OpenBao stores all secrets centrally. External Secrets Operator syncs them to
 Kubernetes secrets automatically.
@@ -142,7 +155,7 @@ kubectl exec -n openbao openbao-0 -- bao kv put secret/cloud/gcp \
   credentials=@~/.secrets/gcp-credentials.json
 ```
 
-### 3. Run an Experiment
+### 4. Run an Experiment
 
 ```bash
 # Create (generateName gives a unique suffix each time)
