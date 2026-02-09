@@ -8,6 +8,15 @@ interface Props {
 
 const { title, description = 'Kubernetes benchmark results from the K8s AI Lab' } = Astro.props;
 const base = import.meta.env.BASE_URL;
+
+const navLinks = [
+  { label: 'Home', href: base },
+  { label: 'Categories', href: `${base}categories/` },
+  { label: 'Comparisons', href: `${base}comparisons/` },
+  { label: 'About', href: `${base}about/` },
+];
+
+const currentPath = Astro.url.pathname;
 ---
 
 <!doctype html>
@@ -19,55 +28,98 @@ const base = import.meta.env.BASE_URL;
     <link rel="icon" type="image/svg+xml" href={`${base}favicon.svg`} />
     <title>{title}</title>
   </head>
-  <body>
-    <header>
-      <nav class="container">
-        <div class="nav-inner">
-          <a href={base} class="nav-brand">K8s-AI-Cloud-TestBed Benchmarks</a>
-          <a href="https://github.com/illmadecoder/k8s-ai-cloud-testbed" class="nav-link" target="_blank" rel="noopener">GitHub</a>
+  <body class="min-h-screen flex flex-col bg-bg text-text">
+    <header class="border-b border-border">
+      <nav class="max-w-6xl mx-auto px-6 py-4">
+        <div class="flex items-center justify-between">
+          <div class="flex items-center gap-8">
+            <a href={base} class="font-bold text-lg text-text hover:text-accent no-underline transition-colors">
+              K8s Cloud TestBed
+            </a>
+            <div class="hidden md:flex items-center gap-6">
+              {navLinks.map((link) => (
+                <a
+                  href={link.href}
+                  class:list={[
+                    'text-sm no-underline transition-colors',
+                    currentPath === link.href || currentPath.startsWith(link.href.replace(/\/$/, '') + '/')
+                      ? 'text-accent font-semibold'
+                      : 'text-text-muted hover:text-accent',
+                  ]}
+                >
+                  {link.label}
+                </a>
+              ))}
+            </div>
+          </div>
+          <div class="flex items-center gap-4">
+            <span class="hidden lg:inline text-xs text-text-muted font-mono">Automated K8s Benchmarking Lab</span>
+            <a
+              href="https://github.com/illmadecoder/k8s-ai-cloud-testbed"
+              class="text-sm text-text-muted hover:text-accent no-underline"
+              target="_blank"
+              rel="noopener"
+            >
+              GitHub
+            </a>
+            <button id="mobile-menu-btn" class="md:hidden text-text-muted hover:text-accent" aria-label="Toggle menu">
+              <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16" />
+              </svg>
+            </button>
+          </div>
+        </div>
+        <div id="mobile-menu" class="hidden md:hidden mt-4 pb-2 border-t border-border pt-4">
+          <div class="flex flex-col gap-3">
+            {navLinks.map((link) => (
+              <a
+                href={link.href}
+                class:list={[
+                  'text-sm no-underline',
+                  currentPath === link.href || currentPath.startsWith(link.href.replace(/\/$/, '') + '/')
+                    ? 'text-accent font-semibold'
+                    : 'text-text-muted hover:text-accent',
+                ]}
+              >
+                {link.label}
+              </a>
+            ))}
+          </div>
         </div>
       </nav>
     </header>
-    <main class="container">
+    <slot name="breadcrumb" />
+    <main class="max-w-6xl mx-auto px-6 py-8 w-full flex-1">
       <slot />
     </main>
-    <footer>
-      <div class="container">
-        <p>K8s AI Lab &mdash; benchmark results from automated experiment runs</p>
+    <footer class="mt-auto border-t border-border">
+      <div class="max-w-6xl mx-auto px-6 py-6 text-center text-sm text-text-muted">
+        <p>
+          Built with <a href="https://astro.build" class="hover:text-accent" target="_blank" rel="noopener">Astro</a> +
+          <a href={`${base}about/`} class="hover:text-accent">experiment-operator</a>
+        </p>
+        <p class="mt-1">
+          <a
+            href="https://github.com/illmadecoder/k8s-ai-cloud-testbed"
+            class="hover:text-accent"
+            target="_blank"
+            rel="noopener"
+          >
+            github.com/illmadecoder/k8s-ai-cloud-testbed
+          </a>
+        </p>
       </div>
     </footer>
-    <style>
-      header {
-        border-bottom: 1px solid var(--border);
-        padding: 1rem 0;
-        margin-bottom: 2rem;
-      }
-      .nav-inner {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-      }
-      .nav-brand {
-        font-weight: 700;
-        font-size: 1.1rem;
-        color: var(--text);
-      }
-      .nav-brand:hover {
-        color: var(--accent);
-        text-decoration: none;
-      }
-      .nav-link {
-        font-size: 0.9rem;
-        color: var(--text-muted);
-      }
-      footer {
-        margin-top: auto;
-        padding: 2rem 0;
-        border-top: 1px solid var(--border);
-        text-align: center;
-        font-size: 0.85rem;
-        color: var(--text-muted);
-      }
-    </style>
+    <script is:inline>
+      (function () {
+        var btn = document.getElementById('mobile-menu-btn');
+        var menu = document.getElementById('mobile-menu');
+        if (btn && menu) {
+          btn.addEventListener('click', function () {
+            menu.classList.toggle('hidden');
+          });
+        }
+      })();
+    </script>
   </body>
 </html>

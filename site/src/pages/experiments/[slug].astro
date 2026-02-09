@@ -1,5 +1,6 @@
 ---
 import Base from '../../layouts/Base.astro';
+import Breadcrumb from '../../components/Breadcrumb.astro';
 import MetricCard from '../../components/MetricCard.astro';
 import VegaChart from '../../components/VegaChart.astro';
 import TargetTable from '../../components/TargetTable.astro';
@@ -39,6 +40,15 @@ const metricEntries = latest.metrics
 ---
 
 <Base title={`${group.baseName} — K8s AI Lab Benchmarks`} description={latest.description}>
+  <Breadcrumb
+    crumbs={[
+      { label: 'Home', href: base },
+      { label: 'Experiments', href: base },
+      { label: group.baseName },
+    ]}
+    slot="breadcrumb"
+  />
+
   <div class="detail-header">
     <div>
       <span class={`badge ${badgeClass}`}>{latest.phase}</span>

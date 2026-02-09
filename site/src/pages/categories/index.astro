@@ -1,0 +1,40 @@
+---
+import Base from '../../layouts/Base.astro';
+import Breadcrumb from '../../components/Breadcrumb.astro';
+import DomainCard from '../../components/DomainCard.astro';
+import { loadAllExperiments, groupByDomain } from '../../lib/experiments';
+import { loadCategories } from '../../lib/categories';
+
+const experiments = loadAllExperiments();
+const byDomain = groupByDomain(experiments);
+const categories = loadCategories();
+const base = import.meta.env.BASE_URL;
+---
+
+<Base title="Categories — K8s Cloud TestBed">
+  <Breadcrumb
+    crumbs={[
+      { label: 'Home', href: base },
+      { label: 'Categories' },
+    ]}
+    slot="breadcrumb"
+  />
+
+  <h1 class="text-2xl font-bold mb-2">Browse by Domain</h1>
+  <p class="text-text-muted mb-8 max-w-2xl">
+    Experiments are organized into domains covering the full breadth of cloud-native infrastructure —
+    from observability and networking to storage and CI/CD.
+  </p>
+
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+    {categories.map((cat) => (
+      <DomainCard
+        id={cat.id}
+        name={cat.name}
+        description={cat.description}
+        subdomains={cat.subdomains}
+        experimentCount={(byDomain[cat.id] ?? []).length}
+      />
+    ))}
+  </div>
+</Base>

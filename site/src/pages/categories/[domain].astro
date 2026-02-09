@@ -1,0 +1,118 @@
+---
+import Base from '../../layouts/Base.astro';
+import Breadcrumb from '../../components/Breadcrumb.astro';
+import ExperimentGroupCard from '../../components/ExperimentGroupCard.astro';
+import {
+  loadAllExperiments,
+  groupExperiments,
+  deriveDomain,
+  deriveExperimentType,
+} from '../../lib/experiments';
+import { loadCategories, getDomainMeta } from '../../lib/categories';
+
+export function getStaticPaths() {
+  const categories = loadCategories();
+  const experiments = loadAllExperiments();
+  const groups = groupExperiments(experiments);
+
+  return categories.map((cat) => {
+    const domainGroups = groups.filter((g) => deriveDomain(g.tags) === cat.id);
+    return {
+      params: { domain: cat.id },
+      props: {
+        domain: cat,
+        comparisons: domainGroups.filter((g) => deriveExperimentType(g.tags) === 'comparison'),
+        tutorials: domainGroups.filter((g) => deriveExperimentType(g.tags) === 'tutorial'),
+        demos: domainGroups.filter((g) => {
+          const t = deriveExperimentType(g.tags);
+          return t !== 'comparison' && t !== 'tutorial';
+        }),
+      },
+    };
+  });
+}
+
+interface DomainMeta {
+  id: string;
+  name: string;
+  description: string;
+  subdomains: string[];
+}
+
+interface Props {
+  domain: DomainMeta;
+  comparisons: import('../../lib/experiments').ExperimentGroup[];
+  tutorials: import('../../lib/experiments').ExperimentGroup[];
+  demos: import('../../lib/experiments').ExperimentGroup[];
+}
+
+const { domain, comparisons, tutorials, demos } = Astro.props;
+const base = import.meta.env.BASE_URL;
+const hasExperiments = comparisons.length > 0 || tutorials.length > 0 || demos.length > 0;
+---
+
+<Base title={`${domain.name} — K8s Cloud TestBed`}>
+  <Breadcrumb
+    crumbs={[
+      { label: 'Home', href: base },
+      { label: 'Categories', href: `${base}categories/` },
+      { label: domain.name },
+    ]}
+    slot="breadcrumb"
+  />
+
+  <div class="mb-8">
+    <h1 class="text-2xl font-bold mb-2">{domain.name}</h1>
+    <p class="text-text-muted max-w-2xl">{domain.description}</p>
+    <div class="flex flex-wrap gap-2 mt-3">
+      {domain.subdomains.map((sub) => (
+        <span class="text-xs px-2 py-0.5 rounded-full bg-bg-surface text-text-muted border border-border">{sub}</span>
+      ))}
+    </div>
+  </div>
+
+  {!hasExperiments ? (
+    <div class="text-center py-16 text-text-muted">
+      <p class="text-lg mb-2">Coming soon</p>
+      <p class="text-sm">
+        {domain.name} experiments are planned for upcoming phases.
+        Check the <a href={`${base}about/`} class="text-accent hover:text-accent-hover">roadmap</a> for details.
+      </p>
+    </div>
+  ) : (
+    <div class="space-y-10">
+      {comparisons.length > 0 && (
+        <section>
+          <h2 class="text-lg font-semibold mb-4 pb-2 border-b border-border">Comparisons</h2>
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {comparisons.map((group) => (
+              <ExperimentGroupCard group={group} />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {tutorials.length > 0 && (
+        <section>
+          <h2 class="text-lg font-semibold mb-4 pb-2 border-b border-border">Tutorials</h2>
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {tutorials.map((group) => (
+              <ExperimentGroupCard group={group} />
+            ))}
+          </div>
+        </section>
+      )}
+
+      {demos.length > 0 && (
+        <section>
+          <h2 class="text-lg font-semibold mb-4 pb-2 border-b border-border">Demos & Baselines</h2>
+          <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {demos.map((group) => (
+              <ExperimentGroupCard group={group} />
+            ))}
+          </div>
+        </section>
+      )}
+    </div>
+  )}
+</Base>

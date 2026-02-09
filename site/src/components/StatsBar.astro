@@ -1,0 +1,21 @@
+---
+interface StatItem {
+  label: string;
+  value: string | number;
+}
+
+interface Props {
+  stats: StatItem[];
+}
+
+const { stats } = Astro.props;
+---
+
+<div class="flex flex-wrap gap-4">
+  {stats.map((stat) => (
+    <div class="flex flex-col gap-1 px-5 py-3 bg-bg-surface rounded">
+      <span class="text-xs uppercase tracking-wider text-text-muted font-semibold">{stat.label}</span>
+      <span class="text-xl font-bold font-mono">{stat.value}</span>
+    </div>
+  ))}
+</div>

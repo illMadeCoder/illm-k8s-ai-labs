@@ -1,0 +1,43 @@
+---
+import Base from '../../layouts/Base.astro';
+import Breadcrumb from '../../components/Breadcrumb.astro';
+import ExperimentGroupCard from '../../components/ExperimentGroupCard.astro';
+import { loadAllExperiments, getComparisons } from '../../lib/experiments';
+
+const experiments = loadAllExperiments();
+const comparisons = getComparisons(experiments);
+const base = import.meta.env.BASE_URL;
+---
+
+<Base title="Comparisons — K8s Cloud TestBed">
+  <Breadcrumb
+    crumbs={[
+      { label: 'Home', href: base },
+      { label: 'Comparisons' },
+    ]}
+    slot="breadcrumb"
+  />
+
+  <h1 class="text-2xl font-bold mb-2">Comparisons</h1>
+  <p class="text-text-muted mb-8 max-w-2xl">
+    Head-to-head benchmarks of cloud-native technologies — comparing performance, cost,
+    and operational complexity across equivalent workloads.
+  </p>
+
+  {comparisons.length === 0 ? (
+    <div class="text-center py-16 text-text-muted">
+      <p class="text-lg mb-2">No comparisons yet</p>
+      <p class="text-sm">
+        Comparison experiments will appear here when tagged with
+        <code class="text-xs bg-bg-surface px-1.5 py-0.5 rounded">comparison</code>.
+        Check the <a href={`${base}about/`} class="text-accent hover:text-accent-hover">roadmap</a> for planned comparisons.
+      </p>
+    </div>
+  ) : (
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      {comparisons.map((group) => (
+        <ExperimentGroupCard group={group} />
+      ))}
+    </div>
+  )}
+</Base>

@@ -1,5 +1,6 @@
 ---
 import Base from '../../../layouts/Base.astro';
+import Breadcrumb from '../../../components/Breadcrumb.astro';
 import MetricCard from '../../../components/MetricCard.astro';
 import VegaChart from '../../../components/VegaChart.astro';
 import TargetTable from '../../../components/TargetTable.astro';
@@ -37,10 +38,17 @@ const metricEntries = experiment.metrics
 ---
 
 <Base title={`${experiment.name} — K8s AI Lab Benchmarks`} description={experiment.description}>
+  <Breadcrumb
+    crumbs={[
+      { label: 'Home', href: base },
+      { label: 'Experiments', href: base },
+      { label: baseName, href: `${base}experiments/${baseName}/` },
+      { label: experiment.name },
+    ]}
+    slot="breadcrumb"
+  />
+
   <div class="detail-header">
-    <div class="breadcrumb">
-      <a href={`${base}experiments/${baseName}/`}>{baseName}</a> / <span>{experiment.name}</span>
-    </div>
     <div>
       <span class={`badge ${badgeClass}`}>{experiment.phase}</span>
       <h1>{experiment.name}</h1>
@@ -112,14 +120,6 @@ const metricEntries = experiment.metrics
 <style>
   .detail-header {
     margin-bottom: 2rem;
-  }
-  .breadcrumb {
-    font-size: 0.85rem;
-    color: var(--text-muted);
-    margin-bottom: 0.5rem;
-  }
-  .breadcrumb a {
-    color: var(--accent);
   }
   .detail-header h1 {
     font-size: 1.75rem;

@@ -1,0 +1,27 @@
+---
+interface Props {
+  id: string;
+  name: string;
+  description: string;
+  subdomains: string[];
+  experimentCount: number;
+}
+
+const { id, name, description, subdomains, experimentCount } = Astro.props;
+const base = import.meta.env.BASE_URL;
+---
+
+<a href={`${base}categories/${id}/`} class="block bg-bg-card border border-border rounded p-6 shadow hover:shadow-lg transition-shadow no-underline group">
+  <div class="flex items-center justify-between mb-3">
+    <h3 class="text-lg font-semibold text-text group-hover:text-accent transition-colors">{name}</h3>
+    <span class="text-xs font-mono text-text-muted bg-bg-surface px-2 py-1 rounded">
+      {experimentCount} {experimentCount === 1 ? 'experiment' : 'experiments'}
+    </span>
+  </div>
+  <p class="text-sm text-text-muted mb-4 leading-relaxed">{description}</p>
+  <div class="flex flex-wrap gap-2">
+    {subdomains.map((sub) => (
+      <span class="text-xs px-2 py-0.5 rounded-full bg-bg-surface text-text-muted border border-border">{sub}</span>
+    ))}
+  </div>
+</a>

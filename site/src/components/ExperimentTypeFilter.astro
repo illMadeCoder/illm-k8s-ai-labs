@@ -1,0 +1,29 @@
+---
+interface Props {
+  types: string[];
+  activeType?: string;
+  baseHref: string;
+}
+
+const { types, activeType, baseHref } = Astro.props;
+const allTypes = ['all', ...types];
+---
+
+<div class="flex flex-wrap gap-2 mb-6">
+  {allTypes.map((type) => {
+    const isActive = activeType ? type === activeType : type === 'all';
+    return (
+      <button
+        class:list={[
+          'px-3 py-1 rounded-full text-xs font-medium border transition-colors cursor-pointer',
+          isActive
+            ? 'bg-accent text-white border-accent'
+            : 'bg-bg-surface text-text-muted border-border hover:border-accent hover:text-accent',
+        ]}
+        data-filter-type={type}
+      >
+        {type.charAt(0).toUpperCase() + type.slice(1)}
+      </button>
+    );
+  })}
+</div>

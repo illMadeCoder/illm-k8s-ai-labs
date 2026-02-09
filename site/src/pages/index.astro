@@ -1,76 +1,124 @@
 ---
 import Base from '../layouts/Base.astro';
+import Hero from '../components/Hero.astro';
+import DomainCard from '../components/DomainCard.astro';
+import FeaturedComparison from '../components/FeaturedComparison.astro';
 import ExperimentGroupCard from '../components/ExperimentGroupCard.astro';
-import { loadAllExperiments, groupExperiments, getAllTags } from '../lib/experiments';
+import {
+  loadAllExperiments,
+  groupExperiments,
+  getComparisons,
+  getStats,
+  groupByDomain,
+} from '../lib/experiments';
+import { loadCategories } from '../lib/categories';
 
 const experiments = loadAllExperiments();
 const groups = groupExperiments(experiments);
-const allTags = getAllTags(experiments);
+const stats = getStats(experiments);
+const comparisons = getComparisons(experiments);
+const byDomain = groupByDomain(experiments);
+const categories = loadCategories();
+const recentGroups = groups.slice(0, 6);
+const base = import.meta.env.BASE_URL;
 ---
 
-<Base title="K8s AI Lab Benchmarks">
-  <h1>Recent Experiments</h1>
+<Base title="K8s Cloud TestBed — Automated Kubernetes Benchmarks">
+  <Hero
+    experimentCount={stats.experimentCount}
+    domainCount={stats.domainCount || categories.length}
+    componentCount={stats.componentCount}
+    totalRuns={stats.totalRuns}
+  />
 
-  {allTags.length > 0 && (
-    <div class="tag-filter-bar">
-      <button class="tag tag-active" data-tag="all">All</button>
-      {allTags.map((tag) => (
-        <button class="tag" data-tag={tag}>{tag}</button>
-      ))}
-    </div>
+  {comparisons.length > 0 && (
+    <section class="mb-12">
+      <div class="flex items-center justify-between mb-4">
+        <h2 class="text-xl font-semibold">Featured Comparisons</h2>
+        <a href={`${base}comparisons/`} class="text-sm text-accent hover:text-accent-hover no-underline">
+          View all &rarr;
+        </a>
+      </div>
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {comparisons.slice(0, 3).map((group) => (
+          <FeaturedComparison group={group} />
+        ))}
+      </div>
+    </section>
   )}
 
-  {groups.length === 0 ? (
-    <p class="empty">No experiments found. Add JSON files to <code>site/data/</code>.</p>
-  ) : (
-    <div class="grid grid-3" id="experiment-grid">
-      {groups.map((group) => (
-        <ExperimentGroupCard group={group} />
+  <section class="mb-12">
+    <div class="flex items-center justify-between mb-4">
+      <h2 class="text-xl font-semibold">Browse by Domain</h2>
+      <a href={`${base}categories/`} class="text-sm text-accent hover:text-accent-hover no-underline">
+        All categories &rarr;
+      </a>
+    </div>
+    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+      {categories.map((cat) => (
+        <DomainCard
+          id={cat.id}
+          name={cat.name}
+          description={cat.description}
+          subdomains={cat.subdomains}
+          experimentCount={(byDomain[cat.id] ?? []).length}
+        />
       ))}
     </div>
-  )}
+  </section>
+
+  <section class="mb-12">
+    <h2 class="text-xl font-semibold mb-4">Recent Experiments</h2>
+    {recentGroups.length === 0 ? (
+      <div class="text-center py-16 text-text-muted">
+        <p class="text-lg mb-2">No experiments yet</p>
+        <p class="text-sm">
+          Experiments will appear here once the operator publishes results to
+          <code class="text-xs bg-bg-surface px-1.5 py-0.5 rounded">site/data/</code>
+        </p>
+      </div>
+    ) : (
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {recentGroups.map((group) => (
+          <ExperimentGroupCard group={group} />
+        ))}
+      </div>
+    )}
+  </section>
+
+  <section class="mb-12">
+    <details class="bg-bg-card border border-border rounded p-6 shadow">
+      <summary class="text-lg font-semibold cursor-pointer select-none hover:text-accent transition-colors">
+        How It Works
+      </summary>
+      <div class="mt-4 space-y-4 text-sm text-text-muted leading-relaxed">
+        <p>
+          Each experiment is defined as a Kubernetes custom resource (Experiment CRD) with a declarative YAML spec
+          describing the target infrastructure, components to deploy, and metrics to collect.
+        </p>
+        <div class="flex flex-wrap gap-2 items-center font-mono text-xs">
+          <span class="px-2 py-1 bg-bg-surface rounded border border-border">Experiment YAML</span>
+          <span>&rarr;</span>
+          <span class="px-2 py-1 bg-bg-surface rounded border border-border">Operator</span>
+          <span>&rarr;</span>
+          <span class="px-2 py-1 bg-bg-surface rounded border border-border">Crossplane → GKE</span>
+          <span>&rarr;</span>
+          <span class="px-2 py-1 bg-bg-surface rounded border border-border">ArgoCD Deploy</span>
+          <span>&rarr;</span>
+          <span class="px-2 py-1 bg-bg-surface rounded border border-border">Argo Workflows</span>
+          <span>&rarr;</span>
+          <span class="px-2 py-1 bg-bg-surface rounded border border-border">Metrics</span>
+          <span>&rarr;</span>
+          <span class="px-2 py-1 bg-bg-surface rounded border border-border">AI Analysis</span>
+          <span>&rarr;</span>
+          <span class="px-2 py-1 bg-accent/10 text-accent rounded border border-accent/30">Published Here</span>
+        </div>
+        <p>
+          The experiment operator provisions GKE clusters via Crossplane, deploys components through ArgoCD,
+          runs validation workflows with Argo Workflows, collects metrics from VictoriaMetrics, generates AI analysis
+          using Claude, and auto-publishes results to this site.
+        </p>
+      </div>
+    </details>
+  </section>
 </Base>
-
-<script is:inline>
-  (function () {
-    var buttons = document.querySelectorAll('.tag-filter-bar .tag');
-    var cards = document.querySelectorAll('#experiment-grid .card-link');
-    if (!buttons.length) return;
-
-    buttons.forEach(function (btn) {
-      btn.addEventListener('click', function () {
-        var tag = btn.getAttribute('data-tag');
-        buttons.forEach(function (b) { b.classList.remove('tag-active'); });
-        btn.classList.add('tag-active');
-
-        cards.forEach(function (card) {
-          if (tag === 'all') {
-            card.style.display = '';
-            return;
-          }
-          var cardTags = (card.getAttribute('data-tags') || '').split(',');
-          card.style.display = cardTags.indexOf(tag) !== -1 ? '' : 'none';
-        });
-      });
-    });
-  })();
-</script>
-
-<style>
-  h1 {
-    font-size: 2rem;
-    font-weight: 700;
-    margin-bottom: 0.5rem;
-  }
-  .tag-filter-bar {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.375rem;
-    margin-bottom: 1.5rem;
-  }
-  .empty {
-    text-align: center;
-    padding: 4rem 0;
-    color: var(--text-muted);
-  }
-</style>

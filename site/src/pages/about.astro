@@ -1,0 +1,226 @@
+---
+import Base from '../layouts/Base.astro';
+import Breadcrumb from '../components/Breadcrumb.astro';
+
+const base = import.meta.env.BASE_URL;
+
+const techStack = [
+  {
+    layer: 'Infrastructure',
+    items: ['Talos Linux', 'GKE (Crossplane)', 'Kubernetes'],
+  },
+  {
+    layer: 'Orchestration',
+    items: ['ArgoCD', 'Argo Workflows', 'Crossplane'],
+  },
+  {
+    layer: 'Observability',
+    items: ['Prometheus', 'VictoriaMetrics', 'Grafana', 'Loki', 'Tempo'],
+  },
+  {
+    layer: 'Security',
+    items: ['Kyverno', 'Cosign', 'OpenBao', 'External Secrets Operator'],
+  },
+  {
+    layer: 'Site & CI',
+    items: ['Astro', 'Tailwind CSS', 'GitHub Actions', 'GitHub Pages'],
+  },
+];
+
+const adrs = [
+  {
+    id: 'ADR-015',
+    title: 'Kubebuilder Experiment Operator',
+    summary: 'Custom operator to orchestrate the full experiment lifecycle — from cluster provisioning through metrics collection to result publishing.',
+  },
+  {
+    id: 'ADR-016',
+    title: 'VictoriaMetrics for Metrics Backhaul',
+    summary: 'Single-node VictoriaMetrics on the hub cluster as the central metrics store, receiving remote-written data from target cluster Prometheus instances.',
+  },
+  {
+    id: 'ADR-017',
+    title: 'Astro Benchmark Site on GitHub Pages',
+    summary: 'Static site generated from experiment result JSON files, auto-deployed via GitHub Actions when the operator commits new results.',
+  },
+  {
+    id: 'ADR-012',
+    title: 'SeaweedFS for Object Storage',
+    summary: 'S3-compatible object storage running on the hub cluster for experiment artifacts and intermediate results.',
+  },
+];
+
+const keyNumbers = [
+  { label: 'ADRs Written', value: '17' },
+  { label: 'Components', value: '42' },
+  { label: 'Experiment Scenarios', value: '17' },
+  { label: 'Roadmap Phases', value: '10' },
+];
+---
+
+<Base title="About — K8s Cloud TestBed">
+  <Breadcrumb
+    crumbs={[
+      { label: 'Home', href: base },
+      { label: 'About' },
+    ]}
+    slot="breadcrumb"
+  />
+
+  <div class="max-w-3xl">
+    <h1 class="text-2xl font-bold mb-6">About This Project</h1>
+
+    <!-- What Is This -->
+    <section class="mb-10">
+      <h2 class="text-lg font-semibold mb-3 pb-2 border-b border-border">What Is This</h2>
+      <div class="space-y-3 text-text-muted leading-relaxed">
+        <p>
+          The K8s Cloud TestBed is an automated benchmarking laboratory for cloud-native technologies.
+          It provisions real GKE clusters, deploys competing technology stacks, runs standardized workloads,
+          collects metrics, and publishes results — all driven by a Kubernetes operator.
+        </p>
+        <p>
+          The goal is to produce reproducible, apples-to-apples comparisons across categories like
+          observability (Prometheus vs VictoriaMetrics), networking (Envoy vs Nginx vs Traefik),
+          and storage — helping teams make informed infrastructure decisions backed by real data.
+        </p>
+        <p>
+          Every experiment runs in isolation on freshly provisioned infrastructure, ensuring
+          clean baselines and eliminating the "it works on my cluster" problem.
+        </p>
+      </div>
+    </section>
+
+    <!-- Architecture -->
+    <section class="mb-10">
+      <h2 class="text-lg font-semibold mb-3 pb-2 border-b border-border">Architecture</h2>
+      <div class="space-y-4 text-text-muted leading-relaxed">
+        <p>
+          The system is built around a custom Kubernetes operator (Kubebuilder) that orchestrates the
+          full experiment lifecycle through a state machine:
+        </p>
+        <div class="bg-bg-surface border border-border rounded p-4 font-mono text-xs overflow-x-auto">
+          <pre class="whitespace-pre">
+Experiment YAML
+      │
+      ▼
+┌─────────────┐    ┌──────────────┐    ┌─────────────┐
+│  Crossplane  │───▶│  GKE Cluster │───▶│   ArgoCD    │
+│  Provisioner │    │  (per target)│    │   Deploy    │
+└─────────────┘    └──────────────┘    └─────────────┘
+                                              │
+                                              ▼
+┌─────────────┐    ┌──────────────┐    ┌─────────────┐
+│   Results    │◀──│   Metrics    │◀──│    Argo     │
+│  Published   │    │  Collection  │    │  Workflows  │
+└─────────────┘    └──────────────┘    └─────────────┘
+      │
+      ▼
+┌─────────────┐    ┌──────────────┐
+│  AI Analysis │───▶│  Benchmark   │
+│   (Claude)   │    │    Site      │
+└─────────────┘    └──────────────┘</pre>
+        </div>
+        <p>
+          The hub cluster runs on Talos Linux and hosts the operator, ArgoCD, Argo Workflows,
+          VictoriaMetrics, SeaweedFS, and all supporting infrastructure. Target clusters are provisioned
+          on-demand in GCP via Crossplane and torn down after each experiment.
+        </p>
+      </div>
+    </section>
+
+    <!-- Technology Stack -->
+    <section class="mb-10">
+      <h2 class="text-lg font-semibold mb-3 pb-2 border-b border-border">Technology Stack</h2>
+      <div class="space-y-4">
+        {techStack.map((group) => (
+          <div>
+            <h3 class="text-sm font-semibold text-text-muted uppercase tracking-wider mb-2">{group.layer}</h3>
+            <div class="flex flex-wrap gap-2">
+              {group.items.map((item) => (
+                <span class="text-xs px-3 py-1.5 rounded bg-bg-surface border border-border font-mono">{item}</span>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+    </section>
+
+    <!-- Engineering Decisions -->
+    <section class="mb-10">
+      <h2 class="text-lg font-semibold mb-3 pb-2 border-b border-border">Engineering Decisions</h2>
+      <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {adrs.map((adr) => (
+          <div class="bg-bg-card border border-border rounded p-4 shadow">
+            <span class="text-xs font-mono text-accent font-semibold">{adr.id}</span>
+            <h3 class="text-sm font-semibold mt-1 mb-2">{adr.title}</h3>
+            <p class="text-xs text-text-muted leading-relaxed">{adr.summary}</p>
+          </div>
+        ))}
+      </div>
+    </section>
+
+    <!-- Key Numbers -->
+    <section class="mb-10">
+      <h2 class="text-lg font-semibold mb-3 pb-2 border-b border-border">Key Numbers</h2>
+      <div class="flex flex-wrap gap-6">
+        {keyNumbers.map((stat) => (
+          <div class="flex flex-col">
+            <span class="text-2xl font-bold font-mono text-accent">{stat.value}</span>
+            <span class="text-xs text-text-muted uppercase tracking-wider font-semibold">{stat.label}</span>
+          </div>
+        ))}
+      </div>
+    </section>
+
+    <!-- Future Vision -->
+    <section class="mb-10">
+      <h2 class="text-lg font-semibold mb-3 pb-2 border-b border-border">Future Vision</h2>
+      <div class="space-y-3 text-text-muted leading-relaxed">
+        <p>
+          The roadmap spans 10 phases, progressing from basic deployments through observability,
+          traffic management, and security benchmarks to AI-driven experiment design.
+        </p>
+        <ul class="space-y-2 text-sm">
+          <li class="flex items-start gap-2">
+            <span class="text-accent mt-0.5">&rarr;</span>
+            <span>AI-driven experiment design from tech news feeds and release notes</span>
+          </li>
+          <li class="flex items-start gap-2">
+            <span class="text-accent mt-0.5">&rarr;</span>
+            <span>Automated regression detection across experiment runs</span>
+          </li>
+          <li class="flex items-start gap-2">
+            <span class="text-accent mt-0.5">&rarr;</span>
+            <span>Side-by-side comparison dashboards with capability matrices</span>
+          </li>
+          <li class="flex items-start gap-2">
+            <span class="text-accent mt-0.5">&rarr;</span>
+            <span>Technology trend tracking and community benchmark contributions</span>
+          </li>
+        </ul>
+      </div>
+    </section>
+
+    <!-- About the Author -->
+    <section class="mb-10">
+      <h2 class="text-lg font-semibold mb-3 pb-2 border-b border-border">About the Author</h2>
+      <div class="space-y-3 text-text-muted leading-relaxed">
+        <p>
+          Infrastructure engineer exploring the intersection of Kubernetes, GitOps, and AI-driven operations.
+          This project is both a learning lab and a demonstration of automated benchmarking at scale.
+        </p>
+        <div class="flex gap-4 text-sm">
+          <a
+            href="https://github.com/illmadecoder"
+            class="text-accent hover:text-accent-hover no-underline"
+            target="_blank"
+            rel="noopener"
+          >
+            GitHub
+          </a>
+        </div>
+      </div>
+    </section>
+  </div>
+</Base>

@@ -16,7 +16,7 @@ export function loadAllExperiments(): ExperimentSummary[] {
 
   return fs
     .readdirSync(dataDir)
-    .filter((f) => f.endsWith('.json'))
+    .filter((f) => f.endsWith('.json') && !f.startsWith('_'))
     .map((f) => {
       const raw = fs.readFileSync(path.join(dataDir, f), 'utf-8');
       return JSON.parse(raw) as ExperimentSummary;
@@ -94,4 +94,151 @@ export function getAllTags(experiments: ExperimentSummary[]): string[] {
     }
   }
   return [...tags].sort();
+}
+
+const domainTagMap: Record<string, string> = {
+  metrics: 'observability',
+  logging: 'observability',
+  tracing: 'observability',
+  slos: 'observability',
+  cost: 'observability',
+  prometheus: 'observability',
+  'victoria-metrics': 'observability',
+  loki: 'observability',
+  tempo: 'observability',
+  grafana: 'observability',
+  gateways: 'networking',
+  ingress: 'networking',
+  'service-mesh': 'networking',
+  gateway: 'networking',
+  envoy: 'networking',
+  nginx: 'networking',
+  traefik: 'networking',
+  'object-storage': 'storage',
+  database: 'storage',
+  s3: 'storage',
+  seaweedfs: 'storage',
+  pipelines: 'cicd',
+  ci: 'cicd',
+  cd: 'cicd',
+  'supply-chain': 'cicd',
+};
+
+const subdomainTagMap: Record<string, string> = {
+  prometheus: 'metrics',
+  'victoria-metrics': 'metrics',
+  metrics: 'metrics',
+  loki: 'logging',
+  logging: 'logging',
+  tempo: 'tracing',
+  tracing: 'tracing',
+  slos: 'slos',
+  cost: 'cost',
+  gateway: 'gateways',
+  gateways: 'gateways',
+  ingress: 'gateways',
+  envoy: 'gateways',
+  nginx: 'gateways',
+  traefik: 'gateways',
+  'object-storage': 'object-storage',
+  s3: 'object-storage',
+  seaweedfs: 'object-storage',
+  database: 'databases',
+  pipelines: 'pipelines',
+  ci: 'pipelines',
+  cd: 'pipelines',
+};
+
+const typeTagMap: Record<string, string> = {
+  comparison: 'comparison',
+  benchmark: 'comparison',
+  tutorial: 'tutorial',
+  demo: 'demo',
+  baseline: 'baseline',
+};
+
+/**
+ * Derive the domain (observability/networking/storage/cicd/general) from tags.
+ */
+export function deriveDomain(tags: string[]): string {
+  for (const tag of tags) {
+    const domain = domainTagMap[tag];
+    if (domain) return domain;
+  }
+  return 'general';
+}
+
+/**
+ * Derive the subdomain (metrics/logging/gateways/etc.) from tags.
+ */
+export function deriveSubdomain(tags: string[]): string | undefined {
+  for (const tag of tags) {
+    const sub = subdomainTagMap[tag];
+    if (sub) return sub;
+  }
+  return undefined;
+}
+
+/**
+ * Derive the experiment type (comparison/tutorial/demo/baseline) from tags.
+ */
+export function deriveExperimentType(tags: string[]): string {
+  for (const tag of tags) {
+    const type = typeTagMap[tag];
+    if (type) return type;
+  }
+  return 'demo';
+}
+
+/**
+ * Group experiments by derived domain.
+ */
+export function groupByDomain(experiments: ExperimentSummary[]): Record<string, ExperimentGroup[]> {
+  const groups = groupExperiments(experiments);
+  const result: Record<string, ExperimentGroup[]> = {};
+
+  for (const group of groups) {
+    const domain = deriveDomain(group.tags);
+    if (!result[domain]) result[domain] = [];
+    result[domain].push(group);
+  }
+
+  return result;
+}
+
+/**
+ * Filter to comparison-type experiments only.
+ */
+export function getComparisons(experiments: ExperimentSummary[]): ExperimentGroup[] {
+  const groups = groupExperiments(experiments);
+  return groups.filter((g) => deriveExperimentType(g.tags) === 'comparison');
+}
+
+/**
+ * Get aggregate stats across all experiments.
+ */
+export function getStats(experiments: ExperimentSummary[]): {
+  experimentCount: number;
+  domainCount: number;
+  componentCount: number;
+  totalRuns: number;
+} {
+  const groups = groupExperiments(experiments);
+  const domains = new Set(groups.map((g) => deriveDomain(g.tags)));
+  const components = new Set<string>();
+
+  for (const exp of experiments) {
+    for (const target of exp.targets) {
+      for (const comp of target.components ?? []) {
+        components.add(comp);
+      }
+    }
+  }
+
+  return {
+    experimentCount: groups.length,
+    domainCount: domains.size,
+    componentCount: components.size,
+    totalRuns: experiments.length,
+  };
 }

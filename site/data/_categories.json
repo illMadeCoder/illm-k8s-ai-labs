@@ -1,0 +1,28 @@
+{
+  "domains": [
+    {
+      "id": "observability",
+      "name": "Observability",
+      "description": "Metrics, logging, tracing, and SLO management",
+      "subdomains": ["metrics", "logging", "tracing", "slos", "cost"]
+    },
+    {
+      "id": "networking",
+      "name": "Networking",
+      "description": "Ingress controllers, gateways, and service mesh",
+      "subdomains": ["gateways"]
+    },
+    {
+      "id": "storage",
+      "name": "Storage",
+      "description": "Object storage, databases, and data management",
+      "subdomains": ["object-storage"]
+    },
+    {
+      "id": "cicd",
+      "name": "CI/CD",
+      "description": "Build pipelines, deployment strategies, and supply chain",
+      "subdomains": ["pipelines"]
+    }
+  ]
+}
