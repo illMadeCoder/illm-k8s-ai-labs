@@ -6,24 +6,16 @@ from a terminal conversation with Claude.
 
 ## How It Works
 
-```
-Terminal (Claude Code)
-    │
-    │  "Run the TSDB comparison experiment"
-    ▼
-┌──────────────────────────────────────────────────┐
-│  Experiment CRD applied to hub cluster           │
-│                                                  │
-│  Experiment Operator reconciles:                 │
-│    1. Crossplane  → provisions GKE cluster       │
-│    2. ArgoCD      → deploys components           │
-│    3. Workflows   → runs validation + load gen   │
-│    4. Metrics     → collects Prometheus queries   │
-│    5. Storage     → writes results to SeaweedFS  │
-└──────────────────────────────────────────────────┘
-    │
-    ▼
-Benchmark Results Site (GitHub Pages, Astro + Vega-Lite)
+```mermaid
+flowchart LR
+    T["Terminal\n(Claude Code)"] -->|kubectl create -f| E["Experiment CRD"]
+    E --> O["Experiment Operator"]
+    O --> CP["Crossplane\nProvision clusters"]
+    O --> A["ArgoCD\nDeploy components"]
+    O --> W["Argo Workflows\nRun benchmarks"]
+    O --> M["Metrics\nCollect results"]
+    M --> S["SeaweedFS S3"]
+    S --> R["Results Site\nAstro + Vega-Lite"]
 ```
 
 ```bash
@@ -40,46 +32,113 @@ kubectl get experiments -n experiments -w
 
 ## Architecture
 
+```mermaid
+graph TB
+    subgraph Hub["Hub Cluster — Talos Linux (on-prem, N100)"]
+        OP["Experiment Operator\n(Go, Kubebuilder)"]
+        OP --> CP2["Crossplane v2"]
+        OP --> ARGO["ArgoCD\n(38 apps)"]
+        OP --> WF["Argo Workflows"]
+
+        subgraph Services["Hub Services"]
+            VM["VictoriaMetrics"]
+            SW["SeaweedFS S3"]
+            KY["Kyverno + Cosign"]
+            OB["OpenBao"]
+            LT["Loki / Tempo"]
+        end
+    end
+
+    CP2 -->|provisions| GKE["GKE\n(preemptible)"]
+    CP2 -->|provisions| EKS["EKS\n(spot)"]
+    CP2 -->|provisions| AKS["AKS\n(spot)"]
+
+    ARGO -->|deploys apps +\nobservability| GKE
+    ARGO -->|deploys| EKS
+    ARGO -->|deploys| AKS
+
+    GKE -->|metrics| VM
+    EKS -->|metrics| VM
+    AKS -->|metrics| VM
 ```
-┌─────────────────────────────────────────────────────────────────────┐
-│                   Hub Cluster — Talos Linux (on-prem, N100)         │
-│                                                                     │
-│   ┌───────────────────────────────────────────────────────────┐     │
-│   │              Experiment Operator (Go, Kubebuilder)        │     │
-│   │                                                           │     │
-│   │   Drives the full lifecycle:                              │     │
-│   │   Pending → Provisioning → Ready → Running → Complete     │     │
-│   └────┬──────────────┬──────────────┬───────────────────┘     │
-│        │              │              │                         │
-│        ▼              ▼              ▼                         │
-│   Crossplane v2   ArgoCD        Argo Workflows                │
-│   (provisions     (deploys 38   (validation,                  │
-│    GKE/EKS/AKS)   apps)         load gen)                     │
-│                                                               │
-│   ┌─────────────────────────────────────────────────────┐     │
-│   │  VictoriaMetrics │ SeaweedFS S3 │ Kyverno + Cosign  │     │
-│   │  (metrics hub)   │ (results)    │ (policy + signing) │     │
-│   │  OpenBao         │ Loki / Tempo │                    │     │
-│   │  (secrets)       │ (logs/traces)│                    │     │
-│   └─────────────────────────────────────────────────────┘     │
-└───────────────────────────────┬─────────────────────────────────┘
-                                │
-                Crossplane provisions, ArgoCD deploys
-                                │
-              ┌─────────────────┼─────────────────┐
-              ▼                 ▼                  ▼
-     ┌──────────────┐  ┌──────────────┐  ┌──────────────┐
-     │     GKE      │  │     EKS      │  │     AKS      │
-     │  (spot/pre-  │  │  (spot)      │  │  (spot)      │
-     │   emptible)  │  │              │  │              │
-     │              │  │              │  │              │
-     │ Apps + Obs + │  │ Apps + Obs + │  │ Apps + Obs + │
-     │ Load Gen     │  │ Load Gen     │  │ Load Gen     │
-     └──────────────┘  └──────────────┘  └──────────────┘
-              │                 │                  │
-              └─────── metrics flow back ─────────┘
-                        to VictoriaMetrics
+
+## Getting Started
+
+### Prerequisites
+
+| Requirement | Purpose |
+|-------------|---------|
+| **Talos Linux cluster** | Hub cluster (tested on Intel N100 mini-PC, 16 GB RAM) |
+| **Terminal machine** | Any machine with network access to the Talos node (WSL, Linux, macOS) |
+| **kubectl** | Kubernetes CLI |
+| **talosctl** | Talos Linux management |
+| **helm** | Initial ArgoCD install only — ArgoCD manages everything after bootstrap |
+| **GCP/AWS/Azure credentials** | For Crossplane to provision experiment clusters (optional for hub-only use) |
+
+### 1. Bootstrap the Hub
+
+The hub cluster runs all control-plane services. Bootstrap is a three-step process —
+after that, ArgoCD manages everything from Git.
+
+```bash
+# Install kube-vip (LoadBalancer support) and local-path-provisioner (storage)
+kubectl apply -f platform/bootstrap/kube-vip.yaml
+kubectl apply -f platform/bootstrap/local-path-provisioner.yaml
+
+# Install ArgoCD via Helm (one-time — ArgoCD self-manages after this)
+helm repo add argo https://argoproj.github.io/argo-helm
+helm install argocd argo/argo-cd \
+  --namespace argocd --create-namespace \
+  --values platform/bootstrap/argocd-values-talos.yaml
+
+# Apply the root app-of-apps — ArgoCD discovers and syncs all 38 child apps
+kubectl apply -f platform/bootstrap/hub-application.yaml
 ```
+
+Once applied, ArgoCD reads `platform/apps/` from this repo and deploys the full
+stack: Crossplane, Kyverno, OpenBao, VictoriaMetrics, SeaweedFS, Argo Workflows,
+the experiment operator, and everything else. Sync waves ensure correct ordering.
+
+```bash
+# Watch apps come up (~10 min for full convergence)
+kubectl get applications -n argocd -w
+```
+
+### 2. Initialize Secrets
+
+OpenBao stores all secrets centrally. External Secrets Operator syncs them to
+Kubernetes secrets automatically.
+
+```bash
+# Initialize OpenBao (first time only)
+kubectl exec -n openbao openbao-0 -- bao operator init \
+  -key-shares=1 -key-threshold=1 -format=json > ~/.illmlab/openbao-keys.json
+
+# Unseal
+kubectl exec -n openbao openbao-0 -- bao operator unseal \
+  $(jq -r '.unseal_keys_b64[0]' ~/.illmlab/openbao-keys.json)
+
+# Store cloud credentials for Crossplane (GCP example)
+kubectl exec -n openbao openbao-0 -- bao kv put secret/cloud/gcp \
+  credentials=@~/.secrets/gcp-credentials.json
+```
+
+### 3. Run an Experiment
+
+```bash
+# Create (generateName gives a unique suffix each time)
+kubectl create -f experiments/hello-app/experiment.yaml
+
+# Watch: Pending → Provisioning → Ready → Running → Complete
+kubectl get experiments -n experiments -w
+
+# Check results
+kubectl get experiments -n experiments -o wide   # Shows ResultsURL column
+```
+
+The operator handles the full lifecycle — provisioning cloud clusters, deploying
+components via ArgoCD, running workflows, collecting metrics, and storing results
+in SeaweedFS S3.
 
 ## Experiment Model
 
@@ -134,25 +193,14 @@ docs/roadmap/                        10 phases, ~50 target experiments
 
 ## Supply Chain Security — SLSA Level 2
 
-```
-GitHub Actions ──► Trivy scan ──► Syft SBOM ──► Cosign keyless sign
-                                                       │
-                   ┌───────────────────────────────────┘
-                   ▼
-     ┌──────────────────────────────┐    ┌─────────────────────────┐
-     │            GHCR              │    │         Rekor           │
-     │  ┌────────┐  ┌───────────┐  │    │   (transparency log)    │
-     │  │ Image  │  │Attestation│  │    │                         │
-     │  │        │  │ sig + SBOM│  │    │   Public record of      │
-     │  └────────┘  └───────────┘  │    │   all signatures        │
-     └──────────────┬───────────────┘    └─────────────────────────┘
-                    │
-                    ▼
-     ┌──────────────────────────────┐
-     │          Kyverno             │
-     │  Verifies Cosign signature   │
-     │  before pod admission        │
-     └──────────────────────────────┘
+```mermaid
+flowchart LR
+    GH["GitHub Actions"] --> TR["Trivy\n(scan)"]
+    TR --> SY["Syft\n(SBOM)"]
+    SY --> CO["Cosign\n(keyless sign)"]
+    CO --> GHCR["GHCR\nImage + Attestations"]
+    CO --> RE["Rekor\nTransparency Log"]
+    GHCR --> KV["Kyverno\nVerifies signature\nbefore pod admission"]
 ```
 
 ## Experiments
@@ -204,19 +252,6 @@ Target: ~50 experiments across 10 phases.
 | [013](docs/adrs/ADR-013-crossplane-v2-upgrade.md) | Crossplane v2 upgrade — Pipeline mode compositions |
 
 17 ADRs document trade-offs with data. [All ADRs →](docs/adrs/)
-
-## Quick Start
-
-```bash
-# Deploy an experiment
-kubectl create -f experiments/hello-app/experiment.yaml
-
-# Watch: Pending → Provisioning → Ready → Running → Complete
-kubectl get experiments -n experiments -w
-
-# Check results
-kubectl get experiments -n experiments -o wide
-```
 
 ## License
 
