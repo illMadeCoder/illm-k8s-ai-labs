@@ -6,16 +6,24 @@ from a terminal conversation with Claude.
 
 ## How It Works
 
-```mermaid
-flowchart LR
-    T["Terminal\n(Claude Code)"] -->|kubectl create -f| E["Experiment CRD"]
-    E --> O["Experiment Operator"]
-    O --> CP["Crossplane\nProvision clusters"]
-    O --> A["ArgoCD\nDeploy components"]
-    O --> W["Argo Workflows\nRun benchmarks"]
-    O --> M["Metrics\nCollect results"]
-    M --> S["SeaweedFS S3"]
-    S --> R["Results Site\nAstro + Vega-Lite"]
+```
+Terminal (Claude Code)
+    │
+    │  "Run the TSDB comparison experiment"
+    ▼
+┌──────────────────────────────────────────────────┐
+│  Experiment CRD applied to hub cluster           │
+│                                                  │
+│  Experiment Operator reconciles:                 │
+│    1. Crossplane  → provisions GKE cluster       │
+│    2. ArgoCD      → deploys components           │
+│    3. Workflows   → runs validation + load gen   │
+│    4. Metrics     → collects Prometheus queries   │
+│    5. Storage     → writes results to SeaweedFS  │
+└──────────────────────────────────────────────────┘
+    │
+    ▼
+Benchmark Results Site (GitHub Pages, Astro + Vega-Lite)
 ```
 
 ```bash
@@ -32,34 +40,45 @@ kubectl get experiments -n experiments -w
 
 ## Architecture
 
-```mermaid
-graph TB
-    subgraph Hub["Hub Cluster — Talos Linux (on-prem, N100)"]
-        OP["Experiment Operator\n(Go, Kubebuilder)"]
-        OP --> CP2["Crossplane v2"]
-        OP --> ARGO["ArgoCD\n(38 apps)"]
-        OP --> WF["Argo Workflows"]
-
-        subgraph Services["Hub Services"]
-            VM["VictoriaMetrics"]
-            SW["SeaweedFS S3"]
-            KY["Kyverno + Cosign"]
-            OB["OpenBao"]
-            LT["Loki / Tempo"]
-        end
-    end
-
-    CP2 -->|provisions| GKE["GKE\n(preemptible)"]
-    CP2 -->|provisions| EKS["EKS\n(spot)"]
-    CP2 -->|provisions| AKS["AKS\n(spot)"]
-
-    ARGO -->|deploys apps +\nobservability| GKE
-    ARGO -->|deploys| EKS
-    ARGO -->|deploys| AKS
-
-    GKE -->|metrics| VM
-    EKS -->|metrics| VM
-    AKS -->|metrics| VM
+```
+┌─────────────────────────────────────────────────────────────────────┐
+│                   Hub Cluster — Talos Linux (on-prem, N100)         │
+│                                                                     │
+│   ┌───────────────────────────────────────────────────────────┐     │
+│   │              Experiment Operator (Go, Kubebuilder)        │     │
+│   │                                                           │     │
+│   │   Drives the full lifecycle:                              │     │
+│   │   Pending → Provisioning → Ready → Running → Complete     │     │
+│   └────┬──────────────┬──────────────┬───────────────────┘     │
+│        │              │              │                         │
+│        ▼              ▼              ▼                         │
+│   Crossplane v2   ArgoCD        Argo Workflows                │
+│   (provisions     (deploys 38   (validation,                  │
+│    GKE/EKS/AKS)   apps)         load gen)                     │
+│                                                               │
+│   ┌─────────────────────────────────────────────────────┐     │
+│   │  VictoriaMetrics │ SeaweedFS S3 │ Kyverno + Cosign  │     │
+│   │  (metrics hub)   │ (results)    │ (policy + signing) │     │
+│   │  OpenBao         │ Loki / Tempo │                    │     │
+│   │  (secrets)       │ (logs/traces)│                    │     │
+│   └─────────────────────────────────────────────────────┘     │
+└───────────────────────────────┬─────────────────────────────────┘
+                                │
+                Crossplane provisions, ArgoCD deploys
+                                │
+              ┌─────────────────┼─────────────────┐
+              ▼                 ▼                  ▼
+     ┌──────────────┐  ┌──────────────┐  ┌──────────────┐
+     │     GKE      │  │     EKS      │  │     AKS      │
+     │  (spot/pre-  │  │  (spot)      │  │  (spot)      │
+     │   emptible)  │  │              │  │              │
+     │              │  │              │  │              │
+     │ Apps + Obs + │  │ Apps + Obs + │  │ Apps + Obs + │
+     │ Load Gen     │  │ Load Gen     │  │ Load Gen     │
+     └──────────────┘  └──────────────┘  └──────────────┘
+              │                 │                  │
+              └─────── metrics flow back ─────────┘
+                        to VictoriaMetrics
 ```
 
 ## Getting Started
@@ -193,14 +212,25 @@ docs/roadmap/                        10 phases, ~50 target experiments
 
 ## Supply Chain Security — SLSA Level 2
 
-```mermaid
-flowchart LR
-    GH["GitHub Actions"] --> TR["Trivy\n(scan)"]
-    TR --> SY["Syft\n(SBOM)"]
-    SY --> CO["Cosign\n(keyless sign)"]
-    CO --> GHCR["GHCR\nImage + Attestations"]
-    CO --> RE["Rekor\nTransparency Log"]
-    GHCR --> KV["Kyverno\nVerifies signature\nbefore pod admission"]
+```
+GitHub Actions ──► Trivy scan ──► Syft SBOM ──► Cosign keyless sign
+                                                       │
+                   ┌───────────────────────────────────┘
+                   ▼
+     ┌──────────────────────────────┐    ┌─────────────────────────┐
+     │            GHCR              │    │         Rekor           │
+     │  ┌────────┐  ┌───────────┐  │    │   (transparency log)    │
+     │  │ Image  │  │Attestation│  │    │                         │
+     │  │        │  │ sig + SBOM│  │    │   Public record of      │
+     │  └────────┘  └───────────┘  │    │   all signatures        │
+     └──────────────┬───────────────┘    └─────────────────────────┘
+                    │
+                    ▼
+     ┌──────────────────────────────┐
+     │          Kyverno             │
+     │  Verifies Cosign signature   │
+     │  before pod admission        │
+     └──────────────────────────────┘
 ```
 
 ## Experiments
