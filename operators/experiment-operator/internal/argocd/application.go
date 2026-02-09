@@ -228,7 +228,8 @@ func (m *ApplicationManager) IsApplicationHealthy(ctx context.Context, experimen
 		return false, nil
 	}
 
-	// Application is healthy if health is "Healthy" and sync is not "OutOfSync"
+	// Application is healthy when health is "Healthy" and sync is not "OutOfSync".
+	// Multi-source ArgoCD apps report "Unknown" sync status, which is acceptable.
 	healthy := healthStatus == "Healthy" && (syncStatus == "Synced" || syncStatus == "Unknown")
 	return healthy, nil
 }
