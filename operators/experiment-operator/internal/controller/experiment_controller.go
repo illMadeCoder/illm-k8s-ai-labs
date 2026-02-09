@@ -249,8 +249,9 @@ func (r *ExperimentReconciler) collectAndStoreResults(ctx context.Context, exp *
 	exp.Status.ResultsURL = fmt.Sprintf("s3://experiment-results/%s/", prefix)
 	log.Info("Experiment results stored", "url", exp.Status.ResultsURL)
 
-	// Commit results to GitHub for benchmark site (best-effort, non-fatal)
-	if r.GitClient != nil {
+	// Commit results to GitHub for benchmark site (best-effort, non-fatal).
+	// Only publish Complete experiments — Failed runs are stored in S3 but not on the site.
+	if r.GitClient != nil && exp.Status.Phase == experimentsv1alpha1.PhaseComplete {
 		if err := r.GitClient.CommitResult(ctx, exp.Name, summary); err != nil {
 			log.Error(err, "Failed to commit results to GitHub — non-fatal", "repo", r.GitClient.RepoPath())
 		} else {
