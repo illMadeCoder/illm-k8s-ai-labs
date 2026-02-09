@@ -65,8 +65,10 @@ FULL_PROMPT="${PROMPT}
 $(cat "${SUMMARY_FILE}")"
 
 echo "==> Running Claude Code analysis..."
-if ! claude -p "${FULL_PROMPT}" --output-format json > "${ANALYSIS_FILE}" 2>/dev/null; then
+if ! claude -p "${FULL_PROMPT}" --output-format json > "${ANALYSIS_FILE}" 2>&1; then
   echo "ERROR: Claude Code analysis failed"
+  echo "==> Analysis output:"
+  cat "${ANALYSIS_FILE}" || true
   exit 1
 fi
 

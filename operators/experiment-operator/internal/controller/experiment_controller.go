@@ -320,10 +320,23 @@ func (r *ExperimentReconciler) createAnalysisJob(ctx context.Context, exp *exper
 				},
 				Spec: corev1.PodSpec{
 					RestartPolicy: corev1.RestartPolicyNever,
+					SecurityContext: &corev1.PodSecurityContext{
+						RunAsNonRoot: boolPtr(true),
+						RunAsUser:    int64Ptr(1000),
+						SeccompProfile: &corev1.SeccompProfile{
+							Type: corev1.SeccompProfileTypeRuntimeDefault,
+						},
+					},
 					Containers: []corev1.Container{
 						{
 							Name:  "analyzer",
 							Image: r.AnalyzerImage,
+							SecurityContext: &corev1.SecurityContext{
+								AllowPrivilegeEscalation: boolPtr(false),
+								Capabilities: &corev1.Capabilities{
+									Drop: []corev1.Capability{"ALL"},
+								},
+							},
 							Env: []corev1.EnvVar{
 								{
 									Name:  "EXPERIMENT_NAME",
@@ -377,11 +390,9 @@ func (r *ExperimentReconciler) createAnalysisJob(ctx context.Context, exp *exper
 		},
 	}
 
-	// Set owner reference so the Job is garbage collected with the Experiment
-	if err := controllerutil.SetOwnerReference(exp, job, r.Scheme); err != nil {
-		log.Error(err, "Failed to set owner reference on analysis Job")
-		// Non-fatal: job will just not be garbage collected automatically
-	}
+	// Note: Owner references are not set because the Experiment CR is in a
+	// different namespace (experiments) than the Job (experiment-operator-system).
+	// The TTLSecondsAfterFinished field handles cleanup instead.
 
 	if err := r.Create(ctx, job); err != nil {
 		return fmt.Errorf("create analysis Job %s: %w", jobName, err)
@@ -1150,6 +1161,10 @@ func int32Ptr(i int32) *int32 {
 
 func boolPtr(b bool) *bool {
 	return &b
+}
+
+func int64Ptr(i int64) *int64 {
+	return &i
 }
 
 // SetupWithManager sets up the controller with the Manager.
