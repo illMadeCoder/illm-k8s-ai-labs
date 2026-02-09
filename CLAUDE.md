@@ -62,7 +62,7 @@ docs/{adrs,roadmap}              17 ADRs, phase docs
 | Traces | Tempo | |
 | Object storage | SeaweedFS | S3-compatible, experiment results |
 | Policy | Kyverno + Cosign | Supply chain security |
-| Secrets | OpenBao | |
+| Secrets | OpenBao + ESO | External Secrets Operator syncs from OpenBao → K8s Secrets |
 | Benchmark site | Astro + Vega-Lite | GitHub Pages at `illmadecoder.github.io/k8s-ai-cloud-testbed/` (ADR-017) |
 | CI | GitHub Actions | Builds operator + component images, deploys site |
 
@@ -205,6 +205,50 @@ kubectl apply -f platform/manifests/seaweedfs-config/s3-credentials.yaml
 - **Experiment YAML**: Use `generateName:` prefix, `namespace: experiments`
 - **Component refs**: `spec.targets[].components[].app` maps to `components/*/component.yaml` by `metadata.name`
 - **Metrics query names**: Must match `^[a-z][a-z0-9_]*$`
+
+## Secrets Management (OpenBao + ESO)
+
+OpenBao runs in the `openbao` namespace (pod: `openbao-0`). External Secrets Operator (ESO) syncs
+secrets from OpenBao to K8s Secrets via `ClusterSecretStore` named `openbao`.
+
+**Root token:** `~/.illmlab/openbao-keys.json` → `root_token` field.
+
+### Stored Secrets
+
+| OpenBao Path | K8s Secret | Namespace | Purpose | ExternalSecret Manifest |
+|-------------|------------|-----------|---------|------------------------|
+| `secret/experiment-operator/claude-auth` | `claude-auth` | `experiment-operator-system` | Claude Code OAuth token for AI analysis | `platform/manifests/external-secrets-config/claude-auth-secret.yaml` |
+
+**Note:** `github-api-token` (for site auto-publish) is not yet stored in OpenBao — currently missing. When created, the operator's GitHub client and analyzer Job will use it for committing results to the benchmark site.
+
+### Managing Secrets
+
+```bash
+# Read a secret
+kubectl exec -n openbao openbao-0 -- sh -c "BAO_TOKEN='<root_token>' bao kv get secret/experiment-operator/claude-auth"
+
+# Write/update a secret
+kubectl exec -n openbao openbao-0 -- sh -c "BAO_TOKEN='<root_token>' bao kv put secret/experiment-operator/claude-auth token='<value>'"
+
+# Force ExternalSecret refresh (normally refreshes every 1h)
+kubectl annotate externalsecret <name> -n <namespace> force-sync=$(date +%s) --overwrite
+
+# Verify sync status
+kubectl get externalsecret -A
+```
+
+### Adding a New Secret
+
+1. Store in OpenBao: `bao kv put secret/<path> key=value`
+2. Create ExternalSecret YAML in `platform/manifests/external-secrets-config/`
+3. Reference `ClusterSecretStore: openbao`
+4. Apply: `kubectl apply -f platform/manifests/external-secrets-config/<file>.yaml`
+
+### SeaweedFS S3 Credentials
+
+SeaweedFS S3 uses a separate config (not OpenBao): `accessKey: any`, `secretKey: any`.
+Config stored in `seaweedfs-s3-config` secret in `seaweedfs` namespace.
+Anonymous access: Read + List only. Writes require credentials.
 
 ## Beads / Toil Tracking
 
