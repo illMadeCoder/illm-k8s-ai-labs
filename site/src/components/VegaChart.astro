@@ -11,19 +11,16 @@ const { spec } = Astro.props;
 </div>
 
 <script>
-  async function renderCharts() {
-    const { default: vegaEmbed } = await import('vega-embed');
+  import vegaEmbed from 'vega-embed';
 
-    document.querySelectorAll<HTMLElement>('.vega-chart').forEach(async (el) => {
-      const raw = el.getAttribute('data-spec');
-      if (!raw) return;
+  document.querySelectorAll<HTMLElement>('.vega-chart').forEach((el) => {
+    const raw = el.getAttribute('data-spec');
+    if (!raw) return;
+    try {
       const spec = JSON.parse(raw);
-      await vegaEmbed(el, spec, {
-        actions: false,
-        renderer: 'svg',
-      });
-    });
-  }
-
-  renderCharts();
+      vegaEmbed(el, spec, { actions: false, renderer: 'svg' });
+    } catch (e) {
+      el.textContent = `Chart error: ${e}`;
+    }
+  });
 </script>
