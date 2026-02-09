@@ -222,14 +222,14 @@ func (m *ApplicationManager) IsApplicationHealthy(ctx context.Context, experimen
 		return false, nil // Not ready yet
 	}
 
-	// Check sync status
+	// Check sync status — multi-source apps report "Unknown" which is acceptable
 	syncStatus, found, err := unstructured.NestedString(app.Object, "status", "sync", "status")
 	if err != nil || !found {
 		return false, nil
 	}
 
-	// Application is healthy if health is "Healthy" and sync is "Synced"
-	healthy := healthStatus == "Healthy" && syncStatus == "Synced"
+	// Application is healthy if health is "Healthy" and sync is not "OutOfSync"
+	healthy := healthStatus == "Healthy" && (syncStatus == "Synced" || syncStatus == "Unknown")
 	return healthy, nil
 }
 
