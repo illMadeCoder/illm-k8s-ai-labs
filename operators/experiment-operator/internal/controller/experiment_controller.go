@@ -40,6 +40,7 @@ import (
 	experimentsv1alpha1 "github.com/illmadecoder/experiment-operator/api/v1alpha1"
 	"github.com/illmadecoder/experiment-operator/internal/argocd"
 	"github.com/illmadecoder/experiment-operator/internal/crossplane"
+	ghclient "github.com/illmadecoder/experiment-operator/internal/github"
 	"github.com/illmadecoder/experiment-operator/internal/metrics"
 	"github.com/illmadecoder/experiment-operator/internal/storage"
 	"github.com/illmadecoder/experiment-operator/internal/workflow"
@@ -57,6 +58,7 @@ type ExperimentReconciler struct {
 	ArgoCD         *argocd.Client
 	Workflow       *workflow.Manager
 	S3Client       *storage.Client
+	GitClient      *ghclient.Client
 	MetricsURL     string
 }
 
@@ -246,6 +248,16 @@ func (r *ExperimentReconciler) collectAndStoreResults(ctx context.Context, exp *
 
 	exp.Status.ResultsURL = fmt.Sprintf("s3://experiment-results/%s/", prefix)
 	log.Info("Experiment results stored", "url", exp.Status.ResultsURL)
+
+	// Commit results to GitHub for benchmark site (best-effort, non-fatal)
+	if r.GitClient != nil {
+		if err := r.GitClient.CommitResult(ctx, exp.Name, summary); err != nil {
+			log.Error(err, "Failed to commit results to GitHub — non-fatal", "repo", r.GitClient.RepoPath())
+		} else {
+			log.Info("Results committed to GitHub", "experiment", exp.Name, "repo", r.GitClient.RepoPath())
+		}
+	}
+
 	return nil
 }
 

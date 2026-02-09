@@ -31,6 +31,7 @@ Provisions target clusters (Crossplane), deploys components (ArgoCD), runs workf
 | `argocd` | ArgoCD client, application lifecycle, cluster registration |
 | `components` | Resolves ComponentRef → actual Git/Helm sources |
 | `crossplane` | Creates/manages GKECluster claims via Crossplane |
+| `github` | GitHub Contents API client, auto-commits results to benchmark site |
 | `metrics` | Collects experiment metrics for results |
 | `storage` | SeaweedFS S3 client for experiment results |
 | `workflow` | Creates/monitors Argo Workflows for validation/lifecycle |
@@ -130,23 +131,30 @@ kubectl run -n seaweedfs s3check --rm -it --restart=Never \
 
 ### 5. Publish experiment results to benchmark site
 
-After an experiment completes, the operator stores `summary.json` in SeaweedFS S3.
-To publish results to the GitHub Pages site, copy the JSON to `site/data/` and push:
+**Automated:** The operator auto-commits `summary.json` to `site/data/{name}.json` via the GitHub
+Contents API on experiment completion. This triggers the `deploy-site.yaml` workflow to rebuild
+the benchmark site on GitHub Pages. Requires `GITHUB_TOKEN` secret (see below).
 
 ```bash
-# 1. Get the experiment name
-EXP_NAME=$(kubectl get experiments -n experiments -o jsonpath='{.items[-1].metadata.name}')
+# Setup: Create GitHub token secret (fine-grained PAT with Contents: Read and write)
+kubectl create secret generic github-api-token \
+  -n experiment-operator-system \
+  --from-literal=token=github_pat_xxx
 
-# 2. Fetch summary.json from S3
+# Restart operator to pick up new env
+kubectl rollout restart deployment/experiment-operator-controller-manager \
+  -n experiment-operator-system
+```
+
+**Manual fallback** (if token not configured or commit failed):
+
+```bash
+EXP_NAME=$(kubectl get experiments -n experiments -o jsonpath='{.items[-1].metadata.name}')
 kubectl run -n seaweedfs s3fetch --rm -it --restart=Never \
   --image=curlimages/curl:8.5.0 -- \
   curl -s http://seaweedfs-s3.seaweedfs.svc.cluster.local:8333/experiment-results/${EXP_NAME}/summary.json \
   > site/data/${EXP_NAME}.json
-
-# 3. Commit and push (triggers deploy-site workflow → GitHub Pages)
-git add site/data/${EXP_NAME}.json
-git commit -m "data: Add ${EXP_NAME} results"
-git push
+git add site/data/${EXP_NAME}.json && git commit -m "data: Add ${EXP_NAME} results" && git push
 ```
 
 The file must conform to the `ExperimentSummary` JSON shape (see `operators/experiment-operator/internal/metrics/collector.go`).

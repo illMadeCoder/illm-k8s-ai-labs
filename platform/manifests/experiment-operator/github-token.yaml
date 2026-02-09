@@ -1,0 +1,19 @@
+# GitHub API token for operator auto-publish of experiment results.
+# The operator uses this to commit summary.json to site/data/ via the GitHub Contents API,
+# which triggers the deploy-site workflow to rebuild the benchmark site.
+#
+# Create the actual secret manually:
+#   kubectl create secret generic github-api-token \
+#     -n experiment-operator-system \
+#     --from-literal=token=github_pat_xxx
+#
+# Token requirements: Fine-grained PAT scoped to illMadeCoder/k8s-ai-cloud-testbed
+# with "Contents: Read and write" permission.
+apiVersion: v1
+kind: Secret
+metadata:
+  name: github-api-token
+  namespace: experiment-operator-system
+type: Opaque
+stringData:
+  token: ""  # Placeholder — set via kubectl create secret

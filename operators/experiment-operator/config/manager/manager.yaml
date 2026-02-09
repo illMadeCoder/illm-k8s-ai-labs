@@ -65,6 +65,13 @@ spec:
           - --health-probe-bind-address=:8081
         image: controller:latest
         name: manager
+        env:
+        - name: GITHUB_TOKEN
+          valueFrom:
+            secretKeyRef:
+              name: github-api-token
+              key: token
+              optional: true
         ports: []
         securityContext:
           readOnlyRootFilesystem: true

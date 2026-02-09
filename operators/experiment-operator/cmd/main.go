@@ -20,6 +20,7 @@ import (
 	"crypto/tls"
 	"flag"
 	"os"
+	"strings"
 
 	// Import all Kubernetes client auth plugins (e.g. Azure, GCP, OIDC, etc.)
 	// to ensure that exec-entrypoint and run can make use of them.
@@ -39,6 +40,7 @@ import (
 	"github.com/illmadecoder/experiment-operator/internal/argocd"
 	"github.com/illmadecoder/experiment-operator/internal/controller"
 	"github.com/illmadecoder/experiment-operator/internal/crossplane"
+	ghclient "github.com/illmadecoder/experiment-operator/internal/github"
 	"github.com/illmadecoder/experiment-operator/internal/storage"
 	"github.com/illmadecoder/experiment-operator/internal/workflow"
 	// +kubebuilder:scaffold:imports
@@ -193,6 +195,23 @@ func main() {
 
 	metricsURL := getEnvOrDefault("METRICS_URL", "http://victoria-metrics-server.observability.svc:8428")
 
+	// Initialize GitHub client for auto-publishing results to benchmark site (optional)
+	var gitClient *ghclient.Client
+	if ghToken := os.Getenv("GITHUB_TOKEN"); ghToken != "" {
+		ghRepo := getEnvOrDefault("GITHUB_REPO", "illMadeCoder/k8s-ai-cloud-testbed")
+		ghBranch := getEnvOrDefault("GITHUB_BRANCH", "main")
+		ghPath := getEnvOrDefault("GITHUB_RESULTS_PATH", "site/data")
+		parts := strings.SplitN(ghRepo, "/", 2)
+		if len(parts) == 2 {
+			gitClient = ghclient.NewClient(ghToken, parts[0], parts[1], ghBranch, ghPath)
+			setupLog.Info("GitHub client initialized for site auto-publish", "repo", ghRepo)
+		} else {
+			setupLog.Info("Invalid GITHUB_REPO format (expected owner/repo)", "value", ghRepo)
+		}
+	} else {
+		setupLog.Info("GITHUB_TOKEN not set — site auto-publish disabled")
+	}
+
 	if err := (&controller.ExperimentReconciler{
 		Client:         mgr.GetClient(),
 		Scheme:         mgr.GetScheme(),
@@ -200,6 +219,7 @@ func main() {
 		ArgoCD:         argocd.NewClient(mgr.GetClient()),
 		Workflow:       workflow.NewManager(mgr.GetClient()),
 		S3Client:       s3Client,
+		GitClient:      gitClient,
 		MetricsURL:     metricsURL,
 	}).SetupWithManager(mgr); err != nil {
 		setupLog.Error(err, "unable to create controller", "controller", "Experiment")
