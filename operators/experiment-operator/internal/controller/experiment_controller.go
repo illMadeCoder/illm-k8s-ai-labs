@@ -235,8 +235,8 @@ func (r *ExperimentReconciler) collectAndStoreResults(ctx context.Context, exp *
 	// Target clusters (GKE) often have Prometheus/VictoriaMetrics deployed as components.
 	// Retry discovery because ArgoCD may still be deploying monitoring when the workflow completes.
 	var metricsResult *metrics.MetricsResult
-	const maxDiscoveryAttempts = 6
-	const discoveryRetryInterval = 10 * time.Second
+	const maxDiscoveryAttempts = 12
+	const discoveryRetryInterval = 15 * time.Second
 
 	for i, target := range exp.Spec.Targets {
 		if target.Cluster.Type == "hub" {
