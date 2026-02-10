@@ -228,6 +228,22 @@ func (m *ApplicationManager) IsApplicationHealthy(ctx context.Context, experimen
 		return false, nil
 	}
 
+	// Check for ComparisonError conditions — ArgoCD reports "Healthy" even when
+	// manifest generation fails (since no resources exist to be unhealthy).
+	conditions, condFound, _ := unstructured.NestedSlice(app.Object, "status", "conditions")
+	if condFound {
+		for _, c := range conditions {
+			cond, ok := c.(map[string]interface{})
+			if !ok {
+				continue
+			}
+			condType, _, _ := unstructured.NestedString(cond, "type")
+			if condType == "ComparisonError" {
+				return false, nil
+			}
+		}
+	}
+
 	// Application is healthy when health is "Healthy" and sync is not "OutOfSync".
 	// Multi-source ArgoCD apps report "Unknown" sync status, which is acceptable.
 	healthy := healthStatus == "Healthy" && (syncStatus == "Synced" || syncStatus == "Unknown")

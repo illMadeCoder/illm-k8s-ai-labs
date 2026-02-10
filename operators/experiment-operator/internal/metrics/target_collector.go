@@ -68,20 +68,10 @@ func DiscoverMonitoringServices(ctx context.Context, kubeconfig []byte, experime
 	if len(endpoints) == 0 {
 		allSvcs, err := clientset.CoreV1().Services("").List(ctx, metav1.ListOptions{})
 		if err == nil {
-			// Log all services for debugging discovery issues.
-			var svcNames []string
 			for _, svc := range allSvcs.Items {
-				svcNames = append(svcNames, fmt.Sprintf("%s/%s", svc.Namespace, svc.Name))
 				if ep, ok := matchMonitoringService(svc); ok {
 					endpoints = append(endpoints, ep)
 				}
-			}
-			if len(svcNames) > 0 && len(endpoints) == 0 {
-				// Truncate to avoid huge log lines
-				if len(svcNames) > 20 {
-					svcNames = append(svcNames[:20], fmt.Sprintf("... and %d more", len(svcNames)-20))
-				}
-				fmt.Printf("DEBUG: All services on target cluster (%d total): %v\n", len(svcNames), svcNames)
 			}
 		}
 	}

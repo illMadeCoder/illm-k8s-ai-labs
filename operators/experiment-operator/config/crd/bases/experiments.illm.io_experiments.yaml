@@ -24,6 +24,9 @@ spec:
     - jsonPath: .status.workflowStatus.phase
       name: Workflow
       type: string
+    - jsonPath: .status.published
+      name: Published
+      type: boolean
     - jsonPath: .status.resourcesCleaned
       name: Cleaned
       type: boolean
@@ -237,6 +240,10 @@ spec:
           status:
             description: status defines the observed state of Experiment
             properties:
+              analysisJobName:
+                description: AnalysisJobName is the name of the AI analyzer Job (empty
+                  if not launched)
+                type: string
               completedAt:
                 description: CompletedAt is the timestamp when the experiment reached
                   a terminal state
@@ -320,6 +327,10 @@ spec:
                   - Failed
                 description: Phase of the experiment
                 type: string
+              published:
+                description: Published indicates whether results were successfully
+                  committed to the benchmark site
+                type: boolean
               resourcesCleaned:
                 description: ResourcesCleaned indicates whether expensive resources
                   (clusters, apps) have been cleaned up

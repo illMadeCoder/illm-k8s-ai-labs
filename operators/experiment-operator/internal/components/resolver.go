@@ -126,22 +126,81 @@ func (r *Resolver) resolveFromCR(component *experimentsv1alpha1.Component, param
 	return resolved, nil
 }
 
+// componentCategory maps component names to their category directory in the repo.
+// Components are organized as components/<category>/<name>/ in the git repo.
+var componentCategory = map[string]string{
+	// apps
+	"cardinality-generator": "apps",
+	"custom-db":             "apps",
+	"demo-app":              "apps",
+	"hello-app":             "apps",
+	"log-generator":         "apps",
+	"metrics-app":           "apps",
+	"nginx":                 "apps",
+	"otel-demo":             "apps",
+	"station-monitor":       "apps",
+	// chaos
+	"chaos-mesh": "chaos",
+	// core
+	"argocd":             "core",
+	"cert-manager":       "core",
+	"envoy-gateway":      "core",
+	"gateway-api":        "core",
+	"nginx-ingress":      "core",
+	"tailscale-operator": "core",
+	"traefik":            "core",
+	// messaging
+	"kafka":            "messaging",
+	"rabbitmq":         "messaging",
+	"strimzi-operator": "messaging",
+	// observability
+	"eck-operator":          "observability",
+	"elasticsearch":         "observability",
+	"elk-stack":             "observability",
+	"fluent-bit":            "observability",
+	"jaeger":                "observability",
+	"kibana":                "observability",
+	"kube-prometheus-stack": "observability",
+	"loki":                  "observability",
+	"metrics-agent":         "observability",
+	"metrics-egress":        "observability",
+	"mimir":                 "observability",
+	"otel-collector":        "observability",
+	"prometheus-stack":      "observability",
+	"promtail":              "observability",
+	"pyrra":                 "observability",
+	"seaweedfs":             "observability",
+	"tempo":                 "observability",
+	"victoria-metrics":      "observability",
+	// storage
+	"minio": "storage",
+	// testing
+	"k6": "testing",
+	// workflows
+	"argo-workflows": "workflows",
+}
+
 // fallbackComponent creates a fallback component when CR is not found
 func (r *Resolver) fallbackComponent(name string, componentType string, params map[string]string) (*ResolvedComponent, error) {
 	// Default repository
 	defaultRepo := "https://github.com/illMadeCoder/k8s-ai-cloud-testbed.git"
 
-	// Construct path based on type
+	// Construct path based on component category lookup, then type
 	var path string
-	switch componentType {
-	case "app":
-		path = fmt.Sprintf("components/apps/%s", name)
-	case "workflow":
-		path = fmt.Sprintf("components/workflows/%s", name)
-	case "config":
-		path = fmt.Sprintf("components/configs/%s", name)
-	default:
-		return nil, fmt.Errorf("unknown component type: %s", componentType)
+	if category, ok := componentCategory[name]; ok {
+		path = fmt.Sprintf("components/%s/%s", category, name)
+	} else {
+		// Unknown component — guess based on type
+		switch componentType {
+		case "app":
+			path = fmt.Sprintf("components/apps/%s", name)
+		case "workflow":
+			path = fmt.Sprintf("components/workflows/%s", name)
+		case "config":
+			path = fmt.Sprintf("components/configs/%s", name)
+		default:
+			return nil, fmt.Errorf("unknown component type: %s", componentType)
+		}
 	}
 
 	resolved := &ResolvedComponent{
