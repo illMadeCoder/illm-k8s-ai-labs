@@ -1,0 +1,36 @@
+{
+  "name": "tsdb-comparison-d7tf4",
+  "namespace": "experiments",
+  "description": "TSDB comparison - Prometheus vs VictoriaMetrics vs Mimir resource efficiency and query performance",
+  "createdAt": "2026-02-10T13:54:21Z",
+  "completedAt": "2026-02-10T15:01:18.336566984Z",
+  "durationSeconds": 4017.336566984,
+  "phase": "Complete",
+  "tags": [
+    "comparison",
+    "observability",
+    "metrics"
+  ],
+  "targets": [
+    {
+      "name": "app",
+      "clusterName": "tsdb-comparison-d7tf4-app",
+      "clusterType": "gke"
+    }
+  ],
+  "workflow": {
+    "name": "tsdb-comparison-d7tf4-validation",
+    "template": "tsdb-comparison-validation",
+    "phase": "Succeeded",
+    "startedAt": "2026-02-10T15:01:03Z",
+    "finishedAt": "2026-02-10T15:01:13Z"
+  },
+  "costEstimate": {
+    "totalUSD": 0.022318536483244448,
+    "durationHours": 1.1159268241622222,
+    "perTarget": {
+      "app": 0.022318536483244448
+    },
+    "note": "Rough estimate based on on-demand GCE pricing; actual cost may differ."
+  }
+}
