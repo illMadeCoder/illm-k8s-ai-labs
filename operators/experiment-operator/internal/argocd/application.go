@@ -175,6 +175,7 @@ func (m *ApplicationManager) CreateApplication(ctx context.Context, experimentNa
 			},
 			"syncOptions": []interface{}{
 				"CreateNamespace=true",
+				"ServerSideApply=true",
 			},
 		},
 	}
