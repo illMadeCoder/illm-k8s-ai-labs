@@ -112,7 +112,12 @@ func (m *ApplicationManager) CreateApplication(ctx context.Context, experimentNa
 
 			// Add Helm configuration if present
 			if source.Helm != nil {
-				helmConfig := map[string]interface{}{}
+				helmConfig := map[string]interface{}{
+					// Skip Helm hooks (pre-install, post-install, etc.) — they cause
+					// ordering issues when ArgoCD deploys all sources simultaneously
+					// (e.g. Kibana pre-install hook waits for Elasticsearch to be ready).
+					"skipHooks": true,
+				}
 
 				if source.Helm.ReleaseName != "" {
 					helmConfig["releaseName"] = source.Helm.ReleaseName
