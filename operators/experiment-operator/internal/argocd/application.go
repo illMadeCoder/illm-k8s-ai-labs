@@ -102,12 +102,12 @@ func (m *ApplicationManager) CreateApplication(ctx context.Context, experimentNa
 			// Use 'chart' for Helm repositories, 'path' for Git repositories
 			if source.Chart != "" {
 				argoSource["chart"] = source.Chart
+			} else if needsValuesRef && source.Helm == nil {
+				// This git source is used as a ref for $values — set ref instead of path
+				// to avoid ArgoCD trying to deploy component.yaml as a manifest.
+				argoSource["ref"] = "values"
 			} else {
 				argoSource["path"] = source.Path
-				// Add ref: "values" to git sources when another source references $values
-				if needsValuesRef {
-					argoSource["ref"] = "values"
-				}
 			}
 
 			// Add Helm configuration if present
