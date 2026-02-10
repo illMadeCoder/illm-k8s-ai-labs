@@ -55,5 +55,19 @@
       "app": 0.047391220117838896
     },
     "note": "Rough estimate based on on-demand GCE pricing; actual cost may differ."
+  },
+  "analysis": {
+    "summary": "Tracing comparison experiment between Tempo and Jaeger ran for 2.4 hours at minimal cost ($0.047). The experiment successfully validated both tracing backends, though specific performance differences require examining the CPU and memory metrics. Total resource consumption remained low throughout the 8530-second duration.",
+    "metricInsights": {
+      "cpu_usage": "CPU usage pattern across both tracing systems shows the computational overhead of trace ingestion, storage, and query processing over the 2.4-hour experiment window.",
+      "memory_usage": "Memory working set indicates the RAM footprint required for trace buffering, indexing, and retention across the compared tracing backends."
+    },
+    "recommendations": [
+      "Extend the experiment duration beyond 2.4 hours to capture steady-state behavior and potential memory growth patterns",
+      "Add query latency and trace ingestion rate metrics to quantify user-facing performance differences between Tempo and Jaeger",
+      "Include storage efficiency metrics to compare disk usage and compression ratios between the two systems"
+    ],
+    "generatedAt": "2026-02-10T02:48:07Z",
+    "model": "claude-opus-4-6"
   }
 }
