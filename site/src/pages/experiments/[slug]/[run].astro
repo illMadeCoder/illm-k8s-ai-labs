@@ -37,8 +37,7 @@ const allMetricEntries = experiment.metrics
   ? Object.entries(experiment.metrics.queries).filter(([, qr]) => !qr.error)
   : [];
 const metricEntries = allMetricEntries.filter(([, qr]) => qr.data && qr.data.length > 0);
-const hasMetricsSection = experiment.metrics != null;
-const metricsEmpty = hasMetricsSection && metricEntries.length === 0;
+const metricsEmpty = metricEntries.length === 0;
 ---
 
 <Base title={`${experiment.name} — K8s AI Lab Benchmarks`} description={experiment.description}>

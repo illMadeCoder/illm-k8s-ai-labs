@@ -21,15 +21,50 @@ const { targets } = Astro.props;
       </tr>
     </thead>
     <tbody>
-      {targets.map((t) => (
-        <tr>
-          <td><code>{t.name}</code></td>
-          <td>{t.clusterType}</td>
-          <td>{t.machineType ?? '—'}</td>
-          <td>{t.nodeCount ?? '—'}</td>
-          <td>{t.components?.join(', ') ?? '—'}</td>
-        </tr>
-      ))}
+      {targets.map((t) => {
+        const comps = t.components ?? [];
+        const count = comps.length;
+        return (
+          <tr>
+            <td><code>{t.name}</code></td>
+            <td>{t.clusterType}</td>
+            <td>{t.machineType ?? '—'}</td>
+            <td>{t.nodeCount ?? '—'}</td>
+            <td>
+              {count === 0 ? '—' : (
+                <details class="components-details">
+                  <summary>{count} resource{count !== 1 ? 's' : ''}</summary>
+                  <div class="components-list">
+                    {comps.map((c) => <code class="component-tag">{c}</code>)}
+                  </div>
+                </details>
+              )}
+            </td>
+          </tr>
+        );
+      })}
     </tbody>
   </table>
 </div>
+
+<style>
+  .components-details summary {
+    cursor: pointer;
+    color: var(--accent);
+    font-weight: 500;
+    font-size: 0.85rem;
+  }
+  .components-list {
+    margin-top: 0.5rem;
+    max-height: 200px;
+    overflow-y: auto;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+  }
+  .component-tag {
+    font-size: 0.7rem;
+    padding: 0.1rem 0.35rem;
+    white-space: nowrap;
+  }
+</style>
