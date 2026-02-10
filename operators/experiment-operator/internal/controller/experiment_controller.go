@@ -233,10 +233,11 @@ func (r *ExperimentReconciler) collectAndStoreResults(ctx context.Context, exp *
 
 	// Phase 1: Try collecting metrics from target cluster monitoring stacks.
 	// Target clusters (GKE) often have Prometheus/VictoriaMetrics deployed as components.
-	// Retry discovery because ArgoCD may still be deploying monitoring when the workflow completes.
+	// Combined discover+collect retry loop: re-discovers endpoints on each attempt so that
+	// newly ready services (e.g., Prometheus pods starting up) are found.
 	var metricsResult *metrics.MetricsResult
-	const maxDiscoveryAttempts = 12
-	const discoveryRetryInterval = 15 * time.Second
+	const maxMetricsAttempts = 8
+	const metricsRetryInterval = 30 * time.Second
 
 	for i, target := range exp.Spec.Targets {
 		if target.Cluster.Type == "hub" {
@@ -253,37 +254,30 @@ func (r *ExperimentReconciler) collectAndStoreResults(ctx context.Context, exp *
 			continue
 		}
 
-		var endpoints []metrics.MonitoringEndpoint
-		for attempt := 1; attempt <= maxDiscoveryAttempts; attempt++ {
-			endpoints, err = metrics.DiscoverMonitoringServices(ctx, kubeconfig, exp.Name)
-			if err != nil {
-				log.Error(err, "Monitoring discovery failed", "cluster", clusterName, "attempt", attempt)
+		for attempt := 1; attempt <= maxMetricsAttempts; attempt++ {
+			// Re-discover endpoints each attempt — more services come online over time
+			endpoints, discErr := metrics.DiscoverMonitoringServices(ctx, kubeconfig, exp.Name)
+			if discErr != nil {
+				log.Error(discErr, "Monitoring discovery failed", "cluster", clusterName, "attempt", attempt)
 				break
 			}
-			if len(endpoints) > 0 {
-				break
+			if len(endpoints) == 0 {
+				if attempt < maxMetricsAttempts {
+					log.Info("No monitoring services found yet, retrying", "cluster", clusterName, "attempt", attempt, "nextRetry", metricsRetryInterval)
+					time.Sleep(metricsRetryInterval)
+				}
+				continue
 			}
-			if attempt < maxDiscoveryAttempts {
-				log.Info("No monitoring services found yet, retrying", "cluster", clusterName, "attempt", attempt, "nextRetry", discoveryRetryInterval)
-				time.Sleep(discoveryRetryInterval)
-			}
-		}
-		if len(endpoints) == 0 {
-			log.Info("No monitoring services found on target cluster", "cluster", clusterName)
-			continue
-		}
 
-		log.Info("Discovered monitoring endpoints on target", "cluster", clusterName, "count", len(endpoints))
+			log.Info("Discovered monitoring endpoints on target", "cluster", clusterName, "count", len(endpoints), "attempt", attempt)
 
-		// Retry metrics collection — Prometheus may have just started and needs
-		// a few scrape intervals before it has data.
-		const maxCollectionAttempts = 6
-		const collectionRetryInterval = 30 * time.Second
-		for attempt := 1; attempt <= maxCollectionAttempts; attempt++ {
-			result, err := metrics.CollectMetricsFromTarget(ctx, kubeconfig, endpoints, exp)
-			if err != nil {
-				log.Error(err, "Target metrics collection failed", "cluster", clusterName, "attempt", attempt)
-				break
+			result, collectErr := metrics.CollectMetricsFromTarget(ctx, kubeconfig, endpoints, exp)
+			if collectErr != nil {
+				log.Error(collectErr, "Target metrics collection failed", "cluster", clusterName, "attempt", attempt)
+				if attempt < maxMetricsAttempts {
+					time.Sleep(metricsRetryInterval)
+				}
+				continue
 			}
 
 			if !metrics.AllQueriesEmpty(result) {
@@ -291,9 +285,9 @@ func (r *ExperimentReconciler) collectAndStoreResults(ctx context.Context, exp *
 				log.Info("Collected metrics from target cluster", "cluster", clusterName, "source", result.Source)
 				break
 			}
-			if attempt < maxCollectionAttempts {
-				log.Info("Target metrics returned empty data, waiting for scrape data", "cluster", clusterName, "attempt", attempt, "nextRetry", collectionRetryInterval)
-				time.Sleep(collectionRetryInterval)
+			if attempt < maxMetricsAttempts {
+				log.Info("Target metrics returned empty data, waiting for scrape data", "cluster", clusterName, "attempt", attempt, "nextRetry", metricsRetryInterval)
+				time.Sleep(metricsRetryInterval)
 			} else {
 				log.Info("Target metrics still empty after retries", "cluster", clusterName)
 			}

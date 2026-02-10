@@ -108,11 +108,13 @@ func DiscoverMonitoringServices(ctx context.Context, kubeconfig []byte, experime
 func matchMonitoringService(svc corev1.Service) (MonitoringEndpoint, bool) {
 	name := strings.ToLower(svc.Name)
 
-	// Prometheus (excluding operator, alertmanager, node-exporter)
+	// Prometheus (excluding operator, alertmanager, node-exporter, grafana, kube-state-metrics)
 	if strings.Contains(name, "prometheus") &&
 		!strings.Contains(name, "operator") &&
 		!strings.Contains(name, "alertmanager") &&
-		!strings.Contains(name, "node-exporter") {
+		!strings.Contains(name, "node-exporter") &&
+		!strings.Contains(name, "grafana") &&
+		!strings.Contains(name, "kube-state-metrics") {
 		return MonitoringEndpoint{
 			Service:   svc.Name,
 			Namespace: svc.Namespace,
