@@ -1,0 +1,59 @@
+{
+  "name": "logging-comparison-dbkf7",
+  "namespace": "experiments",
+  "description": "Loki vs Elasticsearch logging comparison - architecture, resource usage, query performance",
+  "createdAt": "2026-02-10T00:25:44Z",
+  "completedAt": "2026-02-10T02:27:41.426732686Z",
+  "durationSeconds": 7317.426732686,
+  "phase": "Complete",
+  "tags": [
+    "comparison",
+    "observability",
+    "logging"
+  ],
+  "targets": [
+    {
+      "name": "app",
+      "clusterName": "logging-comparison-dbkf7-app",
+      "clusterType": "gke"
+    }
+  ],
+  "workflow": {
+    "name": "logging-comparison-dbkf7-validation",
+    "template": "logging-comparison-validation",
+    "phase": "Succeeded",
+    "startedAt": "2026-02-10T00:48:02Z",
+    "finishedAt": "2026-02-10T02:24:07Z"
+  },
+  "metrics": {
+    "collectedAt": "2026-02-10T02:27:41.426740116Z",
+    "timeRange": {
+      "start": "2026-02-10T00:25:44Z",
+      "end": "2026-02-10T02:27:41.426732686Z",
+      "duration": "2h1m57.426732686s",
+      "stepSeconds": 300
+    },
+    "queries": {
+      "cpu_usage": {
+        "query": "sum(rate(container_cpu_usage_seconds_total{experiment=\"logging-comparison-dbkf7\"}[1m]))",
+        "type": "range",
+        "unit": "cores",
+        "description": "Total CPU usage"
+      },
+      "memory_usage": {
+        "query": "sum(container_memory_working_set_bytes{experiment=\"logging-comparison-dbkf7\"})",
+        "type": "range",
+        "unit": "bytes",
+        "description": "Total memory working set"
+      }
+    }
+  },
+  "costEstimate": {
+    "totalUSD": 0.04065237073714445,
+    "durationHours": 2.032618536857222,
+    "perTarget": {
+      "app": 0.04065237073714445
+    },
+    "note": "Rough estimate based on on-demand GCE pricing; actual cost may differ."
+  }
+}
