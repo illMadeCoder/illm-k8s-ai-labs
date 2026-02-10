@@ -29,7 +29,9 @@ var (
 // ApplicationManager manages ArgoCD Applications
 type ApplicationManager struct {
 	client.Client
-	Resolver *components.Resolver
+	Resolver              *components.Resolver
+	TailscaleClientID     string
+	TailscaleClientSecret string
 }
 
 // NewApplicationManager creates a new ApplicationManager
@@ -67,7 +69,7 @@ func (m *ApplicationManager) CreateApplication(ctx context.Context, experimentNa
 
 	// Auto-inject observability components when enabled
 	if target.Observability != nil && target.Observability.Enabled {
-		obsRefs := observabilityComponentRefs(target.Observability, experimentName)
+		obsRefs := observabilityComponentRefs(target.Observability, experimentName, m.TailscaleClientID, m.TailscaleClientSecret)
 		obsResolved, obsErr := m.Resolver.ResolveComponents(ctx, obsRefs)
 		if obsErr != nil {
 			log.Error(obsErr, "Failed to resolve observability components — continuing without them")
@@ -315,7 +317,7 @@ func (m *ApplicationManager) GetApplicationComponents(ctx context.Context, exper
 
 // observabilityComponentRefs returns ComponentRefs for the observability stack
 // based on the target's ObservabilitySpec.
-func observabilityComponentRefs(obs *experimentsv1alpha1.ObservabilitySpec, experimentName string) []experimentsv1alpha1.ComponentRef {
+func observabilityComponentRefs(obs *experimentsv1alpha1.ObservabilitySpec, experimentName, tsClientID, tsClientSecret string) []experimentsv1alpha1.ComponentRef {
 	refs := []experimentsv1alpha1.ComponentRef{
 		// VictoriaMetrics egress service (always needed)
 		{Config: "metrics-egress"},
@@ -330,9 +332,16 @@ func observabilityComponentRefs(obs *experimentsv1alpha1.ObservabilitySpec, expe
 
 	// Tailscale operator for mesh transport
 	if obs.Transport == "tailscale" {
-		refs = append(refs, experimentsv1alpha1.ComponentRef{
+		ref := experimentsv1alpha1.ComponentRef{
 			App: "tailscale-operator",
-		})
+		}
+		if tsClientID != "" && tsClientSecret != "" {
+			ref.Params = map[string]string{
+				"oauth.clientId":     tsClientID,
+				"oauth.clientSecret": tsClientSecret,
+			}
+		}
+		refs = append(refs, ref)
 	}
 
 	return refs

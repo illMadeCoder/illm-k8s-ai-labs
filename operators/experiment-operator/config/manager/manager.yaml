@@ -74,6 +74,18 @@ spec:
               optional: true
         - name: METRICS_URL
           value: "http://victoria-metrics-victoria-metrics-single-server.observability.svc:8428"
+        - name: TAILSCALE_CLIENT_ID
+          valueFrom:
+            secretKeyRef:
+              name: tailscale-oauth
+              key: clientId
+              optional: true
+        - name: TAILSCALE_CLIENT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: tailscale-oauth
+              key: clientSecret
+              optional: true
         ports: []
         securityContext:
           readOnlyRootFilesystem: true

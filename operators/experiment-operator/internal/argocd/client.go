@@ -15,10 +15,25 @@ type Client struct {
 }
 
 // NewClient creates a new ArgoCD client
-func NewClient(c client.Client) *Client {
+func NewClient(c client.Client, opts ...ClientOption) *Client {
+	am := NewApplicationManager(c)
+	for _, opt := range opts {
+		opt(am)
+	}
 	return &Client{
 		Client:     c,
-		AppManager: NewApplicationManager(c),
+		AppManager: am,
+	}
+}
+
+// ClientOption configures the ArgoCD client.
+type ClientOption func(*ApplicationManager)
+
+// WithTailscaleOAuth sets Tailscale OAuth credentials for target cluster observability.
+func WithTailscaleOAuth(clientID, clientSecret string) ClientOption {
+	return func(am *ApplicationManager) {
+		am.TailscaleClientID = clientID
+		am.TailscaleClientSecret = clientSecret
 	}
 }
 

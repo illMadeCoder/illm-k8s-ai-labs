@@ -214,11 +214,20 @@ func main() {
 
 	analyzerImage := getEnvOrDefault("ANALYZER_IMAGE", "ghcr.io/illmadecoder/experiment-analyzer:latest")
 
+	// Tailscale OAuth credentials for target cluster observability egress
+	tsClientID := os.Getenv("TAILSCALE_CLIENT_ID")
+	tsClientSecret := os.Getenv("TAILSCALE_CLIENT_SECRET")
+	if tsClientID != "" && tsClientSecret != "" {
+		setupLog.Info("Tailscale OAuth configured for target cluster observability")
+	} else {
+		setupLog.Info("TAILSCALE_CLIENT_ID/SECRET not set — target cluster Tailscale egress will not authenticate")
+	}
+
 	if err := (&controller.ExperimentReconciler{
 		Client:         mgr.GetClient(),
 		Scheme:         mgr.GetScheme(),
 		ClusterManager: crossplane.NewClusterManager(mgr.GetClient()),
-		ArgoCD:         argocd.NewClient(mgr.GetClient()),
+		ArgoCD:         argocd.NewClient(mgr.GetClient(), argocd.WithTailscaleOAuth(tsClientID, tsClientSecret)),
 		Workflow:       workflow.NewManager(mgr.GetClient()),
 		S3Client:       s3Client,
 		GitClient:      gitClient,
