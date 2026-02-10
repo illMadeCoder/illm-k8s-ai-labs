@@ -43,8 +43,8 @@ operators/experiment-operator/   Kubebuilder operator (Go, CI-built)
 components/{apps,core,obs,...}/  42 components with component.yaml (8 categories)
 experiments/{name}/              17 experiment scenarios (+ _template)
 platform/{apps,manifests,values} Hub cluster config + ArgoCD apps
-site/                            Astro benchmark results site (GitHub Pages, ADR-017)
-site/data/                       Experiment result JSONs (committed, not LFS)
+site/                            Astro + Tailwind benchmark site (GitHub Pages, ADR-017)
+site/data/                       Experiment result JSONs + _categories.json (committed, not LFS)
 docs/{adrs,roadmap}              17 ADRs, phase docs
 .github/workflows/               build-operator, build-components, deploy-site, auto-merge
 ```
@@ -63,10 +63,64 @@ docs/{adrs,roadmap}              17 ADRs, phase docs
 | Object storage | SeaweedFS | S3-compatible, experiment results |
 | Policy | Kyverno + Cosign | Supply chain security |
 | Secrets | OpenBao + ESO | External Secrets Operator syncs from OpenBao → K8s Secrets |
-| Benchmark site | Astro + Vega-Lite | GitHub Pages at `illmadecoder.github.io/k8s-ai-cloud-testbed/` (ADR-017) |
+| Benchmark site | Astro + Tailwind + Vega-Lite | GitHub Pages at `illmadecoder.github.io/k8s-ai-cloud-testbed/` (ADR-017) |
 | CI | GitHub Actions | Builds operator + component images, deploys site |
 
 Operator image: `ghcr.io/illmadecoder/experiment-operator`
+
+## Benchmark Site (`site/`)
+
+Astro static site with Tailwind CSS, deployed to GitHub Pages via `deploy-site.yaml`.
+
+### Information Architecture
+
+```
+/                              Landing (hero + stats + domain cards + recent experiments)
+/categories/                   Domain index (all categories)
+/categories/{domain}/          Domain detail (observability, networking, storage, cicd)
+/comparisons/                  All comparison experiments index
+/about/                        Portfolio + methodology + architecture + tech stack
+/experiments/{slug}/           Experiment group (latest run + run history)
+/experiments/{slug}/{run}/     Individual run detail
+/tags/{tag}/                   Tag filter
+```
+
+### Key Files
+
+```
+site/astro.config.mjs          Astro config (Tailwind integration, GitHub Pages base)
+site/tailwind.config.mjs       Tailwind theme (maps CSS custom properties)
+site/data/_categories.json     Domain taxonomy (observability, networking, storage, cicd)
+site/data/{name}.json          Experiment result JSONs (auto-committed by operator/analyzer)
+site/src/types.ts              TypeScript interfaces mirroring Go structs
+site/src/lib/experiments.ts    Data loading, grouping, domain/type derivation
+site/src/lib/categories.ts     Category data loading
+site/src/lib/format.ts         Value formatting (duration, bytes, cost)
+site/src/lib/vega-specs.ts     Vega-Lite chart builders
+site/src/layouts/Base.astro    Root layout (nav, breadcrumb slot, footer)
+site/src/components/           Hero, StatsBar, DomainCard, Breadcrumb, cards, charts
+site/src/pages/                All routes matching IA above
+```
+
+### Domain Taxonomy
+
+Experiments are categorized by tags into domains:
+
+| Domain | Tags | Subdomains |
+|--------|------|------------|
+| `observability` | metrics, logging, tracing, prometheus, victoria-metrics, loki, tempo, grafana, slos, cost | metrics, logging, tracing, slos, cost |
+| `networking` | gateways, ingress, service-mesh, gateway, envoy, nginx, traefik | gateways |
+| `storage` | object-storage, database, s3, seaweedfs | object-storage |
+| `cicd` | pipelines, ci, cd, supply-chain | pipelines |
+
+Experiment types derived from tags: `comparison`, `tutorial`, `demo`, `baseline`.
+
+### Design
+
+- **Tailwind-first** with CSS custom properties for dark mode (`prefers-color-scheme: dark`)
+- **Monospace typography** (JetBrains Mono) — engineering/terminal aesthetic
+- **Empty-state friendly** — categories and pages show "Coming soon" with no data
+- **Responsive** — mobile hamburger nav, stacking grids
 
 ## Environment Constraints
 

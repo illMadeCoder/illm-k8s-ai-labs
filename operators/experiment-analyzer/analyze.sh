@@ -40,6 +40,13 @@ echo "==> Summary fetched ($(wc -c < "${SUMMARY_FILE}") bytes)"
 PROMPT=$(cat <<'PROMPT_EOF'
 You are analyzing Kubernetes experiment benchmark results. The experiment data is a JSON object with metrics, targets, workflow info, and cost estimates.
 
+Your analysis will be published on the Testbed Benchmarks site (Astro + Tailwind, GitHub Pages).
+The site organizes experiments by domain (observability, networking, storage, cicd) and type
+(comparison, tutorial, demo, baseline) — derived from experiment tags. Your analysis appears on:
+- The experiment detail page (/experiments/{slug}/) as an "AI Analysis" box (summary) with
+  per-metric insights below each chart and a recommendations list at the bottom.
+- Comparison experiments are featured on the landing page and /comparisons/ index.
+
 Produce a JSON object with this exact structure:
 {
   "summary": "<2-4 sentence overview of the experiment findings>",
@@ -50,8 +57,8 @@ Produce a JSON object with this exact structure:
 }
 
 Rules:
-- "summary" should describe the key findings, which target/component performed best, and any notable patterns
-- "metricInsights" must have one entry per metric key in the input's metrics.queries object, using the exact same key names
+- "summary" should describe the key findings, which target/component performed best, and any notable patterns. For comparisons, clearly state the winner and by how much.
+- "metricInsights" must have one entry per metric key in the input's metrics.queries object, using the exact same key names. Each insight appears directly below its Vega-Lite chart on the site.
 - "recommendations" should contain 1-3 actionable suggestions if there's clear room for improvement; omit or leave empty if results are already good
 - Be specific with numbers — reference actual values from the data
 - Keep language concise and technical
