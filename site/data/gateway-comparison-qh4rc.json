@@ -1,0 +1,59 @@
+{
+  "name": "gateway-comparison-qh4rc",
+  "namespace": "experiments",
+  "description": "Gateway comparison - NGINX Ingress vs Traefik vs Envoy Gateway feature and performance analysis",
+  "createdAt": "2026-02-10T00:25:44Z",
+  "completedAt": "2026-02-10T02:47:53.490245532Z",
+  "durationSeconds": 8529.490245532,
+  "phase": "Complete",
+  "tags": [
+    "comparison",
+    "networking",
+    "gateway"
+  ],
+  "targets": [
+    {
+      "name": "app",
+      "clusterName": "gateway-comparison-qh4rc-app",
+      "clusterType": "gke"
+    }
+  ],
+  "workflow": {
+    "name": "gateway-comparison-qh4rc-validation",
+    "template": "gateway-comparison-validation",
+    "phase": "Succeeded",
+    "startedAt": "2026-02-10T02:42:57Z",
+    "finishedAt": "2026-02-10T02:46:40Z"
+  },
+  "metrics": {
+    "collectedAt": "2026-02-10T02:47:53.490252681Z",
+    "timeRange": {
+      "start": "2026-02-10T00:25:44Z",
+      "end": "2026-02-10T02:47:53.490245532Z",
+      "duration": "2h22m9.490245532s",
+      "stepSeconds": 300
+    },
+    "queries": {
+      "cpu_usage": {
+        "query": "sum(rate(container_cpu_usage_seconds_total{experiment=\"gateway-comparison-qh4rc\"}[1m]))",
+        "type": "range",
+        "unit": "cores",
+        "description": "Total CPU usage"
+      },
+      "memory_usage": {
+        "query": "sum(container_memory_working_set_bytes{experiment=\"gateway-comparison-qh4rc\"})",
+        "type": "range",
+        "unit": "bytes",
+        "description": "Total memory working set"
+      }
+    }
+  },
+  "costEstimate": {
+    "totalUSD": 0.047386056919622235,
+    "durationHours": 2.369302845981111,
+    "perTarget": {
+      "app": 0.047386056919622235
+    },
+    "note": "Rough estimate based on on-demand GCE pricing; actual cost may differ."
+  }
+}
