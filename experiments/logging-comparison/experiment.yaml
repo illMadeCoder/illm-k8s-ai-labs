@@ -21,7 +21,6 @@ spec:
         - app: loki
         - app: promtail
         - app: elasticsearch
-        - app: kibana
         - app: fluent-bit
         - app: log-generator
 
