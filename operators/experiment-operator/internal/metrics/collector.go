@@ -18,6 +18,7 @@ import (
 // MetricsResult is the top-level container for all collected metrics.
 type MetricsResult struct {
 	CollectedAt time.Time              `json:"collectedAt"`
+	Source      string                 `json:"source,omitempty"`
 	TimeRange   TimeRange              `json:"timeRange"`
 	Queries     map[string]QueryResult `json:"queries"`
 }

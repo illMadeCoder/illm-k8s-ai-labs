@@ -231,11 +231,61 @@ func (r *ExperimentReconciler) collectAndStoreResults(ctx context.Context, exp *
 	// Build summary
 	summary := metrics.CollectSummary(exp)
 
-	// Collect metrics snapshot (best-effort)
-	metricsResult, err := metrics.CollectMetricsSnapshot(ctx, r.MetricsURL, exp)
-	if err != nil {
-		log.Error(err, "Metrics snapshot failed — continuing without metrics")
+	// Phase 1: Try collecting metrics from target cluster monitoring stacks.
+	// Target clusters (GKE) often have Prometheus/VictoriaMetrics deployed as components.
+	var metricsResult *metrics.MetricsResult
+	for i, target := range exp.Spec.Targets {
+		if target.Cluster.Type == "hub" {
+			continue
+		}
+		if i >= len(exp.Status.Targets) || exp.Status.Targets[i].ClusterName == "" {
+			continue
+		}
+
+		clusterName := exp.Status.Targets[i].ClusterName
+		kubeconfig, err := r.ClusterManager.GetClusterKubeconfig(ctx, clusterName, target.Cluster.Type)
+		if err != nil {
+			log.Error(err, "Failed to get kubeconfig for target metrics", "cluster", clusterName)
+			continue
+		}
+
+		endpoints, err := metrics.DiscoverMonitoringServices(ctx, kubeconfig, exp.Name)
+		if err != nil {
+			log.Error(err, "Monitoring discovery failed", "cluster", clusterName)
+			continue
+		}
+		if len(endpoints) == 0 {
+			log.Info("No monitoring services found on target cluster", "cluster", clusterName)
+			continue
+		}
+
+		log.Info("Discovered monitoring endpoints on target", "cluster", clusterName, "count", len(endpoints))
+
+		result, err := metrics.CollectMetricsFromTarget(ctx, kubeconfig, endpoints, exp)
+		if err != nil {
+			log.Error(err, "Target metrics collection failed", "cluster", clusterName)
+			continue
+		}
+
+		if !metrics.AllQueriesEmpty(result) {
+			metricsResult = result
+			log.Info("Collected metrics from target cluster", "cluster", clusterName, "source", result.Source)
+			break
+		}
+		log.Info("Target metrics returned empty data", "cluster", clusterName)
 	}
+
+	// Phase 2: Fall back to hub VictoriaMetrics if target collection failed or returned empty.
+	if metricsResult == nil || metrics.AllQueriesEmpty(metricsResult) {
+		hubResult, err := metrics.CollectMetricsSnapshot(ctx, r.MetricsURL, exp)
+		if err != nil {
+			log.Error(err, "Hub metrics snapshot failed — continuing without metrics")
+		} else if hubResult != nil && !metrics.AllQueriesEmpty(hubResult) {
+			metricsResult = hubResult
+			log.Info("Collected metrics from hub VictoriaMetrics")
+		}
+	}
+
 	summary.Metrics = metricsResult
 
 	// Estimate cost

@@ -35,6 +35,7 @@ export interface WorkflowSummary {
 
 export interface MetricsResult {
   collectedAt: string;
+  source?: string;
   timeRange: TimeRange;
   queries: Record<string, QueryResult>;
 }
