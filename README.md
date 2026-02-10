@@ -69,13 +69,21 @@ kubectl get experiments -n experiments -w
    │     GKE      │    │     EKS      │    │     AKS      │
    │ (preemptible)│    │    (spot)    │    │    (spot)    │
    │              │    │              │    │              │
-   │  Apps + Obs  │    │  Apps + Obs  │    │  Apps + Obs  │
-   │  + Load Gen  │    │  + Load Gen  │    │  + Load Gen  │
-   └──────────────┘    └──────────────┘    └──────────────┘
-            │                    │                     │
-            └──────── metrics flow back ──────────────┘
-                       to VictoriaMetrics
+   │  Experiment  │    │  Experiment  │    │  Experiment  │
+   │  workloads   │    │  workloads   │    │  workloads   │
+   │      │       │    │      │       │    │      │       │
+   │  Alloy agent │    │  Alloy agent │    │  Alloy agent │
+   │  (4 metrics) │    │  (4 metrics) │    │  (4 metrics) │
+   └──────┬───────┘    └──────┬───────┘    └──────┬───────┘
+          │                   │                    │
+          └─── Tailscale (encrypted) ─── remote write ──► hub VictoriaMetrics
 ```
+
+**Metrics backhaul** — The operator auto-injects a Grafana Alloy agent onto each
+target cluster. Alloy scrapes cAdvisor, filters to four key metrics (CPU, memory,
+network RX/TX), stamps them with `{experiment="<name>"}`, and remote-writes to
+hub VictoriaMetrics through a Tailscale WireGuard tunnel. No monitoring stack needed
+on the target — the hub collects everything.
 
 ## Getting Started
 
