@@ -119,7 +119,7 @@ Experiment types derived from tags: `comparison`, `tutorial`, `demo`, `baseline`
 
 Experiments must have `spec.publish: true` to be published to the site and receive AI analysis.
 Without this field (or `publish: false`), results are stored in S3 only — no GitHub commit, no
-analyzer job, no API cost. The `hello-app` demo experiment is the only one left unpublished.
+analyzer job, no API cost. Only comparisons are published; tutorials and demos stay private.
 
 ### Design
 

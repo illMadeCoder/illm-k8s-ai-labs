@@ -6,7 +6,6 @@ metadata:
 spec:
   description: "ELK stack tutorial - Elasticsearch, Kibana, Fluent Bit log analytics"
   tags: ["tutorial", "observability", "logging"]
-  publish: true
   ttlDays: 7
 
   targets:
