@@ -199,7 +199,7 @@ styled card on the experiment detail page. Be specific with numbers from the dat
 Output ONLY a JSON object with these sections:
 
 {
-  "abstract": "<3-5 sentence executive overview. For comparisons, clearly state the winner and by how much. Reference specific metrics.>",
+  "abstract": "<4-6 sentence abstract. Start by stating whether the experiment conclusively supports, partially supports, or fails to support the hypothesis, and WHY. Summarize the key evidence. If the experiment was insufficient to evaluate the hypothesis (e.g. missing metrics, wrong granularity, too short), say so explicitly and what would be needed. End with the most actionable finding.>",
 
   "targetAnalysis": {
     "overview": "<How infrastructure choices (machine type, node count, preemptible) affect the results>",
@@ -225,8 +225,10 @@ Output ONLY a JSON object with these sections:
 }
 
 Rules:
-- "abstract" is the executive overview — state the most important finding first
-- If a study hypothesis exists, the abstract MUST evaluate whether the data supports it
+- "abstract" is the most important section — it appears directly below the hypothesis on the experiment page
+- The abstract MUST open with a verdict on the hypothesis: "supported", "partially supported", "not supported", or "insufficient data to evaluate"
+- Explain the causal reasoning: does the data confirm WHY the hypothesis predicted this outcome?
+- If the experiment design was insufficient (wrong metrics, missing isolation, too short), state what specifically was missing
 - "targetAnalysis.perTarget" must have one entry per target in the experiment
 - "performanceAnalysis.findings" should have 3-6 numbered findings with actual data
 - If study questions exist, findings should directly answer as many as possible

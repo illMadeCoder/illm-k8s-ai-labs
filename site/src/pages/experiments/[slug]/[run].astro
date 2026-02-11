@@ -32,12 +32,6 @@ const base = import.meta.env.BASE_URL;
 const baseName = getBaseName(experiment.name);
 const displayName = formatDisplayName(baseName);
 
-const badgeClass = experiment.phase === 'Complete'
-  ? 'badge-complete'
-  : experiment.phase === 'Failed'
-    ? 'badge-failed'
-    : 'badge-running';
-
 const allMetricEntries = experiment.metrics
   ? Object.entries(experiment.metrics.queries).filter(([, qr]) => !qr.error)
   : [];
@@ -61,7 +55,6 @@ const analysis = experiment.analysis;
 
   <div class="detail-header">
     <div>
-      <span class={`badge ${badgeClass}`}>{experiment.phase}</span>
       <h1>{experiment.name}</h1>
       <p class="description">{experiment.description}</p>
       {experiment.tags && experiment.tags.length > 0 && (
