@@ -459,7 +459,7 @@ func (r *ExperimentReconciler) createAnalysisJob(ctx context.Context, exp *exper
 											Path: ".credentials.json",
 										},
 									},
-									DefaultMode: int32Ptr(0400),
+									DefaultMode: int32Ptr(0444),
 								},
 							},
 						},
