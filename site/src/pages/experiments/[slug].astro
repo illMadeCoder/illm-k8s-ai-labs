@@ -221,6 +221,11 @@ const analysis = latest.analysis;
     />
   )}
 
+  {/* Rich analysis: Deep Dive */}
+  {hasRichAnalysis && analysis?.body && (
+    <AnalysisBody body={analysis.body} />
+  )}
+
   {/* Rich analysis: FinOps Analysis */}
   {hasRichAnalysis && analysis?.finopsAnalysis && (
     <AnalysisSection
@@ -229,7 +234,6 @@ const analysis = latest.analysis;
       findings={analysis.finopsAnalysis.costDrivers}
       extras={analysis.finopsAnalysis.optimizations}
       extrasLabel="Optimizations"
-
     />
   )}
 
@@ -249,16 +253,10 @@ const analysis = latest.analysis;
       findings={analysis.secopsAnalysis.findings}
       extras={analysis.secopsAnalysis.supplyChain ? [analysis.secopsAnalysis.supplyChain] : undefined}
       extrasLabel="Supply Chain"
-
     />
   )}
 
-  {/* Rich analysis: Deep Dive */}
-  {hasRichAnalysis && analysis?.body && (
-    <AnalysisBody body={analysis.body} />
-  )}
-
-  {/* Rich analysis: Feedback & Recommendations */}
+  {/* Rich analysis: Future Enhancements */}
   {hasRichAnalysis && analysis?.feedback && (
     <AnalysisFeedback feedback={analysis.feedback} />
   )}
