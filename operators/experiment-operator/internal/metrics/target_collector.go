@@ -367,18 +367,18 @@ func defaultTargetQueries() []experimentsv1alpha1.MetricsQuery {
 	sysNS := `kube-system|gke-managed-system|gmp-system|gmp-public|kube-node-lease|kube-public`
 	return []experimentsv1alpha1.MetricsQuery{
 		{
-			Name:        "cpu_usage",
-			Query:       fmt.Sprintf(`sum(rate(container_cpu_usage_seconds_total{namespace!~"%s"}[1m])) by (namespace)`, sysNS),
+			Name:        "cpu_by_pod",
+			Query:       fmt.Sprintf(`sum(rate(container_cpu_usage_seconds_total{namespace!~"%s",container!="POD",container!=""}[1m])) by (pod)`, sysNS),
 			Type:        "range",
 			Unit:        "cores",
-			Description: "CPU usage by namespace",
+			Description: "CPU usage by pod",
 		},
 		{
-			Name:        "memory_usage",
-			Query:       fmt.Sprintf(`sum(container_memory_working_set_bytes{namespace!~"%s"}) by (namespace)`, sysNS),
+			Name:        "memory_by_pod",
+			Query:       fmt.Sprintf(`sum(container_memory_working_set_bytes{namespace!~"%s",container!="POD",container!=""}) by (pod)`, sysNS),
 			Type:        "range",
 			Unit:        "bytes",
-			Description: "Memory working set by namespace",
+			Description: "Memory working set by pod",
 		},
 		{
 			Name:        "cpu_total",
@@ -448,9 +448,9 @@ func CollectCadvisorMetrics(ctx context.Context, kubeconfig []byte, exp *experim
 
 	now := time.Now()
 
-	// Aggregate CPU (counter seconds) and memory (gauge bytes) by namespace
-	cpuByNS := make(map[string]float64)
-	memByNS := make(map[string]float64)
+	// Aggregate CPU (counter seconds) and memory (gauge bytes) by pod
+	cpuByPod := make(map[string]float64)
+	memByPod := make(map[string]float64)
 
 	restClient := clientset.CoreV1().RESTClient()
 
@@ -468,11 +468,11 @@ func CollectCadvisorMetrics(ctx context.Context, kubeconfig []byte, exp *experim
 			continue
 		}
 
-		parseCadvisorMetrics(string(raw), cpuByNS, memByNS)
-		logger.Info("Scraped cadvisor metrics", "node", node.Name, "cpuNamespaces", len(cpuByNS), "memNamespaces", len(memByNS))
+		parseCadvisorMetrics(string(raw), cpuByPod, memByPod)
+		logger.Info("Scraped cadvisor metrics", "node", node.Name, "cpuPods", len(cpuByPod), "memPods", len(memByPod))
 	}
 
-	if len(cpuByNS) == 0 && len(memByNS) == 0 {
+	if len(cpuByPod) == 0 && len(memByPod) == 0 {
 		return nil, fmt.Errorf("no cadvisor metrics found on any node")
 	}
 
@@ -489,22 +489,22 @@ func CollectCadvisorMetrics(ctx context.Context, kubeconfig []byte, exp *experim
 		Queries: make(map[string]QueryResult),
 	}
 
-	// CPU usage by namespace (counter total — represents cumulative CPU seconds)
+	// CPU usage by pod (counter total — represents cumulative CPU seconds)
 	var cpuPoints []DataPoint
 	var cpuTotal float64
-	for ns, val := range cpuByNS {
+	for pod, val := range cpuByPod {
 		cpuPoints = append(cpuPoints, DataPoint{
-			Labels:    map[string]string{"namespace": ns},
+			Labels:    map[string]string{"pod": pod},
 			Timestamp: now,
 			Value:     val,
 		})
 		cpuTotal += val
 	}
-	result.Queries["cpu_usage"] = QueryResult{
-		Query:       "container_cpu_usage_seconds_total (cadvisor)",
+	result.Queries["cpu_by_pod"] = QueryResult{
+		Query:       "container_cpu_usage_seconds_total by pod (cadvisor)",
 		Type:        "instant",
 		Unit:        "cores",
-		Description: "CPU usage by namespace (cumulative seconds)",
+		Description: "CPU usage by pod (cumulative seconds)",
 		Data:        cpuPoints,
 	}
 	result.Queries["cpu_total"] = QueryResult{
@@ -518,22 +518,22 @@ func CollectCadvisorMetrics(ctx context.Context, kubeconfig []byte, exp *experim
 		}},
 	}
 
-	// Memory by namespace (gauge — current working set bytes)
+	// Memory by pod (gauge — current working set bytes)
 	var memPoints []DataPoint
 	var memTotal float64
-	for ns, val := range memByNS {
+	for pod, val := range memByPod {
 		memPoints = append(memPoints, DataPoint{
-			Labels:    map[string]string{"namespace": ns},
+			Labels:    map[string]string{"pod": pod},
 			Timestamp: now,
 			Value:     val,
 		})
 		memTotal += val
 	}
-	result.Queries["memory_usage"] = QueryResult{
-		Query:       "container_memory_working_set_bytes (cadvisor)",
+	result.Queries["memory_by_pod"] = QueryResult{
+		Query:       "container_memory_working_set_bytes by pod (cadvisor)",
 		Type:        "instant",
 		Unit:        "bytes",
-		Description: "Memory working set by namespace",
+		Description: "Memory working set by pod",
 		Data:        memPoints,
 	}
 	result.Queries["memory_total"] = QueryResult{
@@ -552,7 +552,7 @@ func CollectCadvisorMetrics(ctx context.Context, kubeconfig []byte, exp *experim
 
 // parseCadvisorMetrics parses Prometheus text format from cadvisor and accumulates
 // CPU and memory values by namespace, filtering out system namespaces and pause containers.
-func parseCadvisorMetrics(text string, cpuByNS, memByNS map[string]float64) {
+func parseCadvisorMetrics(text string, cpuByPod, memByPod map[string]float64) {
 	scanner := bufio.NewScanner(strings.NewReader(text))
 	for scanner.Scan() {
 		line := scanner.Text()
@@ -571,10 +571,11 @@ func parseCadvisorMetrics(text string, cpuByNS, memByNS map[string]float64) {
 		}
 
 		ns := extractLabel(line, "namespace")
+		pod := extractLabel(line, "pod")
 		container := extractLabel(line, "container")
 
 		// Skip system namespaces, empty containers (pause), and POD containers
-		if ns == "" || systemNamespaces[ns] || container == "" || container == "POD" {
+		if ns == "" || systemNamespaces[ns] || container == "" || container == "POD" || pod == "" {
 			continue
 		}
 
@@ -585,9 +586,9 @@ func parseCadvisorMetrics(text string, cpuByNS, memByNS map[string]float64) {
 		}
 
 		if isCPU {
-			cpuByNS[ns] += val
+			cpuByPod[pod] += val
 		} else if isMem {
-			memByNS[ns] += val
+			memByPod[pod] += val
 		}
 	}
 }
