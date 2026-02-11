@@ -505,8 +505,11 @@ func (r *ExperimentReconciler) cleanupResources(ctx context.Context, exp *experi
 	log := logf.FromContext(ctx)
 	var clusterDeleteErr error
 
-	// Delete ArgoCD Applications
+	// Delete ArgoCD Applications (layered + legacy single-app)
 	for _, target := range exp.Spec.Targets {
+		// Delete all layer apps (infra, obs, workload)
+		r.ArgoCD.AppManager.DeleteLayeredApplications(ctx, exp.Name, target.Name)
+		// Also try the legacy single app name
 		if err := r.ArgoCD.AppManager.DeleteApplication(ctx, exp.Name, target.Name); err != nil {
 			log.Error(err, "Failed to delete application", "target", target.Name)
 		}
@@ -711,7 +714,28 @@ func (r *ExperimentReconciler) reconcileProvisioning(ctx context.Context, exp *e
 			// Continue anyway — the cluster may already have RBAC configured
 		}
 
-		// Register cluster and create applications
+		// Layered deployment: when observability is enabled, deploy infra+obs layers first
+		// and defer workload layer to reconcileReady (after infra+obs are healthy).
+		if target.Observability != nil && target.Observability.Enabled {
+			obsRefs := argocd.ObservabilityComponentRefs(target.Observability, exp.Name,
+				r.ArgoCD.AppManager.TailscaleClientID, r.ArgoCD.AppManager.TailscaleClientSecret)
+			classified := argocd.ClassifyComponents(target.Components, obsRefs)
+
+			if classified.HasLayers() {
+				deployedLayers, layerErr := r.ArgoCD.RegisterClusterAndCreateLayeredApps(
+					ctx, exp.Name, target, clusterName, kubeconfig, server, classified)
+				if layerErr != nil {
+					log.Error(layerErr, "Failed to create layered apps", "cluster", clusterName)
+					continue
+				}
+				exp.Status.Targets[i].DeployedLayers = deployedLayers
+				log.Info("Created layered ArgoCD Applications (infra+obs), workload deferred",
+					"cluster", clusterName, "layers", deployedLayers)
+				continue
+			}
+		}
+
+		// Non-layered path: single application with all components (no observability or no layers)
 		if err := r.ArgoCD.RegisterClusterAndCreateApps(ctx, exp.Name, target, clusterName, kubeconfig, server); err != nil {
 			log.Error(err, "Failed to register cluster and create apps", "cluster", clusterName)
 			continue
@@ -765,19 +789,97 @@ func (r *ExperimentReconciler) reconcileProvisioning(ctx context.Context, exp *e
 	return ctrl.Result{Requeue: true}, nil
 }
 
-// reconcileReady handles the Ready phase - waits for apps to be healthy, then submits workflow
+// reconcileReady handles the Ready phase - waits for apps to be healthy, then submits workflow.
+// For layered deployments, gates workload deployment on infra+obs health.
 func (r *ExperimentReconciler) reconcileReady(ctx context.Context, exp *experimentsv1alpha1.Experiment) (ctrl.Result, error) {
 	log := logf.FromContext(ctx)
 	log.Info("Reconciling Ready phase")
 
 	// Check if all ArgoCD Applications are healthy
 	allHealthy := true
+	statusUpdated := false
 	for i, target := range exp.Spec.Targets {
-		if len(target.Components) == 0 {
-			// No components to deploy, mark as ready
+		if len(target.Components) == 0 && (target.Observability == nil || !target.Observability.Enabled) {
+			// No components and no observability, nothing to check
 			continue
 		}
 
+		// Layered deployment: check infra+obs health, then deploy workload
+		if hasLayer(exp.Status.Targets[i].DeployedLayers, argocd.LayerInfra) ||
+			hasLayer(exp.Status.Targets[i].DeployedLayers, argocd.LayerObs) {
+
+			// Check infra layer health
+			if hasLayer(exp.Status.Targets[i].DeployedLayers, argocd.LayerInfra) {
+				healthy, err := r.ArgoCD.AppManager.IsLayerHealthy(ctx, exp.Name, target.Name, argocd.LayerInfra)
+				if err != nil {
+					log.Error(err, "Failed to check infra layer health", "target", target.Name)
+					allHealthy = false
+					continue
+				}
+				if !healthy {
+					log.Info("Infra layer not healthy yet", "target", target.Name)
+					allHealthy = false
+					continue
+				}
+			}
+
+			// Check obs layer health
+			if hasLayer(exp.Status.Targets[i].DeployedLayers, argocd.LayerObs) {
+				healthy, err := r.ArgoCD.AppManager.IsLayerHealthy(ctx, exp.Name, target.Name, argocd.LayerObs)
+				if err != nil {
+					log.Error(err, "Failed to check obs layer health", "target", target.Name)
+					allHealthy = false
+					continue
+				}
+				if !healthy {
+					log.Info("Obs layer not healthy yet", "target", target.Name)
+					allHealthy = false
+					continue
+				}
+			}
+
+			// Infra+obs healthy — deploy workload layer if not yet deployed
+			if !hasLayer(exp.Status.Targets[i].DeployedLayers, argocd.LayerWorkload) {
+				log.Info("Infra+obs layers healthy, deploying workload layer", "target", target.Name)
+
+				endpoint := exp.Status.Targets[i].Endpoint
+				server := "https://" + endpoint
+
+				obsRefs := argocd.ObservabilityComponentRefs(target.Observability, exp.Name,
+					r.ArgoCD.AppManager.TailscaleClientID, r.ArgoCD.AppManager.TailscaleClientSecret)
+				classified := argocd.ClassifyComponents(target.Components, obsRefs)
+
+				if err := r.ArgoCD.AppManager.CreateLayeredApplication(
+					ctx, exp.Name, target, server, argocd.LayerWorkload, classified.Workload); err != nil {
+					log.Error(err, "Failed to create workload layer", "target", target.Name)
+					allHealthy = false
+					continue
+				}
+
+				exp.Status.Targets[i].DeployedLayers = append(exp.Status.Targets[i].DeployedLayers, argocd.LayerWorkload)
+				statusUpdated = true
+				allHealthy = false // Requeue to check workload health next cycle
+				continue
+			}
+
+			// Workload layer deployed — check its health
+			healthy, err := r.ArgoCD.AppManager.IsLayerHealthy(ctx, exp.Name, target.Name, argocd.LayerWorkload)
+			if err != nil {
+				log.Error(err, "Failed to check workload layer health", "target", target.Name)
+				allHealthy = false
+				continue
+			}
+			if !healthy {
+				log.Info("Workload layer not healthy yet", "target", target.Name)
+				allHealthy = false
+				continue
+			}
+
+			log.Info("All layers healthy", "target", target.Name, "layers", exp.Status.Targets[i].DeployedLayers)
+			continue
+		}
+
+		// Non-layered path: single application health check (original behavior)
 		healthy, err := r.ArgoCD.AppManager.IsApplicationHealthy(ctx, exp.Name, target.Name)
 		if err != nil {
 			log.Error(err, "Failed to check application health", "target", target.Name)
@@ -803,11 +905,21 @@ func (r *ExperimentReconciler) reconcileReady(ctx context.Context, exp *experime
 
 	if !allHealthy {
 		// Requeue after 15 seconds to check again
+		if statusUpdated {
+			if err := r.Status().Update(ctx, exp); err != nil {
+				log.Error(err, "Failed to update status")
+				return ctrl.Result{}, err
+			}
+		}
+		return ctrl.Result{RequeueAfter: 15 * time.Second}, nil
+	}
+
+	// Persist any status updates before workflow submission
+	if statusUpdated {
 		if err := r.Status().Update(ctx, exp); err != nil {
 			log.Error(err, "Failed to update status")
 			return ctrl.Result{}, err
 		}
-		return ctrl.Result{RequeueAfter: 15 * time.Second}, nil
 	}
 
 	// Discover tutorial services on target clusters
@@ -1261,6 +1373,16 @@ func boolPtr(b bool) *bool {
 
 func int64Ptr(i int64) *int64 {
 	return &i
+}
+
+// hasLayer checks if a layer name is present in the deployed layers list.
+func hasLayer(layers []string, layer string) bool {
+	for _, l := range layers {
+		if l == layer {
+			return true
+		}
+	}
+	return false
 }
 
 // SetupWithManager sets up the controller with the Manager.

@@ -341,6 +341,11 @@ type TargetStatus struct {
 	// KubeconfigSecret is the name of the secret containing the kubeconfig for this target
 	// +optional
 	KubeconfigSecret string `json:"kubeconfigSecret,omitempty"`
+
+	// DeployedLayers tracks which ArgoCD application layers have been created
+	// for this target. Values: "infra", "obs", "workload".
+	// +optional
+	DeployedLayers []string `json:"deployedLayers,omitempty"`
 }
 
 // WorkflowStatus represents the status of the experiment workflow
