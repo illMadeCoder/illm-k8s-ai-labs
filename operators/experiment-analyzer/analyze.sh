@@ -62,19 +62,23 @@ extract_json() {
   # Claude --output-format json outputs JSONL. The final "result" object has the text.
   if RESULT_TEXT=$(jq -rs '[.[] | select(.type == "result")] | last | .result' "${raw_file}" 2>/dev/null) \
      && [ -n "${RESULT_TEXT}" ] && [ "${RESULT_TEXT}" != "null" ]; then
-    echo "${RESULT_TEXT}" > "${out_file}"
+    printf '%s\n' "${RESULT_TEXT}" > "${out_file}"
   elif jq -e '.[0].text' "${raw_file}" > /dev/null 2>&1; then
     jq -r '.[0].text' "${raw_file}" > "${out_file}"
   else
     cp "${raw_file}" "${out_file}"
   fi
 
-  # Strip markdown fences if present
-  if head -1 "${out_file}" | grep -q '```'; then
+  # Strip markdown fences if present (handles leading blank lines, ```json tag, trailing whitespace)
+  # Remove leading blank lines, then check for opening fence
+  sed -i '/\S/,$!d' "${out_file}"
+  if head -1 "${out_file}" | grep -qE '^\s*```'; then
     sed -i '1d' "${out_file}"
-    if tail -1 "${out_file}" | grep -q '```'; then
-      sed -i '$d' "${out_file}"
-    fi
+  fi
+  # Remove trailing blank lines, then check for closing fence
+  sed -i -e :a -e '/^\s*$/{ $d; N; ba; }' "${out_file}"
+  if tail -1 "${out_file}" | grep -qE '^\s*```'; then
+    sed -i '$d' "${out_file}"
   fi
 
   # Validate JSON
