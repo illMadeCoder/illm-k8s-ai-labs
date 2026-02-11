@@ -351,6 +351,12 @@ spec:
                       items:
                         type: string
                       type: array
+                    deployedLayers:
+                      description: DeployedLayers tracks which ArgoCD application
+                        layers have been created for this target.
+                      items:
+                        type: string
+                      type: array
                     endpoint:
                       type: string
                     kubeconfigSecret:
