@@ -1,0 +1,116 @@
+{
+  "name": "logging-comparison-8nqdq",
+  "namespace": "experiments",
+  "description": "Loki vs Elasticsearch logging comparison - architecture, resource usage, query performance",
+  "createdAt": "2026-02-11T13:19:26Z",
+  "completedAt": "2026-02-11T13:31:22.303583829Z",
+  "durationSeconds": 716.303583829,
+  "phase": "Complete",
+  "tags": [
+    "comparison",
+    "observability",
+    "logging"
+  ],
+  "targets": [
+    {
+      "name": "app",
+      "clusterName": "logging-comparison-8nqdq-app",
+      "clusterType": "gke"
+    }
+  ],
+  "workflow": {
+    "name": "logging-comparison-8nqdq-validation",
+    "template": "logging-comparison-validation",
+    "phase": "Succeeded",
+    "startedAt": "2026-02-11T13:31:07Z",
+    "finishedAt": "2026-02-11T13:31:17Z"
+  },
+  "metrics": {
+    "collectedAt": "2026-02-11T13:31:22.414299028Z",
+    "source": "target:cadvisor",
+    "timeRange": {
+      "start": "2026-02-11T13:19:26Z",
+      "end": "2026-02-11T13:31:22.414299028Z",
+      "duration": "11m56.414299028s",
+      "stepSeconds": 0
+    },
+    "queries": {
+      "cpu_total": {
+        "query": "sum(container_cpu_usage_seconds_total) (cadvisor)",
+        "type": "instant",
+        "unit": "cores",
+        "description": "Total CPU usage (cumulative seconds)",
+        "data": [
+          {
+            "timestamp": "2026-02-11T13:31:22.414299028Z",
+            "value": 2.481623
+          }
+        ]
+      },
+      "cpu_usage": {
+        "query": "container_cpu_usage_seconds_total (cadvisor)",
+        "type": "instant",
+        "unit": "cores",
+        "description": "CPU usage by namespace (cumulative seconds)",
+        "data": [
+          {
+            "labels": {
+              "namespace": "logging-comparison-8nqdq"
+            },
+            "timestamp": "2026-02-11T13:31:22.414299028Z",
+            "value": 1.866708
+          },
+          {
+            "labels": {
+              "namespace": "gke-managed-cim"
+            },
+            "timestamp": "2026-02-11T13:31:22.414299028Z",
+            "value": 0.614915
+          }
+        ]
+      },
+      "memory_total": {
+        "query": "sum(container_memory_working_set_bytes) (cadvisor)",
+        "type": "instant",
+        "unit": "bytes",
+        "description": "Total memory working set",
+        "data": [
+          {
+            "timestamp": "2026-02-11T13:31:22.414299028Z",
+            "value": 170586112
+          }
+        ]
+      },
+      "memory_usage": {
+        "query": "container_memory_working_set_bytes (cadvisor)",
+        "type": "instant",
+        "unit": "bytes",
+        "description": "Memory working set by namespace",
+        "data": [
+          {
+            "labels": {
+              "namespace": "logging-comparison-8nqdq"
+            },
+            "timestamp": "2026-02-11T13:31:22.414299028Z",
+            "value": 137887744
+          },
+          {
+            "labels": {
+              "namespace": "gke-managed-cim"
+            },
+            "timestamp": "2026-02-11T13:31:22.414299028Z",
+            "value": 32698368
+          }
+        ]
+      }
+    }
+  },
+  "costEstimate": {
+    "totalUSD": 0.003979464354605557,
+    "durationHours": 0.1989732177302778,
+    "perTarget": {
+      "app": 0.003979464354605557
+    },
+    "note": "Rough estimate based on on-demand GCE pricing; actual cost may differ."
+  }
+}
