@@ -137,7 +137,7 @@ const analysis = experiment.analysis;
         : undefined}
       extras={analysis.targetAnalysis.comparisonToBaseline ? [analysis.targetAnalysis.comparisonToBaseline] : undefined}
       extrasLabel="Comparison to Baseline"
-      accent="blue"
+
     />
   )}
 
@@ -187,7 +187,7 @@ const analysis = experiment.analysis;
       findings={analysis.performanceAnalysis.findings}
       extras={analysis.performanceAnalysis.bottlenecks}
       extrasLabel="Bottlenecks"
-      accent="blue"
+
     />
   )}
 
@@ -199,14 +199,14 @@ const analysis = experiment.analysis;
       findings={analysis.finopsAnalysis.costDrivers}
       extras={analysis.finopsAnalysis.optimizations}
       extrasLabel="Optimizations"
-      accent="green"
+
     />
   )}
 
   {/* Rich analysis: FinOps projection inline */}
   {hasRichAnalysis && analysis?.finopsAnalysis?.projection && (
-    <details class="section finops-projection">
-      <summary class="section-title projection-title">Production Cost Projection</summary>
+    <details class="section">
+      <summary class="section-title">Production Cost Projection</summary>
       <p class="projection-text">{analysis.finopsAnalysis.projection}</p>
     </details>
   )}
@@ -219,7 +219,7 @@ const analysis = experiment.analysis;
       findings={analysis.secopsAnalysis.findings}
       extras={analysis.secopsAnalysis.supplyChain ? [analysis.secopsAnalysis.supplyChain] : undefined}
       extrasLabel="Supply Chain"
-      accent="red"
+
     />
   )}
 
@@ -286,12 +286,6 @@ const analysis = experiment.analysis;
     font-size: 0.85rem;
     max-width: 600px;
     margin: 0.5rem auto 0;
-  }
-  .finops-projection {
-    border-color: color-mix(in srgb, var(--success) 20%, var(--border));
-  }
-  .projection-title {
-    color: var(--success);
   }
   .projection-text {
     color: var(--text);

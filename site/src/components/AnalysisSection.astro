@@ -5,22 +5,13 @@ interface Props {
   findings?: string[];
   extras?: string[];
   extrasLabel?: string;
-  accent?: 'blue' | 'green' | 'amber' | 'red';
 }
 
-const { title, overview, findings, extras, extrasLabel, accent = 'blue' } = Astro.props;
-
-const accentColors: Record<string, string> = {
-  blue: 'var(--accent)',
-  green: 'var(--success)',
-  amber: 'var(--warning)',
-  red: 'var(--error)',
-};
-const color = accentColors[accent];
+const { title, overview, findings, extras, extrasLabel } = Astro.props;
 ---
 
-<details class="section analysis-section" style={`--section-accent: ${color}`}>
-  <summary class="section-title analysis-section-title">{title}</summary>
+<details class="section analysis-section">
+  <summary class="section-title">{title}</summary>
   <p class="analysis-section-overview">{overview}</p>
 
   {findings && findings.length > 0 && (
@@ -44,18 +35,6 @@ const color = accentColors[accent];
 </details>
 
 <style>
-  .analysis-section {
-    background: color-mix(in srgb, var(--section-accent) 4%, var(--bg-card));
-    border: 1px solid color-mix(in srgb, var(--section-accent) 20%, var(--border));
-    border-radius: var(--radius);
-    padding: 1.5rem;
-  }
-
-  .analysis-section-title {
-    color: var(--section-accent);
-    border-bottom-color: color-mix(in srgb, var(--section-accent) 30%, var(--border));
-  }
-
   .analysis-section-overview {
     color: var(--text);
     line-height: 1.65;
@@ -89,7 +68,7 @@ const color = accentColors[accent];
     top: 0.6rem;
     width: 1.25rem;
     height: 1.25rem;
-    background: var(--section-accent);
+    background: var(--accent);
     color: #fff;
     border-radius: 50%;
     font-size: 0.7rem;
@@ -134,7 +113,7 @@ const color = accentColors[accent];
     content: "\2192";
     position: absolute;
     left: 0.5rem;
-    color: var(--section-accent);
+    color: var(--accent);
     font-weight: 600;
   }
 </style>
