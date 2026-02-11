@@ -409,10 +409,68 @@ jq --slurpfile analysis "${FINAL_FILE}" \
   '. + {analysis: $analysis[0]}' \
   "${SUMMARY_FILE}" > "${ENRICHED_FILE}"
 
-# Upload enriched summary back to S3 using AWS CLI (supports S3v4 signing)
-echo "==> Uploading enriched summary to S3"
+# ============================================================================
+# Verbose logging: Upload all intermediate pass outputs to S3
+# ============================================================================
+echo "==> Uploading verbose analysis artifacts to S3"
 export AWS_ACCESS_KEY_ID="${S3_ACCESS_KEY:-any}"
 export AWS_SECRET_ACCESS_KEY="${S3_SECRET_KEY:-any}"
+S3_BASE="s3://experiment-results/${EXPERIMENT_NAME}"
+
+# Build a trace manifest with timing and sizes
+TRACE_FILE="${WORK_DIR}/analysis_trace.json"
+jq -n \
+  --arg experiment "${EXPERIMENT_NAME}" \
+  --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+  --argjson pass1_size "$(wc -c < "${PASS1_FILE}")" \
+  --argjson pass2_size "$(wc -c < "${PASS2_FILE}")" \
+  --argjson pass3_size "$(wc -c < "${PASS3_FILE}")" \
+  --argjson pass4_size "$(wc -c < "${PASS4_FILE}")" \
+  --argjson final_size "$(wc -c < "${FINAL_FILE}")" \
+  '{
+    experiment: $experiment,
+    analyzedAt: $ts,
+    passes: {
+      "1_plan": {file: "pass_1_plan.json", bytes: $pass1_size},
+      "2_core": {file: "pass_2_core.json", bytes: $pass2_size},
+      "3_finops_secops": {file: "pass_3_finops_secops.json", bytes: $pass3_size},
+      "4_deep_dive": {file: "pass_4_deep_dive.json", bytes: $pass4_size}
+    },
+    final: {file: "analysis_final.json", bytes: $final_size}
+  }' > "${TRACE_FILE}"
+
+# Upload each pass output + raw JSONL + stderr logs
+for artifact in \
+  "${PASS1_FILE}:analysis/pass_1_plan.json" \
+  "${PASS2_FILE}:analysis/pass_2_core.json" \
+  "${PASS3_FILE}:analysis/pass_3_finops_secops.json" \
+  "${PASS4_FILE}:analysis/pass_4_deep_dive.json" \
+  "${FINAL_FILE}:analysis/analysis_final.json" \
+  "${TRACE_FILE}:analysis/trace.json"; do
+  LOCAL="${artifact%%:*}"
+  REMOTE="${artifact##*:}"
+  if [ -f "${LOCAL}" ]; then
+    aws --endpoint-url "http://${S3_ENDPOINT}" s3 cp "${LOCAL}" "${S3_BASE}/${REMOTE}" --no-sign-request 2>/dev/null || \
+    aws --endpoint-url "http://${S3_ENDPOINT}" s3 cp "${LOCAL}" "${S3_BASE}/${REMOTE}" 2>/dev/null || \
+    echo "WARNING: Failed to upload ${REMOTE}"
+  fi
+done
+
+# Upload raw JSONL outputs (the full claude response before extraction) and stderr
+for pass_name in pass_1_plan pass_2_core pass_3_finops_secops pass_4_deep_dive; do
+  for suffix in _raw.json _stderr.log; do
+    LOCAL="${WORK_DIR}/${pass_name}${suffix}"
+    if [ -f "${LOCAL}" ] && [ -s "${LOCAL}" ]; then
+      aws --endpoint-url "http://${S3_ENDPOINT}" s3 cp "${LOCAL}" "${S3_BASE}/analysis/${pass_name}${suffix}" --no-sign-request 2>/dev/null || \
+      aws --endpoint-url "http://${S3_ENDPOINT}" s3 cp "${LOCAL}" "${S3_BASE}/analysis/${pass_name}${suffix}" 2>/dev/null || true
+    fi
+  done
+done
+
+echo "==> Verbose artifacts uploaded to ${S3_BASE}/analysis/"
+
+# Upload enriched summary back to S3
+echo "==> Uploading enriched summary to S3"
 S3_DEST="s3://experiment-results/${EXPERIMENT_NAME}/summary.json"
 if ! aws --endpoint-url "http://${S3_ENDPOINT}" s3 cp "${ENRICHED_FILE}" "${S3_DEST}" --no-sign-request 2>/dev/null; then
   # Try with signing
