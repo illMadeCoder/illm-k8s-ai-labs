@@ -4,3 +4,4 @@ kind: Kustomization
 resources:
   - argocd-ingress.yaml
   - openbao-ingress.yaml
+  - vm-hub-service.yaml

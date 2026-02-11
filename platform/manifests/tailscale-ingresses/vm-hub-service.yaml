@@ -1,0 +1,22 @@
+# Tailscale-exposed service for Hub VictoriaMetrics
+# Allows target cluster Alloy agents to remote-write metrics via Tailscale.
+# Target-side egress service resolves vm-hub.tailbdf608.ts.net → this service.
+apiVersion: v1
+kind: Service
+metadata:
+  name: vm-hub-tailscale
+  namespace: observability
+  annotations:
+    tailscale.com/expose: "true"
+    tailscale.com/hostname: "vm-hub"
+spec:
+  type: ClusterIP
+  ports:
+    - name: http
+      port: 8428
+      protocol: TCP
+      targetPort: 8428
+  selector:
+    app: server
+    app.kubernetes.io/instance: victoria-metrics
+    app.kubernetes.io/name: victoria-metrics-single
