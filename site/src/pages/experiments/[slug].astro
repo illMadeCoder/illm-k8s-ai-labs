@@ -75,8 +75,8 @@ const metricsEmpty = metricEntries.length === 0;
     </div>
   )}
 
-  <div class="section">
-    <h2 class="section-title">Run History ({group.runs.length} {group.runs.length === 1 ? 'run' : 'runs'})</h2>
+  <details class="section run-history">
+    <summary class="section-title">Run History ({group.runs.length} {group.runs.length === 1 ? 'run' : 'runs'})</summary>
     <table>
       <thead>
         <tr>
@@ -110,11 +110,7 @@ const metricsEmpty = metricEntries.length === 0;
         })}
       </tbody>
     </table>
-  </div>
-
-  <div class="section">
-    <h2 class="section-title">Latest Run: <code>{latest.name}</code></h2>
-  </div>
+  </details>
 
   <div class="stats-row">
     <MetricCard label="Created" value={formatDate(latest.createdAt)} />
@@ -196,6 +192,21 @@ const metricsEmpty = metricEntries.length === 0;
     display: flex;
     flex-wrap: wrap;
     gap: 0.375rem;
+  }
+  .run-history summary {
+    cursor: pointer;
+    list-style: none;
+  }
+  .run-history summary::before {
+    content: '▶ ';
+    font-size: 0.75em;
+    color: var(--text-muted);
+  }
+  .run-history[open] summary::before {
+    content: '▼ ';
+  }
+  .run-history summary::-webkit-details-marker {
+    display: none;
   }
   .metrics-source {
     font-size: 0.8rem;
