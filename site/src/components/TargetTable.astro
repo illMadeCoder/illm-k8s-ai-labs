@@ -8,8 +8,8 @@ interface Props {
 const { targets } = Astro.props;
 ---
 
-<details class="section">
-  <summary class="section-title">Targets</summary>
+<div class="section">
+  <h2 class="section-title">Targets</h2>
   <table>
     <thead>
       <tr>
@@ -45,7 +45,7 @@ const { targets } = Astro.props;
       })}
     </tbody>
   </table>
-</details>
+</div>
 
 <style>
   .components-details summary {

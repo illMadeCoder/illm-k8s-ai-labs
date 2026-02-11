@@ -79,60 +79,61 @@ const analysis = latest.analysis;
     <MetricCard label="Workflow" value={latest.workflow.phase} />
   </div>
 
-  <TargetTable targets={latest.targets} />
-
-  {latest.costEstimate && (
-    <CostBreakdown cost={latest.costEstimate} />
-  )}
-
-  <details class="section run-history">
-    <summary class="section-title">Run History ({group.runs.length} {group.runs.length === 1 ? 'run' : 'runs'})</summary>
-    <table>
-      <thead>
-        <tr>
-          <th>Run</th>
-          <th>Phase</th>
-          <th>Date</th>
-          <th>Duration</th>
-          <th>Cost</th>
-        </tr>
-      </thead>
-      <tbody>
-        {group.runs.map((run) => {
-          const runBadge = run.phase === 'Complete'
-            ? 'badge-complete'
-            : run.phase === 'Failed'
-              ? 'badge-failed'
-              : 'badge-running';
-          return (
-            <tr>
-              <td>
-                <a href={`${base}experiments/${group.baseName}/${run.name}/`}>
-                  <code>{run.name}</code>
-                </a>
-              </td>
-              <td><span class={`badge ${runBadge}`}>{run.phase}</span></td>
-              <td>{formatDate(run.createdAt)}</td>
-              <td>{formatDuration(run.durationSeconds)}</td>
-              <td>{run.costEstimate ? formatCost(run.costEstimate.totalUSD) : '—'}</td>
-            </tr>
-          );
-        })}
-      </tbody>
-    </table>
+  <details class="section">
+    <summary class="section-title">Metadata</summary>
+    <TargetTable targets={latest.targets} />
+    {latest.costEstimate && (
+      <CostBreakdown cost={latest.costEstimate} />
+    )}
+    <div class="section run-history">
+      <h2 class="section-title">Run History ({group.runs.length} {group.runs.length === 1 ? 'run' : 'runs'})</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Run</th>
+            <th>Phase</th>
+            <th>Date</th>
+            <th>Duration</th>
+            <th>Cost</th>
+          </tr>
+        </thead>
+        <tbody>
+          {group.runs.map((run) => {
+            const runBadge = run.phase === 'Complete'
+              ? 'badge-complete'
+              : run.phase === 'Failed'
+                ? 'badge-failed'
+                : 'badge-running';
+            return (
+              <tr>
+                <td>
+                  <a href={`${base}experiments/${group.baseName}/${run.name}/`}>
+                    <code>{run.name}</code>
+                  </a>
+                </td>
+                <td><span class={`badge ${runBadge}`}>{run.phase}</span></td>
+                <td>{formatDate(run.createdAt)}</td>
+                <td>{formatDuration(run.durationSeconds)}</td>
+                <td>{run.costEstimate ? formatCost(run.costEstimate.totalUSD) : '—'}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </div>
   </details>
 
-  {latest.study && (latest.study.hypothesis || latest.study.questions?.length || latest.study.focus?.length) && (
+  {(latest.study?.hypothesis || latest.study?.questions?.length || latest.study?.focus?.length || hasRichAnalysis || analysis?.summary) && (
     <details class="section study-context">
       <summary class="section-title">Study Context</summary>
       <div class="study-context-inner">
-        {latest.study.hypothesis && (
+        {latest.study?.hypothesis && (
           <div class="study-hypothesis">
             <span class="study-label">Hypothesis</span>
             <p>{latest.study.hypothesis}</p>
           </div>
         )}
-        {latest.study.questions && latest.study.questions.length > 0 && (
+        {latest.study?.questions && latest.study.questions.length > 0 && (
           <div class="study-questions">
             <span class="study-label">Questions</span>
             <ol>
@@ -140,7 +141,7 @@ const analysis = latest.analysis;
             </ol>
           </div>
         )}
-        {latest.study.focus && latest.study.focus.length > 0 && (
+        {latest.study?.focus && latest.study.focus.length > 0 && (
           <div class="study-focus">
             <span class="study-label">Focus Areas</span>
             <div class="focus-tags">
@@ -148,28 +149,18 @@ const analysis = latest.analysis;
             </div>
           </div>
         )}
-      </div>
-    </details>
-  )}
-
-  {/* Rich analysis: abstract replaces old analysis-box */}
-  {hasRichAnalysis && analysis && (
-    <details class="section">
-      <summary class="section-title">AI Analysis</summary>
-      <AnalysisAbstract
-        abstract={analysis.abstract!}
-        model={analysis.model}
-        generatedAt={analysis.generatedAt}
-      />
-    </details>
-  )}
-
-  {/* Legacy analysis: old-style summary box */}
-  {!hasRichAnalysis && analysis?.summary && (
-    <details class="section">
-      <summary class="section-title">AI Analysis</summary>
-      <div class="analysis-box">
-        <p>{analysis.summary}</p>
+        {hasRichAnalysis && analysis && (
+          <AnalysisAbstract
+            abstract={analysis.abstract!}
+            model={analysis.model}
+            generatedAt={analysis.generatedAt}
+          />
+        )}
+        {!hasRichAnalysis && analysis?.summary && (
+          <div class="analysis-box">
+            <p>{analysis.summary}</p>
+          </div>
+        )}
       </div>
     </details>
   )}
@@ -195,20 +186,19 @@ const analysis = latest.analysis;
 
   {metricEntries.length > 0 && (
     <details class="section">
-      <summary class="section-title">Metrics</summary>
+      <summary class="section-title">Metrics ({metricEntries.length})</summary>
       {latest.metrics?.source && (
         <p class="metrics-source">Source: <code>{latest.metrics.source}</code></p>
       )}
-      <div class="grid">
-        {metricEntries.map(([name, qr]) => (
-          <div class="card">
-            <VegaChart spec={buildSpec(name, qr)} />
-            {analysis?.metricInsights?.[name] && (
-              <p class="metric-insight">{analysis.metricInsights[name]}</p>
-            )}
-          </div>
-        ))}
-      </div>
+      {metricEntries.map(([name, qr]) => (
+        <details class="section metric-detail">
+          <summary class="section-title"><code>{name}</code></summary>
+          <VegaChart spec={buildSpec(name, qr)} />
+          {analysis?.metricInsights?.[name] && (
+            <p class="metric-insight">{analysis.metricInsights[name]}</p>
+          )}
+        </details>
+      ))}
     </details>
   )}
 

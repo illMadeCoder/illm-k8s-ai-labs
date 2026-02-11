@@ -77,23 +77,25 @@ const analysis = experiment.analysis;
     <MetricCard label="Workflow" value={experiment.workflow.phase} />
   </div>
 
-  <TargetTable targets={experiment.targets} />
+  <details class="section">
+    <summary class="section-title">Metadata</summary>
+    <TargetTable targets={experiment.targets} />
+    {experiment.costEstimate && (
+      <CostBreakdown cost={experiment.costEstimate} />
+    )}
+  </details>
 
-  {experiment.costEstimate && (
-    <CostBreakdown cost={experiment.costEstimate} />
-  )}
-
-  {experiment.study && (experiment.study.hypothesis || experiment.study.questions?.length || experiment.study.focus?.length) && (
+  {(experiment.study?.hypothesis || experiment.study?.questions?.length || experiment.study?.focus?.length || hasRichAnalysis || analysis?.summary) && (
     <details class="section study-context">
       <summary class="section-title">Study Context</summary>
       <div class="study-context-inner">
-        {experiment.study.hypothesis && (
+        {experiment.study?.hypothesis && (
           <div class="study-hypothesis">
             <span class="study-label">Hypothesis</span>
             <p>{experiment.study.hypothesis}</p>
           </div>
         )}
-        {experiment.study.questions && experiment.study.questions.length > 0 && (
+        {experiment.study?.questions && experiment.study.questions.length > 0 && (
           <div class="study-questions">
             <span class="study-label">Questions</span>
             <ol>
@@ -101,7 +103,7 @@ const analysis = experiment.analysis;
             </ol>
           </div>
         )}
-        {experiment.study.focus && experiment.study.focus.length > 0 && (
+        {experiment.study?.focus && experiment.study.focus.length > 0 && (
           <div class="study-focus">
             <span class="study-label">Focus Areas</span>
             <div class="focus-tags">
@@ -109,28 +111,18 @@ const analysis = experiment.analysis;
             </div>
           </div>
         )}
-      </div>
-    </details>
-  )}
-
-  {/* Rich analysis: abstract replaces old analysis-box */}
-  {hasRichAnalysis && analysis && (
-    <details class="section">
-      <summary class="section-title">AI Analysis</summary>
-      <AnalysisAbstract
-        abstract={analysis.abstract!}
-        model={analysis.model}
-        generatedAt={analysis.generatedAt}
-      />
-    </details>
-  )}
-
-  {/* Legacy analysis: old-style summary box */}
-  {!hasRichAnalysis && analysis?.summary && (
-    <details class="section">
-      <summary class="section-title">AI Analysis</summary>
-      <div class="analysis-box">
-        <p>{analysis.summary}</p>
+        {hasRichAnalysis && analysis && (
+          <AnalysisAbstract
+            abstract={analysis.abstract!}
+            model={analysis.model}
+            generatedAt={analysis.generatedAt}
+          />
+        )}
+        {!hasRichAnalysis && analysis?.summary && (
+          <div class="analysis-box">
+            <p>{analysis.summary}</p>
+          </div>
+        )}
       </div>
     </details>
   )}
@@ -156,20 +148,19 @@ const analysis = experiment.analysis;
 
   {metricEntries.length > 0 && (
     <details class="section">
-      <summary class="section-title">Metrics</summary>
+      <summary class="section-title">Metrics ({metricEntries.length})</summary>
       {experiment.metrics?.source && (
         <p class="metrics-source">Source: <code>{experiment.metrics.source}</code></p>
       )}
-      <div class="grid">
-        {metricEntries.map(([name, qr]) => (
-          <div class="card">
-            <VegaChart spec={buildSpec(name, qr)} />
-            {analysis?.metricInsights?.[name] && (
-              <p class="metric-insight">{analysis.metricInsights[name]}</p>
-            )}
-          </div>
-        ))}
-      </div>
+      {metricEntries.map(([name, qr]) => (
+        <details class="section metric-detail">
+          <summary class="section-title"><code>{name}</code></summary>
+          <VegaChart spec={buildSpec(name, qr)} />
+          {analysis?.metricInsights?.[name] && (
+            <p class="metric-insight">{analysis.metricInsights[name]}</p>
+          )}
+        </details>
+      ))}
     </details>
   )}
 
