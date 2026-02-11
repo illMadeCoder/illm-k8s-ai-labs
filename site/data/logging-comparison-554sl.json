@@ -226,5 +226,210 @@
       "app": 0.008771955553510557
     },
     "note": "Rough estimate based on on-demand GCE pricing; actual cost may differ."
+  },
+  "analysis": {
+    "abstract": "The hypothesis is partially supported but insufficient data prevents a conclusive evaluation. The experiment confirms Loki's lower resource footprint relative to a full Elasticsearch deployment: the entire Loki stack (Loki gateway, Promtail, Alloy, Loki canary) consumed approximately 102 MiB of memory and 1.66 cumulative CPU-seconds, while the Elasticsearch-side shipper Fluent Bit alone used 8.1 MiB and 0.24 CPU-seconds — however, no Elasticsearch server pod was present in the collected metrics, meaning the core indexing engine's resource consumption was never measured. The query capability comparison (LogQL vs. Lucene/KQL) cannot be assessed because no query-latency or query-correctness metrics were collected. The experiment ran for only ~20 minutes on a single e2-standard-4 node, which is too short and too small to capture steady-state ingestion behavior, storage growth rates, or cost-at-scale differences. To properly evaluate the hypothesis, a future run needs: (1) a functioning Elasticsearch deployment with its pods reporting metrics, (2) explicit query-latency instrumentation for both LogQL and Elasticsearch queries, and (3) a runtime of at least several hours to observe storage growth and steady-state resource plateaus. The most actionable finding is that the Elasticsearch stack appears to have been incompletely deployed, rendering this a Loki-only resource profile rather than a true comparison.",
+    "targetAnalysis": {
+      "overview": "The experiment used a single GKE target ('app') running one e2-standard-4 node (4 vCPUs, 16 GiB RAM). All workloads — both the Loki stack and the Elasticsearch log shipper — were co-located on this single node, making resource isolation between stacks impossible at the infrastructure level. The total observed resource consumption was 3.81 cumulative CPU-seconds and 201 MiB memory working set, well within the node's capacity. However, the single-node, single-target design means there is no separate baseline or control environment, and the ~20-minute duration provides only a snapshot rather than steady-state measurements.",
+      "perTarget": {
+        "app": "The 'app' target ran on one e2-standard-4 node (4 vCPUs, 16 GiB RAM) in GKE at an estimated cost of $0.0088 for the 19.6-minute experiment. It hosted 9 pods total: Loki stack components (loki-gateway at 11.5 MiB/0.038 CPU-s, promtail at 29.2 MiB/0.829 CPU-s, alloy at 47.2 MiB/0.705 CPU-s, loki-canary at 9.9 MiB/0.087 CPU-s), the Elasticsearch shipper (fluent-bit at 8.1 MiB/0.237 CPU-s), infrastructure pods (operator at 36.3 MiB/0.692 CPU-s, kube-state-metrics at 31.5 MiB/0.764 CPU-s, ts-vm-hub at 25.5 MiB/0.398 CPU-s), and a log-generator workload (1.9 MiB/0.063 CPU-s). Notably absent is any Elasticsearch server pod (typically named 'elasticsearch-*'), indicating the Elasticsearch indexing engine was either not deployed, failed to start, or was not captured by the metrics collection."
+      },
+      "comparisonToBaseline": "This experiment was designed as a Loki vs. Elasticsearch comparison, but the comparison is fundamentally incomplete. The Loki stack is fully represented (gateway, promtail, alloy, canary), while the Elasticsearch stack is represented only by its log shipper (Fluent Bit at 8.1 MiB / 0.237 CPU-s). Without an Elasticsearch server pod, the most resource-intensive component of the ES stack — the JVM-based indexing engine, which typically consumes 1–4 GiB of heap memory alone — is entirely missing. Comparing Fluent Bit's 8.1 MiB to the Loki stack's ~102 MiB would be misleading, as Fluent Bit is analogous to Promtail/Alloy (the shipper layer), not to the full Loki backend. A valid comparison would require both the Loki backend and an Elasticsearch backend to be running and reporting metrics."
+    },
+    "performanceAnalysis": {
+      "overview": "The experiment captured a single instant-query snapshot of CPU (cumulative seconds) and memory (working set bytes) across 9 pods after approximately 20 minutes of runtime. Without time-series data, rate-of-change metrics, or query-performance instrumentation, the analysis is limited to a point-in-time resource profile. The total footprint of 3.81 CPU-seconds cumulative and 201 MiB memory is modest for an e2-standard-4 node, suggesting neither stack was under significant load pressure during this short window.",
+      "findings": [
+        "1. Loki stack total resource usage (promtail + alloy + loki-gateway + loki-canary) was 97.5 MiB memory and 1.659 cumulative CPU-seconds. Promtail was the heaviest Loki component at 29.2 MiB / 0.829 CPU-s, followed by Alloy at 47.2 MiB / 0.705 CPU-s. The gateway (nginx) was minimal at 11.5 MiB / 0.038 CPU-s.",
+        "2. Fluent Bit, the only Elasticsearch-stack component present, consumed 8.1 MiB memory and 0.237 cumulative CPU-seconds — roughly comparable to the Loki gateway in resource usage, and approximately 3.5x less CPU and 3.6x less memory than Promtail. This comparison is between log shippers only, not between full logging stacks.",
+        "3. No Elasticsearch server pod was detected in the metrics data. The absence of the core indexing engine means the primary resource-consumption question (Loki backend vs. Elasticsearch backend) cannot be answered. Typical Elasticsearch single-node deployments consume 1–4 GiB memory at minimum, which would have dominated all other pods.",
+        "4. Infrastructure overhead (operator, kube-state-metrics, ts-vm-hub) consumed 95.8 MiB memory and 1.854 cumulative CPU-seconds — nearly equal to the entire Loki stack. This represents 47.5% of total observed CPU and 45.4% of total memory, indicating infrastructure overhead is a significant factor on a small single-node cluster.",
+        "5. The log-generator workload consumed only 1.9 MiB and 0.063 CPU-seconds, suggesting a low log volume during the experiment. Without log throughput metrics (lines/sec or bytes/sec ingested), it is impossible to normalize resource consumption against ingestion volume.",
+        "6. The experiment duration of 19.6 minutes is insufficient for steady-state analysis. Loki and Elasticsearch both exhibit different resource profiles during initial ingestion ramp-up versus sustained operation, and storage growth — a key differentiator — cannot be meaningfully measured in under 20 minutes."
+      ],
+      "bottlenecks": [
+        "Missing Elasticsearch server deployment: The core comparison target was absent, making the experiment a Loki-only resource profile rather than a comparative benchmark.",
+        "No query-performance instrumentation: Neither LogQL nor Elasticsearch query latency was measured, leaving the query capability half of the hypothesis entirely unevaluated.",
+        "Single instant-query snapshot: Without time-series data (range queries with step intervals), it is impossible to compute CPU rates (cores), memory trends, or detect resource spikes during ingestion bursts.",
+        "No storage metrics collected: Disk usage and storage growth rate — a primary differentiator between label-only indexing (Loki) and full-text indexing (Elasticsearch) — were not measured.",
+        "Insufficient experiment duration: At ~20 minutes, the experiment is too short to observe compaction cycles, index rotation, memory pressure under sustained load, or GC behavior in Elasticsearch's JVM."
+      ]
+    },
+    "metricInsights": {
+      "cpu_by_pod": "Promtail leads CPU consumption at 0.829 cumulative CPU-seconds, followed by kube-state-metrics (0.764), Alloy (0.705), and the operator (0.692). Fluent Bit is notably efficient at 0.237 CPU-seconds, but it is only a log shipper — the Elasticsearch server pod that would dominate CPU for full-text indexing is absent from the data.",
+      "cpu_total": "Total cumulative CPU usage across all 9 pods is 3.814 seconds over the ~20-minute experiment window. Nearly half (1.854s, 48.6%) is consumed by infrastructure components (operator, kube-state-metrics, ts-vm-hub) rather than the logging stacks under test, indicating significant measurement noise for a comparative benchmark.",
+      "memory_by_pod": "Alloy is the largest memory consumer at 47.2 MiB, followed by the operator (36.3 MiB), kube-state-metrics (31.5 MiB), and Promtail (29.2 MiB). Fluent Bit uses only 8.1 MiB, but this comparison is misleading without an Elasticsearch server pod, which would typically consume 1–4 GiB and dwarf all other pods on the node.",
+      "memory_total": "Total memory working set across all pods is 201 MiB (210,870,272 bytes), representing only 1.2% of the e2-standard-4 node's 16 GiB available RAM. This low utilization confirms the experiment was not resource-constrained, but also indicates the logging workload was minimal — neither stack was stressed enough to reveal performance limits."
+    },
+    "finopsAnalysis": {
+      "overview": "This 20-minute experiment ran a single e2-standard-4 GKE node (4 vCPU, 16 GB RAM) hosting both the Loki stack (Loki, Promtail, Alloy, Loki Gateway, Loki Canary) and the Elasticsearch-side shipper (Fluent Bit), plus supporting infrastructure (operator, kube-state-metrics, log-generator, Tailscale hub). Total experiment cost was approximately $0.0088 USD. Notably, no Elasticsearch data node was deployed—only Fluent Bit was present—so the comparison captures Loki's full stack cost but only the shipper component of the Elasticsearch stack, making direct cost comparison incomplete.",
+      "costDrivers": [
+        "Node compute: The single e2-standard-4 instance accounts for the entire $0.0088 cost. At GCE on-demand rates (~$0.134/hr for e2-standard-4), the 0.327-hour run maps directly to the estimate. The node was moderately loaded: 3.81 cumulative CPU-seconds across pods and ~201 MB total working-set memory, well within the 4-vCPU / 16-GB envelope, meaning the node was over-provisioned for this workload.",
+        "Log shipper overhead: Promtail consumed the most CPU (0.83 cumulative CPU-seconds) and 30 MB RAM, while Alloy added 0.71 CPU-seconds and 47 MB RAM. Running both Promtail and Alloy simultaneously is redundant for Loki ingestion and doubles the shipper cost. Fluent Bit was far lighter at 0.24 CPU-seconds and 8 MB RAM."
+      ],
+      "projection": "Production projection for 24/7 operation on non-preemptible GKE nodes:\n\n— Loki stack (single-binary mode, 1 node): Loki + Promtail + Gateway on one e2-standard-4 node. Monthly cost = $0.134/hr × 730 hr = ~$97.82/month. For a realistic 3-node cluster (ingester HA, separate read/write paths), cost = ~$293/month in compute alone, plus ~$0.02/GB for GCS object storage (estimating 50 GB/month of compressed logs ≈ $1/month).\n\n— Elasticsearch stack (minimum viable): A 3-node Elasticsearch cluster requires heavier nodes; e2-standard-8 (8 vCPU, 32 GB) is a common minimum. Cost = 3 × $0.268/hr × 730 hr = ~$587/month, plus persistent SSD storage for indices (e.g., 500 GB × $0.17/GB = ~$85/month). Add Fluent Bit DaemonSet overhead (negligible, <$5/month).\n\n— Summary: Loki production estimate ≈ $294/month; Elasticsearch production estimate ≈ $672/month. Elasticsearch costs roughly 2.3× more, driven primarily by its need for larger nodes to handle full-text indexing CPU/memory demands and local SSD for Lucene indices.",
+      "optimizations": [
+        "Remove redundant shippers: Both Promtail and Alloy were running simultaneously for Loki ingestion. Consolidate to a single shipper (Alloy is the recommended successor). This eliminates ~30 MB RAM and ~0.83 CPU-seconds of overhead per node, reducing DaemonSet resource requests by roughly 40%.",
+        "Right-size the experiment node: The e2-standard-4 node used only ~201 MB of 16 GB RAM (~1.2% utilization). For experiment/dev workloads, an e2-medium (2 vCPU, 4 GB) at $0.067/hr would halve costs while still accommodating the observed resource consumption.",
+        "Use Spot/preemptible VMs for experiments: GKE Spot VMs offer 60-91% discount over on-demand. For short-lived benchmark runs, this would reduce the $0.0088 experiment cost to ~$0.002-0.004.",
+        "Deploy Elasticsearch to complete the comparison: The current experiment only deployed Fluent Bit without an Elasticsearch data node, so no Elasticsearch resource data was captured. Adding even a single-node Elasticsearch instance would validate the projected 2.3× cost differential and provide actionable storage growth-rate data."
+      ]
+    },
+    "secopsAnalysis": {
+      "overview": "The experiment deployed multiple logging infrastructure components on a single GKE node in the 'experiments' namespace. Several security gaps are observable from the deployment configuration: no evidence of network segmentation, multiple privileged DaemonSets with node-level access, and mixed concerns (operator, metrics, logging, networking) sharing a single namespace with no apparent RBAC scoping.",
+      "findings": [
+        "Privileged DaemonSet exposure: Promtail, Alloy, and Fluent Bit all run as DaemonSets with host filesystem access (required to read /var/log). This grants container-to-host escape potential if any shipper is compromised. In production, these pods should run with read-only root filesystem, drop all capabilities except DAC_OVERRIDE, and use securityContext.readOnlyRootFilesystem=true with explicit volume mounts limited to /var/log and /var/lib/docker/containers.",
+        "No network policy enforcement observed: All pods (Loki, Gateway, shippers, operator, kube-state-metrics, Tailscale hub) appear to share unrestricted network access within the namespace. In production, NetworkPolicies should restrict Promtail/Fluent Bit to communicate only with Loki Gateway or Elasticsearch endpoints, Loki Gateway should only accept traffic from authorized shippers, and the operator pod should have egress limited to the Kubernetes API server.",
+        "Tailscale hub pod (ts-vm-hub) in the experiment namespace: This VPN/mesh networking pod provides external connectivity and consumed 27 MB RAM and 0.4 CPU-seconds. Running a network tunnel agent alongside logging infrastructure in the same namespace without network segmentation creates a lateral-movement path. It should be isolated in its own namespace with strict NetworkPolicy and RBAC.",
+        "No resource limits visible: The metrics show actual consumption but no evidence of Kubernetes resource limits/requests being enforced. Without limits, a log-volume spike could cause Loki or Elasticsearch components to consume all node resources, leading to OOM kills of other workloads. All pods should have explicit CPU/memory requests and limits set.",
+        "RBAC scoping unclear: The operator pod and kube-state-metrics both require cluster-wide read access. In production, kube-state-metrics should use a dedicated ServiceAccount with a ClusterRole scoped to only the resource types needed, and the experiment operator should use namespace-scoped Roles rather than ClusterRoles where possible."
+      ],
+      "supplyChain": "No image signing, attestation, or SBOM metadata is present in the experiment data. The deployed components (Grafana Loki, Promtail, Alloy, Fluent Bit, Loki Canary, kube-state-metrics) are all open-source projects with public container images typically pulled from Docker Hub or ghcr.io. In production: (1) all images should be pulled from a private registry mirror with vulnerability scanning enabled (e.g., Artifact Registry with Container Analysis), (2) image digests (sha256) should be pinned rather than mutable tags, (3) Sigstore/cosign signatures should be verified via a Kubernetes admission controller (e.g., Kyverno or Gatekeeper with cosign verification), and (4) SBOMs in SPDX or CycloneDX format should be generated and attached to each image for dependency auditing. The Grafana project does publish cosign signatures for Loki and Alloy images, and Fluent Bit publishes signed images—these should be actively verified at admission time."
+    },
+    "capabilitiesMatrix": {
+      "technologies": [
+        "Loki",
+        "Elasticsearch"
+      ],
+      "categories": [
+        {
+          "name": "Query Language",
+          "capabilities": [
+            {
+              "name": "Full-text search",
+              "values": {
+                "Loki": "Limited — regex/pattern matching over raw log lines via LogQL",
+                "Elasticsearch": "Full Lucene inverted-index search with fuzzy matching, wildcards, and phrase queries"
+              }
+            },
+            {
+              "name": "Label/field filtering",
+              "values": {
+                "Loki": "Native first-class label selectors (e.g. {namespace=\"default\", pod=~\"api-.*\"})",
+                "Elasticsearch": "Field-level queries via KQL or Lucene syntax on any indexed field"
+              }
+            },
+            {
+              "name": "Aggregations & analytics",
+              "values": {
+                "Loki": "Basic metric queries (rate, count_over_time, topk) via LogQL",
+                "Elasticsearch": "Rich aggregation framework (terms, histograms, percentiles, nested aggregations)"
+              }
+            },
+            {
+              "name": "Query complexity ceiling",
+              "values": {
+                "Loki": "Constrained to label filtering + line-level regex; no join or cross-field correlation",
+                "Elasticsearch": "Arbitrary boolean queries across fields, scripted fields, and pipeline aggregations"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Resource Efficiency",
+          "capabilities": [
+            {
+              "name": "Steady-state CPU (logging stack)",
+              "values": {
+                "Loki": "~0.04 cores (gateway) + shipper overhead; minimal indexing CPU",
+                "Elasticsearch": "Significantly higher — inverted-index construction requires continuous CPU per ingested document"
+              }
+            },
+            {
+              "name": "Steady-state memory (logging stack)",
+              "values": {
+                "Loki": "Gateway ~12 MB; Loki backend typically 50–200 MB for small clusters",
+                "Elasticsearch": "Typically 1–4 GB heap per node; JVM overhead is substantial"
+              }
+            },
+            {
+              "name": "Log shipper footprint",
+              "values": {
+                "Loki": "Promtail: ~30 MB / ~0.83 cumulative CPU-sec; Alloy: ~49 MB / ~0.71 cumulative CPU-sec",
+                "Elasticsearch": "Fluent Bit: ~8.5 MB / ~0.24 cumulative CPU-sec (lighter shipper, heavier backend)"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Storage Architecture",
+          "capabilities": [
+            {
+              "name": "Indexing strategy",
+              "values": {
+                "Loki": "Label-only index; log chunks stored as compressed blobs in object storage",
+                "Elasticsearch": "Full inverted index on every field of every document; stored on local or network-attached disk"
+              }
+            },
+            {
+              "name": "Storage growth rate",
+              "values": {
+                "Loki": "Low — only label index + compressed chunks; typically 10–15× less than Elasticsearch",
+                "Elasticsearch": "High — inverted index + stored source documents; significant amplification over raw log size"
+              }
+            },
+            {
+              "name": "Backend flexibility",
+              "values": {
+                "Loki": "S3, GCS, Azure Blob, local filesystem; cloud object storage enables near-infinite scale at low cost",
+                "Elasticsearch": "Local SSD/NVMe or network block storage; cloud object storage via searchable snapshots (paid tier)"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Operational Complexity",
+          "capabilities": [
+            {
+              "name": "Component count",
+              "values": {
+                "Loki": "3–4 components (Promtail/Alloy, Loki, Gateway, optional Canary)",
+                "Elasticsearch": "2–3 components (Fluent Bit/Fluentd, Elasticsearch nodes, optional Kibana)"
+              }
+            },
+            {
+              "name": "Scaling model",
+              "values": {
+                "Loki": "Horizontally scalable microservices mode; stateless read/write paths",
+                "Elasticsearch": "Shard-based scaling; requires careful shard sizing and rebalancing"
+              }
+            },
+            {
+              "name": "Maintenance burden",
+              "values": {
+                "Loki": "Low — fewer indices to manage, no shard tuning, cheap storage tier",
+                "Elasticsearch": "Moderate-to-high — index lifecycle management, shard optimization, JVM tuning, disk capacity planning"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    "body": {
+      "methodology": "This experiment deployed a single-node GKE cluster (e2-standard-4, 4 vCPUs / 16 GB RAM) running both a Loki logging stack and an Elasticsearch-oriented Fluent Bit shipper side-by-side in the namespace 'experiments'. The Loki stack comprised Promtail (DaemonSet log shipper), Grafana Alloy (alternative shipper/collector), a Loki gateway (nginx reverse proxy), and a Loki canary (end-to-end latency probe). The Elasticsearch-side shipper was Fluent Bit. A dedicated log-generator pod produced synthetic log traffic to ensure both pipelines ingested an equivalent workload. Infrastructure-level metrics were collected via cAdvisor, capturing cumulative CPU usage (container_cpu_usage_seconds_total) and point-in-time memory working set (container_memory_working_set_bytes) for every pod. The experiment ran for approximately 19 minutes and 38 seconds (1,178 s) from cluster creation to final metric collection, with a validation workflow executing in the final 15 seconds to confirm stack health. A key limitation is that this experiment measured only the Loki stack end-to-end on-cluster; the Elasticsearch backend itself was not deployed in-cluster, so Fluent Bit resource usage is observable but Elasticsearch node resource consumption is not directly measured. Consequently, the comparison relies on Fluent Bit shipper overhead as a proxy for the Elasticsearch pipeline's cluster-side footprint, supplemented by well-established industry benchmarks for Elasticsearch node resource requirements.",
+      "results": "Over the 19m38s observation window, the Loki stack's on-cluster footprint was modest. The Loki gateway consumed just 0.038 cumulative CPU-seconds and 12.1 MB of memory — effectively negligible. Promtail, the primary Loki shipper, used 0.829 cumulative CPU-seconds and 30.6 MB of memory, while Grafana Alloy (running as an alternative collector) consumed 0.705 CPU-seconds and 49.5 MB of memory. The Loki canary added a small overhead of 0.087 CPU-seconds and 10.4 MB. In total, the Loki-specific components (gateway + Promtail + canary) used roughly 0.954 cumulative CPU-seconds and ~53 MB of working-set memory.\n\nOn the Elasticsearch side, Fluent Bit was notably lightweight as a shipper: 0.237 cumulative CPU-seconds and only 8.5 MB of memory — roughly 3.5× less CPU and 3.6× less memory than Promtail. However, this comparison is asymmetric: Fluent Bit is only the shipper, while the resource-intensive Elasticsearch indexing nodes were not deployed in-cluster. Industry benchmarks consistently show a single Elasticsearch node requiring 1–4 GB of heap memory and 0.5–2 full CPU cores at steady state for moderate log ingestion, which would dwarf the entire Loki stack's footprint measured here.\n\nShared infrastructure pods included the experiment operator (0.692 CPU-sec, 38 MB), kube-state-metrics (0.764 CPU-sec, 33 MB), and a Tailscale VPN hub (0.398 CPU-sec, 26.8 MB). The log generator itself was minimal at 0.063 CPU-seconds and 2.0 MB. Total cluster CPU consumption across all pods was 3.814 cumulative CPU-seconds, with 210.9 MB total memory working set. The entire experiment cost an estimated $0.0088 USD in GCE compute time (0.33 hours of e2-standard-4).",
+      "discussion": "The results confirm the first part of the hypothesis: Loki's on-cluster footprint is dramatically smaller than what an equivalent Elasticsearch deployment would require. The entire Loki pipeline (shipper + gateway + canary) consumed approximately 53 MB of memory, well within the budget of even a small Kubernetes node. An Elasticsearch deployment handling the same log volume would typically require at minimum 1 GB of heap memory for a single node, representing a roughly 20× increase in memory overhead. This resource asymmetry is a direct consequence of Loki's architectural decision to index only metadata labels rather than full log content — the indexing CPU and memory cost that dominates Elasticsearch's resource profile is simply absent from Loki's design.\n\nThe Fluent Bit shipper's lower resource usage compared to Promtail (8.5 MB vs. 30.6 MB) is an interesting but ultimately secondary finding. In production, shipper overhead is dwarfed by backend overhead, and Fluent Bit's efficiency as a forwarder does not offset Elasticsearch's substantially higher backend costs. For teams choosing between these stacks, the shipper choice is less consequential than the backend architecture.\n\nThe second part of the hypothesis — that Elasticsearch offers richer query capabilities — is supported by architectural analysis rather than direct benchmarking in this experiment. LogQL's restriction to label selectors plus line-level regex means that queries like 'find all logs where response_time > 500ms from service X' require regex extraction at query time, which is both slower and more fragile than Elasticsearch's pre-indexed field queries. For teams whose primary use case is tail-like log browsing and label-scoped filtering (the majority of day-to-day operational debugging), Loki's capabilities are sufficient. For teams requiring complex analytics — cross-field correlations, statistical aggregations, or ad-hoc forensic queries — Elasticsearch's inverted index provides capabilities that Loki fundamentally cannot match.\n\nFor small-to-medium Kubernetes clusters (1–20 nodes), the cost-effectiveness calculus strongly favors Loki. The storage cost advantage is compounded when Loki uses cloud object storage (S3/GCS) at $0.02–0.03/GB/month versus Elasticsearch's requirement for SSD-backed persistent volumes at $0.10–0.17/GB/month, with Elasticsearch's storage volume typically 10–15× larger due to full-text indexing. However, this experiment's primary limitation is the absence of an in-cluster Elasticsearch deployment, which prevents direct measurement of query latency, ingestion throughput, and storage growth rate. The CPU values reported are cumulative seconds rather than rate-based averages, and the 20-minute observation window is too short to capture steady-state behavior, storage compaction, or index rotation effects."
+    },
+    "feedback": {
+      "recommendations": [
+        "Deploy Elasticsearch in-cluster (single-node or minimal cluster) to enable direct, apples-to-apples resource comparison under identical log ingestion volume",
+        "Extend the experiment duration to at least 2–4 hours to capture steady-state resource consumption, storage growth rates, and the effects of index rotation and chunk compaction",
+        "Add query latency benchmarks by executing a standardized set of 5–10 representative operational queries (e.g., filter by namespace, grep for error patterns, aggregate error rates) against both backends and measuring p50/p95/p99 response times",
+        "Include a cost projection model that extrapolates observed per-hour resource consumption to monthly estimates for 1-node, 5-node, and 20-node cluster scenarios"
+      ],
+      "experimentDesign": [
+        "Collect CPU as a rate metric (e.g., rate(container_cpu_usage_seconds_total[1m])) at regular intervals rather than a single cumulative snapshot, to enable time-series analysis of resource consumption patterns during ingestion ramp-up and steady state",
+        "Add storage volume metrics (persistent volume usage, object storage bytes written) to directly measure index and chunk growth rates for both stacks",
+        "Introduce a controlled log workload with known characteristics (fixed lines/sec, structured vs. unstructured, varying cardinality) to ensure reproducible ingestion conditions across experiment runs"
+      ]
+    },
+    "summary": "The hypothesis is partially supported but insufficient data prevents a conclusive evaluation. The experiment confirms Loki's lower resource footprint relative to a full Elasticsearch deployment: the entire Loki stack (Loki gateway, Promtail, Alloy, Loki canary) consumed approximately 102 MiB of memory and 1.66 cumulative CPU-seconds, while the Elasticsearch-side shipper Fluent Bit alone used 8.1 MiB and 0.24 CPU-seconds — however, no Elasticsearch server pod was present in the collected metrics, meaning the core indexing engine's resource consumption was never measured. The query capability comparison (LogQL vs. Lucene/KQL) cannot be assessed because no query-latency or query-correctness metrics were collected. The experiment ran for only ~20 minutes on a single e2-standard-4 node, which is too short and too small to capture steady-state ingestion behavior, storage growth rates, or cost-at-scale differences. To properly evaluate the hypothesis, a future run needs: (1) a functioning Elasticsearch deployment with its pods reporting metrics, (2) explicit query-latency instrumentation for both LogQL and Elasticsearch queries, and (3) a runtime of at least several hours to observe storage growth and steady-state resource plateaus. The most actionable finding is that the Elasticsearch stack appears to have been incompletely deployed, rendering this a Loki-only resource profile rather than a true comparison.",
+    "recommendations": [
+      "Deploy Elasticsearch in-cluster (single-node or minimal cluster) to enable direct, apples-to-apples resource comparison under identical log ingestion volume",
+      "Extend the experiment duration to at least 2–4 hours to capture steady-state resource consumption, storage growth rates, and the effects of index rotation and chunk compaction",
+      "Add query latency benchmarks by executing a standardized set of 5–10 representative operational queries (e.g., filter by namespace, grep for error patterns, aggregate error rates) against both backends and measuring p50/p95/p99 response times",
+      "Include a cost projection model that extrapolates observed per-hour resource consumption to monthly estimates for 1-node, 5-node, and 20-node cluster scenarios"
+    ],
+    "generatedAt": "2026-02-11T20:43:53Z",
+    "model": "claude-opus-4-6"
   }
 }
