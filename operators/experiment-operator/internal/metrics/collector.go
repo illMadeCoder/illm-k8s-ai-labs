@@ -172,6 +172,7 @@ type SecopsAnalysis struct {
 type CapabilitiesMatrix struct {
 	Technologies []string               `json:"technologies"`
 	Categories   []CapabilitiesCategory `json:"categories"`
+	Summary      string                 `json:"summary,omitempty"`
 }
 
 // CapabilitiesCategory groups related capabilities for comparison.

@@ -41,6 +41,11 @@ const { matrix } = Astro.props;
       </tbody>
     </table>
   </div>
+  {matrix.summary && (
+    <div class="cap-matrix-summary">
+      <p>{matrix.summary}</p>
+    </div>
+  )}
 </div>
 
 <style>
@@ -53,7 +58,7 @@ const { matrix } = Astro.props;
   .cap-matrix {
     width: 100%;
     border-collapse: collapse;
-    font-size: 0.85rem;
+    font-size: 0.9rem;
   }
 
   .cap-matrix thead {
@@ -66,11 +71,11 @@ const { matrix } = Astro.props;
     background: var(--bg-surface);
     padding: 0.75rem 1rem;
     border-bottom: 2px solid var(--border);
-    font-weight: 600;
-    font-size: 0.8rem;
+    font-weight: 700;
+    font-size: 0.85rem;
     text-transform: uppercase;
     letter-spacing: 0.04em;
-    color: var(--text-muted);
+    color: var(--text);
     white-space: nowrap;
   }
 
@@ -105,12 +110,27 @@ const { matrix } = Astro.props;
   .cap-matrix-value {
     padding: 0.6rem 1rem;
     text-align: center;
-    color: var(--text-muted);
+    color: var(--text);
     border-bottom: 1px solid var(--border);
-    line-height: 1.4;
+    line-height: 1.5;
   }
 
   .cap-matrix tbody tr:nth-child(even):not(.cap-matrix-category-row) {
     background: color-mix(in srgb, var(--bg-surface) 50%, var(--bg-card));
+  }
+
+  .cap-matrix-summary {
+    margin-top: 1rem;
+    padding: 0.75rem 1rem;
+    background: var(--bg-surface);
+    border-left: 3px solid var(--accent);
+    border-radius: 0 var(--radius) var(--radius) 0;
+  }
+
+  .cap-matrix-summary p {
+    margin: 0;
+    color: var(--text);
+    font-size: 0.95rem;
+    line-height: 1.65;
   }
 </style>

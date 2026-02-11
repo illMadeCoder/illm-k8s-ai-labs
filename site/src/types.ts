@@ -123,6 +123,7 @@ export interface SecopsAnalysis {
 export interface CapabilitiesMatrix {
   technologies: string[];
   categories: CapabilitiesCategory[];
+  summary?: string;
 }
 
 export interface CapabilitiesCategory {

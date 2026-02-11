@@ -319,7 +319,8 @@ if [ "${IS_COMPARISON}" = "true" ]; then
           }
         ]
       }
-    ]
+    ],
+    "summary": "<2-3 sentence critical verdict: which technology wins, under what conditions, and the key trade-off the reader must weigh>"
   },
 EOF
 )
@@ -358,7 +359,7 @@ Rules:
 - body.methodology should describe the actual experiment structure from the data
 - body.results must reference specific metric values and timings
 - body.discussion should connect findings to real-world implications
-- capabilitiesMatrix (if comparison): 3-5 categories with 2-4 capabilities each. Values should be concise assessments (e.g., "Limited (LogQL)", "Full Lucene syntax", "~0.1 cores avg")
+- capabilitiesMatrix (if comparison): 3-5 categories with 2-4 capabilities each. Values should be concise assessments (e.g., "Limited (LogQL)", "Full Lucene syntax", "~0.1 cores avg"). summary: a direct critical verdict — which technology wins and why, with the key trade-off
 - feedback.recommendations: 2-4 actionable items for the next experiment iteration
 - feedback.experimentDesign: 1-3 suggestions for improving the benchmark methodology
 - Output ONLY the JSON object, no markdown fences or extra text
