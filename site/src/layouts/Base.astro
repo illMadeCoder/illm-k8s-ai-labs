@@ -155,5 +155,54 @@ const currentPath = Astro.url.pathname;
         }
       })();
     </script>
+    <script is:inline>
+      (function () {
+        function initCollapseBars() {
+          var sections = document.querySelectorAll('details.section');
+          for (var i = 0; i < sections.length; i++) {
+            (function (details) {
+              if (details.querySelector(':scope > .section-collapse-bar')) return;
+              var summary = details.querySelector(':scope > summary');
+              if (!summary) return;
+
+              var bar = document.createElement('div');
+              bar.className = 'section-collapse-bar';
+              bar.setAttribute('role', 'button');
+              bar.setAttribute('tabindex', '0');
+              bar.setAttribute('aria-label', 'Collapse section');
+              summary.insertAdjacentElement('afterend', bar);
+
+              function updateBarTop() {
+                if (details.open) {
+                  details.style.setProperty('--_bar-top', summary.offsetHeight + 'px');
+                }
+              }
+
+              bar.addEventListener('click', function (e) {
+                e.stopPropagation();
+                details.open = false;
+              });
+
+              bar.addEventListener('keydown', function (e) {
+                if (e.key === 'Enter' || e.key === ' ') {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  details.open = false;
+                }
+              });
+
+              details.addEventListener('toggle', updateBarTop);
+              updateBarTop();
+            })(sections[i]);
+          }
+        }
+
+        if (document.readyState === 'loading') {
+          document.addEventListener('DOMContentLoaded', initCollapseBars);
+        } else {
+          initCollapseBars();
+        }
+      })();
+    </script>
   </body>
 </html>
