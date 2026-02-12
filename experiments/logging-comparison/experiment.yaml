@@ -4,7 +4,7 @@ metadata:
   generateName: logging-comparison-
   namespace: experiments
 spec:
-  description: "Loki vs Elasticsearch logging comparison - architecture, resource usage, query performance"
+  description: "Loki vs Elasticsearch logging comparison — steady-state resource usage under controlled log volume (iteration 2: fixed ES deployment, 2h observation window, upgraded node)"
   tags: ["comparison", "observability", "logging"]
   publish: true
   ttlDays: 7
@@ -16,7 +16,6 @@ spec:
       - performanceAnalysis
       - metricInsights
       - finopsAnalysis
-      - secopsAnalysis
       - body
       - capabilitiesMatrix
       - feedback
@@ -34,11 +33,68 @@ spec:
       - "storage architecture"
       - "operational complexity"
 
+  # Custom metrics — rate-based CPU, per-stack aggregation, storage
+  metrics:
+    # Per-stack CPU rate (the key comparison metric)
+    - name: loki_stack_cpu
+      query: 'sum(rate(container_cpu_usage_seconds_total{experiment="$EXPERIMENT",pod=~"loki.*|promtail.*",container!="POD",container!=""}[5m]))'
+      type: range
+      unit: cores
+      description: "Loki stack CPU usage (loki + promtail)"
+    - name: es_stack_cpu
+      query: 'sum(rate(container_cpu_usage_seconds_total{experiment="$EXPERIMENT",pod=~"elasticsearch.*|fluent-bit.*",container!="POD",container!=""}[5m]))'
+      type: range
+      unit: cores
+      description: "Elasticsearch stack CPU usage (ES + fluent-bit)"
+    # Per-stack memory
+    - name: loki_stack_memory
+      query: 'sum(container_memory_working_set_bytes{experiment="$EXPERIMENT",pod=~"loki.*|promtail.*",container!="POD",container!=""})'
+      type: range
+      unit: bytes
+      description: "Loki stack memory (loki + promtail)"
+    - name: es_stack_memory
+      query: 'sum(container_memory_working_set_bytes{experiment="$EXPERIMENT",pod=~"elasticsearch.*|fluent-bit.*",container!="POD",container!=""})'
+      type: range
+      unit: bytes
+      description: "Elasticsearch stack memory (ES + fluent-bit)"
+    # Per-pod detail (for drill-down)
+    - name: cpu_rate_by_pod
+      query: 'sum(rate(container_cpu_usage_seconds_total{experiment="$EXPERIMENT",container!="POD",container!=""}[5m])) by (pod)'
+      type: range
+      unit: cores
+      description: "CPU rate by pod"
+    - name: memory_by_pod
+      query: 'sum(container_memory_working_set_bytes{experiment="$EXPERIMENT",container!="POD",container!=""}) by (pod)'
+      type: range
+      unit: bytes
+      description: "Memory working set by pod"
+    # Peak instantaneous values for summary cards
+    - name: loki_cpu_peak
+      query: 'max_over_time(sum(rate(container_cpu_usage_seconds_total{experiment="$EXPERIMENT",pod=~"loki.*|promtail.*",container!="POD",container!=""}[5m]))[${DURATION}:])'
+      type: instant
+      unit: cores
+      description: "Loki stack peak CPU"
+    - name: es_cpu_peak
+      query: 'max_over_time(sum(rate(container_cpu_usage_seconds_total{experiment="$EXPERIMENT",pod=~"elasticsearch.*|fluent-bit.*",container!="POD",container!=""}[5m]))[${DURATION}:])'
+      type: instant
+      unit: cores
+      description: "ES stack peak CPU"
+    - name: loki_memory_peak
+      query: 'max_over_time(sum(container_memory_working_set_bytes{experiment="$EXPERIMENT",pod=~"loki.*|promtail.*",container!="POD",container!=""})[${DURATION}:])'
+      type: instant
+      unit: bytes
+      description: "Loki stack peak memory"
+    - name: es_memory_peak
+      query: 'max_over_time(sum(container_memory_working_set_bytes{experiment="$EXPERIMENT",pod=~"elasticsearch.*|fluent-bit.*",container!="POD",container!=""})[${DURATION}:])'
+      type: instant
+      unit: bytes
+      description: "ES stack peak memory"
+
   targets:
     - name: app
       cluster:
         type: gke
-        machineType: e2-standard-4
+        machineType: e2-standard-8
         preemptible: true
       observability:
         enabled: true
@@ -47,8 +103,11 @@ spec:
         - app: loki
         - app: promtail
         - app: elasticsearch
+        - app: kibana
         - app: fluent-bit
         - app: log-generator
+          params:
+            logRate: "100"
 
   workflow:
     template: logging-comparison-validation
