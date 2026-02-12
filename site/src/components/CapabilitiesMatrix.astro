@@ -105,6 +105,7 @@ const { matrix } = Astro.props;
     padding: 0.6rem 1rem 0.6rem 1.5rem;
     color: var(--text);
     border-bottom: 1px solid var(--border);
+    background: var(--bg-card);
   }
 
   .cap-matrix-value {
@@ -113,6 +114,12 @@ const { matrix } = Astro.props;
     color: var(--text);
     border-bottom: 1px solid var(--border);
     line-height: 1.5;
+    background: var(--bg-card);
+  }
+
+  /* Zebra striping: alternate data rows get the surface background */
+  .cap-matrix tbody tr:not(.cap-matrix-category-row):nth-child(even) td {
+    background: var(--bg-surface);
   }
 
   .cap-matrix-summary {
