@@ -12,7 +12,7 @@ import AnalysisBody from '../../../components/AnalysisBody.astro';
 import AnalysisFeedback from '../../../components/AnalysisFeedback.astro';
 import ArchitectureDiagram from '../../../components/ArchitectureDiagram.astro';
 import { loadAllExperiments, getBaseName, formatDisplayName } from '../../../lib/experiments';
-import { formatDuration, formatDate, formatCost } from '../../../lib/format';
+import { formatDuration, formatDate, formatCost, formatValue } from '../../../lib/format';
 import { buildSpec } from '../../../lib/vega-specs';
 import type { ExperimentSummary } from '../../../types';
 
@@ -160,7 +160,14 @@ const analysis = experiment.analysis;
               <code class="metric-panel-name">{name}</code>
               {qr.unit && <span class="metric-panel-unit">{qr.unit}</span>}
             </div>
-            <VegaChart spec={buildSpec(name, qr)} />
+            {qr.data && qr.data.length === 1 ? (
+              <div class="metric-single-value">
+                <span class="metric-single-number">{formatValue(qr.data[0].value, qr.unit)}</span>
+                {qr.description && <span class="metric-single-desc">{qr.description}</span>}
+              </div>
+            ) : (
+              <VegaChart spec={buildSpec(name, qr)} />
+            )}
             {analysis?.metricInsights?.[name] && (
               <p class="metric-panel-insight">{analysis.metricInsights[name]}</p>
             )}
@@ -367,6 +374,23 @@ const analysis = experiment.analysis;
     background: var(--bg-surface);
     padding: 0.1rem 0.4rem;
     border-radius: 2px;
+  }
+  .metric-single-value {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 1.5rem 1rem;
+  }
+  .metric-single-number {
+    font-family: var(--font-mono);
+    font-size: 2rem;
+    font-weight: 700;
+    color: var(--accent);
+  }
+  .metric-single-desc {
+    font-size: 0.8rem;
+    color: var(--text-muted);
   }
   .metric-panel-insight {
     margin: 0;
