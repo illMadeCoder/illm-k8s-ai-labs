@@ -30,6 +30,9 @@ spec:
     - jsonPath: .status.resourcesCleaned
       name: Cleaned
       type: boolean
+    - jsonPath: .status.analysisPhase
+      name: Analysis
+      type: string
     - jsonPath: .status.resultsURL
       name: Results
       priority: 1
@@ -319,6 +322,16 @@ spec:
                 description: AnalysisJobName is the name of the AI analyzer Job (empty
                   if not launched)
                 type: string
+              analysisPhase:
+                description: AnalysisPhase tracks the AI analyzer Job lifecycle. Empty
+                  when no analysis was requested.
+                type: string
+                enum:
+                - Pending
+                - Running
+                - Succeeded
+                - Failed
+                - Skipped
               completedAt:
                 description: CompletedAt is the timestamp when the experiment reached
                   a terminal state

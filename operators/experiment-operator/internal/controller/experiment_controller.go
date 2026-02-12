@@ -19,12 +19,14 @@ package controller
 import (
 	"context"
 	"fmt"
+	"strings"
 	"time"
 
 	batchv1 "k8s.io/api/batch/v1"
 	corev1 "k8s.io/api/core/v1"
 	rbacv1 "k8s.io/api/rbac/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
+	apimeta "k8s.io/apimachinery/pkg/api/meta"
 	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -154,65 +156,104 @@ func (r *ExperimentReconciler) handleDeletion(ctx context.Context, exp *experime
 
 // reconcileComplete handles the Complete/Failed phase — cleans up expensive resources
 // while preserving the Experiment CR as a historical record.
+//
+// Two-stage completion:
+//   Stage 1: Collect results, create analyzer Job, clean up cloud resources.
+//            Runs once, gated by ResourcesCleaned.
+//   Stage 2: Poll analyzer Job status every 30s until terminal.
+//            Once resolved, remove finalizer and stop requeuing.
 func (r *ExperimentReconciler) reconcileComplete(ctx context.Context, exp *experimentsv1alpha1.Experiment) (ctrl.Result, error) {
 	log := logf.FromContext(ctx)
 
-	// Idempotency: skip if resources already cleaned
-	if exp.Status.ResourcesCleaned {
+	// Terminal: analysis resolved (or never requested) — nothing more to do
+	if isAnalysisTerminal(exp) {
 		return ctrl.Result{}, nil
 	}
 
-	// Record completion timestamp before results collection so that
-	// summary.json gets a real CompletedAt, durationSeconds, and costEstimate.
-	now := metav1.Now()
-	if exp.Status.CompletedAt == nil {
-		exp.Status.CompletedAt = &now
-	}
+	// ── Stage 1: Results + Cleanup (runs once) ──────────────────────────
+	if !exp.Status.ResourcesCleaned {
+		// Record completion timestamp before results collection so that
+		// summary.json gets a real CompletedAt, durationSeconds, and costEstimate.
+		now := metav1.Now()
+		if exp.Status.CompletedAt == nil {
+			exp.Status.CompletedAt = &now
+		}
 
-	// Collect and store experiment results before cleanup
-	if exp.Status.ResultsURL == "" {
-		if err := r.collectAndStoreResults(ctx, exp); err != nil {
-			log.Error(err, "Failed to collect experiment results — will retry")
-			if updateErr := r.Status().Update(ctx, exp); updateErr != nil {
-				return ctrl.Result{}, updateErr
+		// Collect and store experiment results before cleanup
+		if exp.Status.ResultsURL == "" {
+			if err := r.collectAndStoreResults(ctx, exp); err != nil {
+				log.Error(err, "Failed to collect experiment results — will retry")
+				if updateErr := r.Status().Update(ctx, exp); updateErr != nil {
+					return ctrl.Result{}, updateErr
+				}
+				return ctrl.Result{RequeueAfter: 15 * time.Second}, nil
 			}
-			return ctrl.Result{RequeueAfter: 15 * time.Second}, nil
+			if err := r.Status().Update(ctx, exp); err != nil {
+				return ctrl.Result{}, err
+			}
 		}
+
+		log.Info("Cleaning up resources for completed experiment", "phase", exp.Status.Phase)
+
+		cleanupErr := r.cleanupResources(ctx, exp)
+
+		// Only mark cleaned if all expensive resources were successfully deleted
+		if cleanupErr != nil {
+			log.Error(cleanupErr, "Cleanup incomplete — cloud resources may still be running")
+			if err := r.Status().Update(ctx, exp); err != nil {
+				return ctrl.Result{}, err
+			}
+			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+		}
+		exp.Status.ResourcesCleaned = true
+
 		if err := r.Status().Update(ctx, exp); err != nil {
+			log.Error(err, "Failed to update status after cleanup")
 			return ctrl.Result{}, err
 		}
+
+		log.Info("Experiment resources cleaned, CR preserved as history", "completedAt", exp.Status.CompletedAt.Time)
+
+		// If analysis was already set to a terminal phase during collectAndStoreResults
+		// (e.g., Skipped), remove finalizer immediately
+		if isAnalysisTerminal(exp) {
+			if controllerutil.ContainsFinalizer(exp, experimentFinalizer) {
+				controllerutil.RemoveFinalizer(exp, experimentFinalizer)
+				if err := r.Update(ctx, exp); err != nil {
+					log.Error(err, "Failed to remove finalizer after cleanup")
+					return ctrl.Result{}, err
+				}
+			}
+			return ctrl.Result{}, nil
+		}
+
+		// Analysis is non-terminal (Pending) — fall through to Stage 2
 	}
 
-	log.Info("Cleaning up resources for completed experiment", "phase", exp.Status.Phase)
+	// ── Stage 2: Analysis Tracking (polls every 30s) ────────────────────
+	if exp.Status.ResourcesCleaned && !isAnalysisTerminal(exp) {
+		r.checkAnalysisJob(ctx, exp)
 
-	cleanupErr := r.cleanupResources(ctx, exp)
-
-	// Only mark cleaned if all expensive resources were successfully deleted
-	if cleanupErr != nil {
-		log.Error(cleanupErr, "Cleanup incomplete — cloud resources may still be running")
-		// Requeue to retry cleanup
 		if err := r.Status().Update(ctx, exp); err != nil {
+			log.Error(err, "Failed to update analysis phase")
 			return ctrl.Result{}, err
 		}
-		return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
-	}
-	exp.Status.ResourcesCleaned = true
 
-	if err := r.Status().Update(ctx, exp); err != nil {
-		log.Error(err, "Failed to update status after cleanup")
-		return ctrl.Result{}, err
+		if !isAnalysisTerminal(exp) {
+			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
+		}
 	}
 
-	// Remove finalizer — no more sub-resources to protect
-	if controllerutil.ContainsFinalizer(exp, experimentFinalizer) {
+	// Analysis resolved — remove finalizer
+	if isAnalysisTerminal(exp) && controllerutil.ContainsFinalizer(exp, experimentFinalizer) {
 		controllerutil.RemoveFinalizer(exp, experimentFinalizer)
 		if err := r.Update(ctx, exp); err != nil {
-			log.Error(err, "Failed to remove finalizer after cleanup")
+			log.Error(err, "Failed to remove finalizer after analysis complete")
 			return ctrl.Result{}, err
 		}
+		log.Info("Analysis tracking complete, finalizer removed", "analysisPhase", exp.Status.AnalysisPhase)
 	}
 
-	log.Info("Experiment resources cleaned, CR preserved as history", "completedAt", exp.Status.CompletedAt.Time)
 	return ctrl.Result{}, nil
 }
 
@@ -389,11 +430,19 @@ func (r *ExperimentReconciler) collectAndStoreResults(ctx context.Context, exp *
 				jobName = jobName[:63]
 			}
 			exp.Status.AnalysisJobName = jobName
+			exp.Status.AnalysisPhase = experimentsv1alpha1.AnalysisPhasePending
 		} else if r.AnalyzerImage != "" && (exp.Spec.Analysis == nil || len(exp.Spec.Analysis.Sections) == 0) {
 			log.Info("Skipping AI analysis — spec.analysis.sections not configured", "experiment", exp.Name)
+			exp.Status.AnalysisPhase = experimentsv1alpha1.AnalysisPhaseSkipped
+		} else {
+			exp.Status.AnalysisPhase = experimentsv1alpha1.AnalysisPhaseSkipped
 		}
 	} else if !exp.Spec.Publish {
 		log.Info("Skipping site publish and AI analysis — spec.publish is false", "experiment", exp.Name)
+		exp.Status.AnalysisPhase = experimentsv1alpha1.AnalysisPhaseSkipped
+	} else {
+		// Phase is Failed — don't analyze failed experiments
+		exp.Status.AnalysisPhase = experimentsv1alpha1.AnalysisPhaseSkipped
 	}
 
 	return nil
@@ -419,7 +468,9 @@ func (r *ExperimentReconciler) createAnalysisJob(ctx context.Context, exp *exper
 		return nil
 	}
 
-	s3Endpoint := r.S3Endpoint
+	// Strip protocol prefix — analyzer script prepends http:// itself
+	s3Endpoint := strings.TrimPrefix(r.S3Endpoint, "http://")
+	s3Endpoint = strings.TrimPrefix(s3Endpoint, "https://")
 
 	job := &batchv1.Job{
 		ObjectMeta: metav1.ObjectMeta{
@@ -561,6 +612,86 @@ func (r *ExperimentReconciler) createAnalysisJob(ctx context.Context, exp *exper
 
 	log.Info("Created analysis Job", "job", jobName, "image", r.AnalyzerImage)
 	return nil
+}
+
+// isAnalysisTerminal returns true if the analysis phase is in a terminal state.
+func isAnalysisTerminal(exp *experimentsv1alpha1.Experiment) bool {
+	switch exp.Status.AnalysisPhase {
+	case experimentsv1alpha1.AnalysisPhaseSucceeded,
+		experimentsv1alpha1.AnalysisPhaseFailed,
+		experimentsv1alpha1.AnalysisPhaseSkipped:
+		return true
+	}
+	return false
+}
+
+// checkAnalysisJob looks up the analyzer Job and maps its status to AnalysisPhase.
+func (r *ExperimentReconciler) checkAnalysisJob(ctx context.Context, exp *experimentsv1alpha1.Experiment) {
+	log := logf.FromContext(ctx)
+
+	if exp.Status.AnalysisJobName == "" {
+		exp.Status.AnalysisPhase = experimentsv1alpha1.AnalysisPhaseSkipped
+		return
+	}
+
+	job := &batchv1.Job{}
+	err := r.Get(ctx, types.NamespacedName{
+		Name:      exp.Status.AnalysisJobName,
+		Namespace: "experiment-operator-system",
+	}, job)
+
+	if errors.IsNotFound(err) {
+		// Job was TTL-cleaned before we could check — treat as failed
+		log.Info("Analyzer Job not found (TTL-cleaned?)", "job", exp.Status.AnalysisJobName)
+		exp.Status.AnalysisPhase = experimentsv1alpha1.AnalysisPhaseFailed
+		apimeta.SetStatusCondition(&exp.Status.Conditions, metav1.Condition{
+			Type:               "AnalysisComplete",
+			Status:             metav1.ConditionFalse,
+			Reason:             "JobNotFound",
+			ObservedGeneration: exp.Generation,
+			Message:            "Analyzer Job was deleted (TTL) before completion could be verified",
+		})
+		return
+	}
+
+	if err != nil {
+		// Transient error — don't change phase, let requeue retry
+		log.Error(err, "Failed to get analyzer Job", "job", exp.Status.AnalysisJobName)
+		return
+	}
+
+	// Map Job status
+	for _, cond := range job.Status.Conditions {
+		if cond.Type == batchv1.JobComplete && cond.Status == corev1.ConditionTrue {
+			exp.Status.AnalysisPhase = experimentsv1alpha1.AnalysisPhaseSucceeded
+			apimeta.SetStatusCondition(&exp.Status.Conditions, metav1.Condition{
+				Type:               "AnalysisComplete",
+				Status:             metav1.ConditionTrue,
+				Reason:             "Succeeded",
+				ObservedGeneration: exp.Generation,
+				Message:            "AI analysis completed successfully",
+			})
+			log.Info("Analyzer Job succeeded", "job", exp.Status.AnalysisJobName)
+			return
+		}
+		if cond.Type == batchv1.JobFailed && cond.Status == corev1.ConditionTrue {
+			exp.Status.AnalysisPhase = experimentsv1alpha1.AnalysisPhaseFailed
+			apimeta.SetStatusCondition(&exp.Status.Conditions, metav1.Condition{
+				Type:               "AnalysisComplete",
+				Status:             metav1.ConditionFalse,
+				Reason:             "Failed",
+				ObservedGeneration: exp.Generation,
+				Message:            fmt.Sprintf("Analyzer Job failed: %s", cond.Message),
+			})
+			log.Info("Analyzer Job failed", "job", exp.Status.AnalysisJobName, "message", cond.Message)
+			return
+		}
+	}
+
+	// Job exists but no terminal condition — still running
+	if job.Status.Active > 0 {
+		exp.Status.AnalysisPhase = experimentsv1alpha1.AnalysisPhaseRunning
+	}
 }
 
 // cleanupResources deletes expensive sub-resources (ArgoCD apps, cluster secrets,

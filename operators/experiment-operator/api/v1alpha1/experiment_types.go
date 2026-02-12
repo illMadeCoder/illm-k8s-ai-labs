@@ -360,6 +360,12 @@ type ExperimentStatus struct {
 	// +optional
 	AnalysisJobName string `json:"analysisJobName,omitempty"`
 
+	// AnalysisPhase tracks the AI analyzer Job lifecycle.
+	// Empty when no analysis was requested. Set to Pending when the Job is created,
+	// Running when the Job starts, Succeeded/Failed on completion.
+	// +optional
+	AnalysisPhase AnalysisPhase `json:"analysisPhase,omitempty"`
+
 	// Conditions
 	// +listType=map
 	// +listMapKey=type
@@ -404,6 +410,18 @@ const (
 	PhaseRunning      ExperimentPhase = "Running"
 	PhaseComplete     ExperimentPhase = "Complete"
 	PhaseFailed       ExperimentPhase = "Failed"
+)
+
+// AnalysisPhase tracks the lifecycle of the AI analyzer Job.
+// +kubebuilder:validation:Enum=Pending;Running;Succeeded;Failed;Skipped
+type AnalysisPhase string
+
+const (
+	AnalysisPhasePending   AnalysisPhase = "Pending"
+	AnalysisPhaseRunning   AnalysisPhase = "Running"
+	AnalysisPhaseSucceeded AnalysisPhase = "Succeeded"
+	AnalysisPhaseFailed    AnalysisPhase = "Failed"
+	AnalysisPhaseSkipped   AnalysisPhase = "Skipped"
 )
 
 // TargetStatus represents the status of a deployment target
@@ -463,6 +481,7 @@ type WorkflowStatus struct {
 // +kubebuilder:printcolumn:name="Workflow",type=string,JSONPath=`.status.workflowStatus.phase`
 // +kubebuilder:printcolumn:name="Published",type=boolean,JSONPath=`.status.published`
 // +kubebuilder:printcolumn:name="Cleaned",type=boolean,JSONPath=`.status.resourcesCleaned`
+// +kubebuilder:printcolumn:name="Analysis",type=string,JSONPath=`.status.analysisPhase`
 // +kubebuilder:printcolumn:name="Results",type=string,JSONPath=`.status.resultsURL`,priority=1
 // +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`
 
