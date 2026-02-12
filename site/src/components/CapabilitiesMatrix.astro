@@ -10,130 +10,153 @@ const { matrix } = Astro.props;
 
 <details class="section">
   <summary class="section-title">Capabilities Matrix</summary>
-  <div class="cap-matrix-wrapper">
-    <table class="cap-matrix">
-      <thead>
-        <tr>
-          <th class="cap-matrix-category-col">Capability</th>
-          {matrix.technologies.map((tech) => (
-            <th class="cap-matrix-tech-col">{tech}</th>
-          ))}
-        </tr>
-      </thead>
-      <tbody>
-        {matrix.categories.map((category) => (
-          <>
-            <tr class="cap-matrix-category-row">
-              <td colspan={matrix.technologies.length + 1}>
-                {category.name}
-              </td>
-            </tr>
-            {category.capabilities.map((cap) => (
-              <tr>
-                <td class="cap-matrix-cap-name">{cap.name}</td>
-                {matrix.technologies.map((tech) => (
-                  <td class="cap-matrix-value">{cap.values[tech] || '—'}</td>
-                ))}
-              </tr>
-            ))}
-          </>
-        ))}
-      </tbody>
-    </table>
-  </div>
+
   {matrix.summary && (
-    <div class="cap-matrix-summary">
+    <div class="cap-summary">
       <p>{matrix.summary}</p>
     </div>
   )}
+
+  <div class="cap-categories">
+    {matrix.categories.map((category) => (
+      <div class="cap-category">
+        <h4 class="cap-category-title">{category.name}</h4>
+        <div class="cap-entries">
+          {category.capabilities.map((cap) => (
+            <div class="cap-entry">
+              <div class="cap-entry-name">{cap.name}</div>
+              <div class="cap-entry-values">
+                {matrix.technologies.map((tech) => (
+                  <div class="cap-value-row">
+                    <span class="cap-tech-label">{tech}</span>
+                    <span class="cap-tech-text">{cap.values[tech] || '—'}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+    ))}
+  </div>
 </details>
 
 <style>
-  .cap-matrix-wrapper {
-    overflow-x: auto;
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-  }
-
-  .cap-matrix {
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 0.9rem;
-  }
-
-  .cap-matrix thead {
-    position: sticky;
-    top: 0;
-    z-index: 1;
-  }
-
-  .cap-matrix th {
-    background: var(--bg-surface);
-    padding: 0.75rem 1rem;
-    border-bottom: 2px solid var(--border);
-    font-weight: 700;
-    font-size: 0.85rem;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    color: var(--text);
-    white-space: nowrap;
-  }
-
-  .cap-matrix-category-col {
-    text-align: left;
-    min-width: 180px;
-  }
-
-  .cap-matrix-tech-col {
-    text-align: center;
-    min-width: 150px;
-    color: var(--accent) !important;
-  }
-
-  .cap-matrix-category-row td {
-    background: color-mix(in srgb, var(--accent) 6%, var(--bg-surface));
-    padding: 0.5rem 1rem;
-    font-weight: 600;
-    font-size: 0.8rem;
-    text-transform: uppercase;
-    letter-spacing: 0.03em;
-    color: var(--accent);
-    border-bottom: 1px solid var(--border);
-  }
-
-  .cap-matrix-cap-name {
-    padding: 0.6rem 1rem 0.6rem 1.5rem;
-    color: var(--text);
-    border-bottom: 1px solid var(--border);
-    background: var(--bg-card);
-  }
-
-  .cap-matrix-value {
-    padding: 0.6rem 1rem;
-    text-align: center;
-    color: var(--text);
-    border-bottom: 1px solid var(--border);
-    line-height: 1.5;
-    background: var(--bg-card);
-  }
-
-  /* Zebra striping: alternate data rows get the surface background */
-  .cap-matrix tbody tr:not(.cap-matrix-category-row):nth-child(even) td {
-    background: var(--bg-surface);
-  }
-
-  .cap-matrix-summary {
-    margin-top: 1rem;
+  .cap-summary {
+    margin-bottom: 1.25rem;
     padding: 0.75rem 1rem;
     background: var(--bg-surface);
     border-left: 3px solid var(--accent);
     border-radius: 0 var(--radius) var(--radius) 0;
   }
 
-  .cap-matrix-summary p {
+  .cap-summary p {
     margin: 0;
     color: var(--text);
     font-size: 0.95rem;
     line-height: 1.65;
+  }
+
+  .cap-categories {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+  }
+
+  .cap-category {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+
+  .cap-category-title {
+    font-size: 0.8rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--accent);
+    padding: 0.6rem 1.25rem;
+    margin: 0;
+    background: color-mix(in srgb, var(--accent) 6%, var(--bg-surface));
+    border-bottom: 1px solid var(--border);
+  }
+
+  .cap-entries {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .cap-entry {
+    padding: 1rem 1.25rem;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .cap-entry:last-child {
+    border-bottom: none;
+  }
+
+  .cap-entry-name {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text);
+    margin-bottom: 0.6rem;
+  }
+
+  .cap-entry-values {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .cap-value-row {
+    display: flex;
+    align-items: baseline;
+    gap: 0.75rem;
+  }
+
+  .cap-tech-label {
+    display: inline-block;
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 8%, transparent);
+    border: 1px solid color-mix(in srgb, var(--accent) 20%, transparent);
+    border-radius: 3px;
+    padding: 0.15rem 0.5rem;
+    min-width: 7.5rem;
+    text-align: center;
+    flex-shrink: 0;
+  }
+
+  .cap-tech-text {
+    font-size: 0.9rem;
+    line-height: 1.6;
+    color: var(--text);
+  }
+
+  /* Desktop: side-by-side tech value cards */
+  @media (min-width: 768px) {
+    .cap-entry-values {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+      gap: 0.75rem;
+    }
+
+    .cap-value-row {
+      flex-direction: column;
+      align-items: stretch;
+      gap: 0.4rem;
+      background: var(--bg-surface);
+      border-radius: var(--radius);
+      padding: 0.75rem;
+    }
+
+    .cap-tech-label {
+      align-self: flex-start;
+    }
   }
 </style>
