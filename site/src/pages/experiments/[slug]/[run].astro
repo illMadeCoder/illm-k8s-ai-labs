@@ -88,58 +88,38 @@ const verdictLabel = verdict
     <MetricCard label="Workflow" value={experiment.workflow.phase} />
   </div>
 
-  <details class="section" open>
+  <details class="section">
     <summary class="section-title">Metadata</summary>
-    <div class="metadata-inner">
-      <TargetTable targets={experiment.targets} />
-      {experiment.costEstimate && (
-        <CostBreakdown cost={experiment.costEstimate} />
-      )}
-      {experiment.study?.hypothesis && (
-        <details class="overview-item" open>
-          <summary class="overview-item-title">Hypothesis</summary>
-          <div class="overview-item-content">
-            <p class="study-hypothesis-text">{experiment.study.hypothesis}</p>
-          </div>
-        </details>
-      )}
-      {hasRichAnalysis && analysis && (
-        <details class="overview-item" open>
-          <summary class="overview-item-title">Abstract</summary>
-          <div class="overview-item-content">
-            <AnalysisAbstract
-              abstract={analysis.abstract!}
-              model={analysis.model}
-              generatedAt={analysis.generatedAt}
-            />
-          </div>
-        </details>
-      )}
-      {analysis?.architectureDiagram && (
-        <details class="overview-item" open>
-          <summary class="overview-item-title">Architecture</summary>
-          <div class="overview-item-content">
-            <ArchitectureDiagram diagram={analysis.architectureDiagram} />
-          </div>
-        </details>
-      )}
-      {!hasRichAnalysis && analysis?.summary && (
-        <details class="overview-item" open>
-          <summary class="overview-item-title">Summary</summary>
-          <div class="overview-item-content">
-            <div class="analysis-box">
-              <p>{analysis.summary}</p>
-            </div>
-          </div>
-        </details>
-      )}
-    </div>
+    <TargetTable targets={experiment.targets} />
+    {experiment.costEstimate && (
+      <CostBreakdown cost={experiment.costEstimate} />
+    )}
   </details>
 
-  {(experiment.study?.questions?.length || experiment.study?.focus?.length) && (
-    <details class="section overview">
+  {(experiment.study?.hypothesis || experiment.study?.questions?.length || experiment.study?.focus?.length || hasRichAnalysis || analysis?.summary) && (
+    <details class="section overview" open>
       <summary class="section-title">Overview</summary>
       <div class="overview-inner">
+        {experiment.study?.hypothesis && (
+          <details class="overview-item" open>
+            <summary class="overview-item-title">Hypothesis</summary>
+            <div class="overview-item-content">
+              <p class="study-hypothesis-text">{experiment.study.hypothesis}</p>
+            </div>
+          </details>
+        )}
+        {hasRichAnalysis && analysis && (
+          <details class="overview-item" open>
+            <summary class="overview-item-title">Abstract</summary>
+            <div class="overview-item-content">
+              <AnalysisAbstract
+                abstract={analysis.abstract!}
+                model={analysis.model}
+                generatedAt={analysis.generatedAt}
+              />
+            </div>
+          </details>
+        )}
         {experiment.study?.questions && experiment.study.questions.length > 0 && (
           <details class="overview-item" open>
             <summary class="overview-item-title">Questions</summary>
@@ -156,6 +136,24 @@ const verdictLabel = verdict
             <div class="overview-item-content">
               <div class="focus-tags">
                 {experiment.study.focus.map((f) => <span class="focus-tag">{f}</span>)}
+              </div>
+            </div>
+          </details>
+        )}
+        {analysis?.architectureDiagram && (
+          <details class="overview-item" open>
+            <summary class="overview-item-title">Architecture</summary>
+            <div class="overview-item-content">
+              <ArchitectureDiagram diagram={analysis.architectureDiagram} />
+            </div>
+          </details>
+        )}
+        {!hasRichAnalysis && analysis?.summary && (
+          <details class="overview-item" open>
+            <summary class="overview-item-title">Summary</summary>
+            <div class="overview-item-content">
+              <div class="analysis-box">
+                <p>{analysis.summary}</p>
               </div>
             </div>
           </details>
