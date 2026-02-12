@@ -1,59 +1,667 @@
 ---
-import type { AnalysisBody } from '../types';
+import type { AnalysisBody, BodyBlock, MetricsResult } from '../types';
+import VegaChart from './VegaChart.astro';
+import MermaidDiagram from './MermaidDiagram.astro';
+import { buildSpec } from '../lib/vega-specs';
+import { formatValue } from '../lib/format';
 
 interface Props {
   body: AnalysisBody;
+  metrics?: MetricsResult;
 }
 
-const { body } = Astro.props;
+const { body, metrics } = Astro.props;
 
-const sections = [
-  { key: 'methodology', title: 'Methodology', content: body.methodology },
-  { key: 'results', title: 'Results', content: body.results },
-  { key: 'discussion', title: 'Discussion', content: body.discussion },
-].filter((s) => s.content);
+// Skip rendering if body has no blocks (old format)
+const hasBlocks = body?.blocks && Array.isArray(body.blocks) && body.blocks.length > 0;
+
+function getPriorityColor(priority: string): string {
+  switch (priority) {
+    case 'p0': return '#ef4444';
+    case 'p1': return '#f97316';
+    case 'p2': return '#eab308';
+    case 'p3': return '#6b7280';
+    default: return '#6b7280';
+  }
+}
+
+function getCalloutColor(variant: string): string {
+  switch (variant) {
+    case 'info': return '#3b82f6';
+    case 'warning': return '#f59e0b';
+    case 'success': return '#22c55e';
+    case 'finding': return 'var(--accent)';
+    default: return 'var(--accent)';
+  }
+}
 ---
 
-<details class="section">
-  <summary class="section-title">Deep Dive</summary>
-  <div class="body-sections">
-    {sections.map((section) => (
-      <div class="body-section">
-        <h4 class="body-section-title">{section.title}</h4>
-        <p class="body-section-content">{section.content}</p>
-      </div>
-    ))}
+{hasBlocks && (
+<details class="section" open>
+  <summary class="section-title">Analysis</summary>
+  <div class="body-blocks">
+    {body.blocks.map((block: BodyBlock) => {
+      if (block.type === 'text') {
+        return <p class="block-text">{block.content}</p>;
+      }
+
+      if (block.type === 'topic') {
+        return (
+          <details class="block-topic">
+            <summary class="block-topic-title">{block.title}</summary>
+            <div class="block-topic-content">
+              {block.blocks.map((inner: BodyBlock) => {
+                if (inner.type === 'text') {
+                  return <p class="block-text">{inner.content}</p>;
+                }
+
+                if (inner.type === 'metric') {
+                  const qr = metrics?.queries?.[inner.key];
+                  if (!qr || qr.error || !qr.data?.length) {
+                    return <p class="block-text block-metric-missing">Metric <code>{inner.key}</code> not available.</p>;
+                  }
+                  if (qr.data.length === 1) {
+                    return (
+                      <div class={`block-metric ${inner.size === 'small' ? 'block-metric-small' : ''}`}>
+                        <div class="block-metric-header">
+                          <code class="block-metric-name">{inner.key}</code>
+                          {qr.unit && <span class="block-metric-unit">{qr.unit}</span>}
+                        </div>
+                        <div class="block-metric-single">
+                          <span class="block-metric-single-value">{formatValue(qr.data[0].value, qr.unit)}</span>
+                          {qr.description && <span class="block-metric-single-desc">{qr.description}</span>}
+                        </div>
+                        {inner.insight && <p class="block-metric-insight">{inner.insight}</p>}
+                      </div>
+                    );
+                  }
+                  return (
+                    <div class={`block-metric ${inner.size === 'small' ? 'block-metric-small' : ''}`}>
+                      <div class="block-metric-header">
+                        <code class="block-metric-name">{inner.key}</code>
+                        {qr.unit && <span class="block-metric-unit">{qr.unit}</span>}
+                      </div>
+                      <VegaChart spec={buildSpec(inner.key, qr)} />
+                      {inner.insight && <p class="block-metric-insight">{inner.insight}</p>}
+                    </div>
+                  );
+                }
+
+                if (inner.type === 'comparison') {
+                  return (
+                    <div class="block-comparison">
+                      {inner.items.map((item) => (
+                        <div class="block-comparison-card">
+                          <span class="block-comparison-label">{item.label}</span>
+                          <span class="block-comparison-value">{item.value}</span>
+                          {item.description && <span class="block-comparison-desc">{item.description}</span>}
+                        </div>
+                      ))}
+                    </div>
+                  );
+                }
+
+                if (inner.type === 'capabilityRow') {
+                  return (
+                    <div class="block-capability-row">
+                      <span class="block-capability-name">{inner.capability}</span>
+                      <div class="block-capability-values">
+                        {Object.entries(inner.values).map(([tech, assessment]) => (
+                          <div class="block-capability-pill">
+                            <span class="block-capability-tech">{tech}</span>
+                            <span class="block-capability-assessment">{assessment}</span>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                }
+
+                if (inner.type === 'table') {
+                  return (
+                    <div class="block-table-wrap">
+                      <table class="block-table">
+                        <thead>
+                          <tr>
+                            {inner.headers.map((h) => <th>{h}</th>)}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {inner.rows.map((row, i) => (
+                            <tr class={i % 2 === 1 ? 'striped' : ''}>
+                              {row.map((cell) => <td>{cell}</td>)}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                      {inner.caption && <p class="block-table-caption">{inner.caption}</p>}
+                    </div>
+                  );
+                }
+
+                if (inner.type === 'architecture') {
+                  return inner.format === 'mermaid' ? (
+                    <MermaidDiagram diagram={inner.diagram} caption={inner.caption} />
+                  ) : (
+                    <div class="block-architecture">
+                      <pre class="block-architecture-pre">{inner.diagram}</pre>
+                      {inner.caption && <p class="block-architecture-caption">{inner.caption}</p>}
+                    </div>
+                  );
+                }
+
+                if (inner.type === 'callout') {
+                  return (
+                    <div class="block-callout" style={`border-left-color: ${getCalloutColor(inner.variant)}`}>
+                      <span class="block-callout-title" style={`color: ${getCalloutColor(inner.variant)}`}>{inner.title}</span>
+                      <p class="block-callout-content">{inner.content}</p>
+                    </div>
+                  );
+                }
+
+                if (inner.type === 'recommendation') {
+                  return (
+                    <div class="block-recommendation">
+                      <div class="block-recommendation-header">
+                        <span class="block-recommendation-priority" style={`background: ${getPriorityColor(inner.priority)}`}>{inner.priority.toUpperCase()}</span>
+                        <span class="block-recommendation-title">{inner.title}</span>
+                        {inner.effort && <span class="block-recommendation-effort">{inner.effort} effort</span>}
+                      </div>
+                      <p class="block-recommendation-desc">{inner.description}</p>
+                    </div>
+                  );
+                }
+
+                if (inner.type === 'row') {
+                  return (
+                    <div class="block-row">
+                      {inner.blocks.map((child: BodyBlock) => {
+                        if (child.type === 'text') return <p class="block-text">{child.content}</p>;
+                        if (child.type === 'metric') {
+                          const qr = metrics?.queries?.[child.key];
+                          if (!qr || qr.error || !qr.data?.length) {
+                            return <p class="block-text block-metric-missing">Metric <code>{child.key}</code> not available.</p>;
+                          }
+                          if (qr.data.length === 1) {
+                            return (
+                              <div class={`block-metric ${child.size === 'small' ? 'block-metric-small' : ''}`}>
+                                <div class="block-metric-header">
+                                  <code class="block-metric-name">{child.key}</code>
+                                  {qr.unit && <span class="block-metric-unit">{qr.unit}</span>}
+                                </div>
+                                <div class="block-metric-single">
+                                  <span class="block-metric-single-value">{formatValue(qr.data[0].value, qr.unit)}</span>
+                                  {qr.description && <span class="block-metric-single-desc">{qr.description}</span>}
+                                </div>
+                                {child.insight && <p class="block-metric-insight">{child.insight}</p>}
+                              </div>
+                            );
+                          }
+                          return (
+                            <div class={`block-metric ${child.size === 'small' ? 'block-metric-small' : ''}`}>
+                              <div class="block-metric-header">
+                                <code class="block-metric-name">{child.key}</code>
+                                {qr.unit && <span class="block-metric-unit">{qr.unit}</span>}
+                              </div>
+                              <VegaChart spec={buildSpec(child.key, qr)} />
+                              {child.insight && <p class="block-metric-insight">{child.insight}</p>}
+                            </div>
+                          );
+                        }
+                        if (child.type === 'callout') {
+                          return (
+                            <div class="block-callout" style={`border-left-color: ${getCalloutColor(child.variant)}`}>
+                              <span class="block-callout-title" style={`color: ${getCalloutColor(child.variant)}`}>{child.title}</span>
+                              <p class="block-callout-content">{child.content}</p>
+                            </div>
+                          );
+                        }
+                        return null;
+                      })}
+                    </div>
+                  );
+                }
+
+                if (inner.type === 'topic') {
+                  return (
+                    <details class="block-topic block-topic-nested">
+                      <summary class="block-topic-title">{inner.title}</summary>
+                      <div class="block-topic-content">
+                        {inner.blocks.map((deep: BodyBlock) => {
+                          if (deep.type === 'text') return <p class="block-text">{deep.content}</p>;
+                          return null;
+                        })}
+                      </div>
+                    </details>
+                  );
+                }
+
+                return null;
+              })}
+            </div>
+          </details>
+        );
+      }
+
+      if (block.type === 'callout') {
+        return (
+          <div class="block-callout" style={`border-left-color: ${getCalloutColor(block.variant)}`}>
+            <span class="block-callout-title" style={`color: ${getCalloutColor(block.variant)}`}>{block.title}</span>
+            <p class="block-callout-content">{block.content}</p>
+          </div>
+        );
+      }
+
+      if (block.type === 'recommendation') {
+        return (
+          <div class="block-recommendation">
+            <div class="block-recommendation-header">
+              <span class="block-recommendation-priority" style={`background: ${getPriorityColor(block.priority)}`}>{block.priority.toUpperCase()}</span>
+              <span class="block-recommendation-title">{block.title}</span>
+              {block.effort && <span class="block-recommendation-effort">{block.effort} effort</span>}
+            </div>
+            <p class="block-recommendation-desc">{block.description}</p>
+          </div>
+        );
+      }
+
+      if (block.type === 'row') {
+        return (
+          <div class="block-row">
+            {block.blocks.map((child: BodyBlock) => {
+              if (child.type === 'text') return <p class="block-text">{child.content}</p>;
+              if (child.type === 'callout') {
+                return (
+                  <div class="block-callout" style={`border-left-color: ${getCalloutColor(child.variant)}`}>
+                    <span class="block-callout-title" style={`color: ${getCalloutColor(child.variant)}`}>{child.title}</span>
+                    <p class="block-callout-content">{child.content}</p>
+                  </div>
+                );
+              }
+              return null;
+            })}
+          </div>
+        );
+      }
+
+      return null;
+    })}
   </div>
 </details>
+)}
 
 <style>
-  .body-sections {
+  .body-blocks {
     display: flex;
     flex-direction: column;
-    gap: 1.5rem;
+    gap: 1rem;
+    padding: 1rem;
   }
 
-  .body-section {
+  /* Text blocks */
+  .block-text {
+    color: var(--text);
+    line-height: 1.7;
+    font-size: 0.95rem;
+    margin: 0;
+  }
+
+  .block-metric-missing {
+    color: var(--text-muted);
+    font-size: 0.85rem;
+    font-style: italic;
+  }
+
+  /* Topic blocks */
+  .block-topic {
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+
+  .block-topic-title {
+    display: block;
+    font-family: var(--font-mono);
+    font-size: 0.9rem;
+    font-weight: 700;
+    color: var(--text);
+    padding: 0.75rem 1rem;
+    cursor: pointer;
+    user-select: none;
+    list-style: none;
+    background: var(--bg-card);
+    border-bottom: 1px solid transparent;
+  }
+
+  .block-topic[open] > .block-topic-title {
+    border-bottom-color: var(--border);
+  }
+
+  .block-topic-title::-webkit-details-marker {
+    display: none;
+  }
+
+  .block-topic-title::before {
+    content: '▶';
+    display: inline-block;
+    font-size: 0.55rem;
+    margin-right: 0.5rem;
+    transition: transform 0.15s ease;
+    vertical-align: middle;
+  }
+
+  .block-topic[open] > .block-topic-title::before {
+    transform: rotate(90deg);
+  }
+
+  .block-topic-content {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    padding: 1rem;
+  }
+
+  .block-topic-nested {
+    border-color: color-mix(in srgb, var(--border) 60%, transparent);
+  }
+
+  /* Metric blocks */
+  .block-metric {
     background: var(--bg-card);
     border: 1px solid var(--border);
     border-radius: var(--radius);
-    padding: 1.25rem 1.5rem;
+    overflow: hidden;
   }
 
-  .body-section-title {
-    font-size: 0.85rem;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
-    color: var(--accent);
-    margin-bottom: 0.75rem;
-    padding-bottom: 0.5rem;
+  .block-metric-small {
+    min-width: 0;
+  }
+
+  /* Row layout — responsive grid for side-by-side blocks */
+  .block-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 1rem;
+  }
+
+  @media (max-width: 768px) {
+    .block-row {
+      grid-template-columns: 1fr;
+    }
+  }
+
+  .block-metric-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.6rem 1rem;
     border-bottom: 1px solid var(--border);
   }
 
-  .body-section-content {
+  .block-metric-name {
+    font-family: var(--font-mono);
+    font-size: 0.9rem;
+    font-weight: 600;
+    background: none;
+    padding: 0;
+  }
+
+  .block-metric-unit {
+    font-size: 0.65rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    background: var(--bg-surface);
+    padding: 0.1rem 0.4rem;
+    border-radius: 2px;
+  }
+
+  .block-metric-single {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 1.25rem 1rem;
+  }
+
+  .block-metric-single-value {
+    font-family: var(--font-mono);
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: var(--accent);
+  }
+
+  .block-metric-single-desc {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+  }
+
+  .block-metric-insight {
+    margin: 0;
+    padding: 0.6rem 1rem;
+    border-top: 1px solid var(--border);
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    line-height: 1.6;
+  }
+
+  /* Comparison blocks */
+  .block-comparison {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+  }
+
+  .block-comparison-card {
+    flex: 1 1 180px;
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1rem 1.25rem;
+  }
+
+  .block-comparison-label {
+    font-size: 0.7rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-muted);
+  }
+
+  .block-comparison-value {
+    font-family: var(--font-mono);
+    font-size: 1.35rem;
+    font-weight: 700;
+    color: var(--accent);
+  }
+
+  .block-comparison-desc {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    line-height: 1.5;
+  }
+
+  /* Capability row blocks */
+  .block-capability-row {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 0.75rem 1rem;
+  }
+
+  .block-capability-name {
+    display: block;
+    font-family: var(--font-mono);
+    font-size: 0.9rem;
+    font-weight: 600;
+    margin-bottom: 0.5rem;
+  }
+
+  .block-capability-values {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+  }
+
+  .block-capability-pill {
+    display: flex;
+    flex-direction: column;
+    gap: 0.15rem;
+    padding: 0.5rem 0.75rem;
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    flex: 1 1 200px;
+  }
+
+  .block-capability-tech {
+    font-family: var(--font-mono);
+    font-size: 0.65rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    color: var(--accent);
+  }
+
+  .block-capability-assessment {
+    font-size: 0.85rem;
     color: var(--text);
-    line-height: 1.7;
-    font-size: 1rem;
+    line-height: 1.5;
+  }
+
+  /* Table blocks */
+  .block-table-wrap {
+    overflow-x: auto;
+  }
+
+  .block-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.85rem;
+  }
+
+  .block-table th {
+    text-align: left;
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--text-muted);
+    padding: 0.6rem 0.75rem;
+    border-bottom: 2px solid var(--border);
+  }
+
+  .block-table td {
+    padding: 0.5rem 0.75rem;
+    color: var(--text);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .block-table tr.striped {
+    background: var(--bg-surface);
+  }
+
+  .block-table-caption {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    margin: 0.5rem 0 0;
+    font-style: italic;
+  }
+
+  /* Architecture blocks */
+  .block-architecture {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1rem 1.25rem;
+    overflow-x: auto;
+  }
+
+  .block-architecture-pre {
+    margin: 0;
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    line-height: 1.4;
+    color: var(--text);
+    white-space: pre;
+    overflow-x: auto;
+  }
+
+  .block-architecture-caption {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    margin: 0.75rem 0 0;
+    font-style: italic;
+  }
+
+  /* Callout blocks */
+  .block-callout {
+    border-left: 4px solid var(--accent);
+    background: var(--bg-card);
+    border-radius: 0 var(--radius) var(--radius) 0;
+    padding: 0.75rem 1rem;
+  }
+
+  .block-callout-title {
+    display: block;
+    font-size: 0.8rem;
+    font-weight: 700;
+    margin-bottom: 0.35rem;
+  }
+
+  .block-callout-content {
+    margin: 0;
+    font-size: 0.9rem;
+    color: var(--text);
+    line-height: 1.6;
+  }
+
+  /* Recommendation blocks */
+  .block-recommendation {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 0.75rem 1rem;
+  }
+
+  .block-recommendation-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.4rem;
+  }
+
+  .block-recommendation-priority {
+    font-family: var(--font-mono);
+    font-size: 0.65rem;
+    font-weight: 700;
+    color: #fff;
+    padding: 0.15rem 0.5rem;
+    border-radius: 2px;
+    letter-spacing: 0.03em;
+  }
+
+  .block-recommendation-title {
+    font-weight: 600;
+    font-size: 0.9rem;
+    color: var(--text);
+  }
+
+  .block-recommendation-effort {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    background: var(--bg-surface);
+    padding: 0.1rem 0.4rem;
+    border-radius: 2px;
+    margin-left: auto;
+  }
+
+  .block-recommendation-desc {
+    margin: 0;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    line-height: 1.6;
   }
 </style>

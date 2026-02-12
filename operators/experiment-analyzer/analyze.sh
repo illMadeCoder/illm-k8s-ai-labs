@@ -5,10 +5,10 @@ set -euo pipefail
 #
 # Produces research-paper quality analysis via 5 focused claude -p calls:
 #   Pass 1: Analysis plan (technologies, focus areas, domain context)
-#   Pass 2: Core analysis (abstract, targetAnalysis, performanceAnalysis, metricInsights)
+#   Pass 2: Core analysis (abstract, targetAnalysis, performanceAnalysis, metricInsights, architectureDiagram)
 #   Pass 3: FinOps + SecOps analysis
-#   Pass 4: Deep dive + capabilities matrix + feedback
-#   Pass 5: ASCII architecture diagram
+#   Pass 4: Capabilities matrix + feedback
+#   Pass 5: Body synthesis (rich narrative with typed content blocks)
 #
 # Required environment variables:
 #   EXPERIMENT_NAME  - experiment name (used for S3 key and GitHub path)
@@ -218,7 +218,7 @@ echo "==> Analysis plan: $(jq -c '{technologies, isComparison, focusAreas}' "${P
 # Pass 2: Core Analysis (abstract, targetAnalysis, performanceAnalysis, metricInsights)
 # ============================================================================
 PASS2_FILE="${WORK_DIR}/pass_2.json"
-if any_section_requested "abstract" "targetAnalysis" "performanceAnalysis" "metricInsights"; then
+if any_section_requested "abstract" "targetAnalysis" "performanceAnalysis" "metricInsights" "architectureDiagram"; then
 
 PASS2_PROMPT=$(cat <<'EOF'
 You are writing research-paper quality analysis of Kubernetes experiment benchmark results.
@@ -254,7 +254,9 @@ Output ONLY a JSON object with these sections:
 
   "metricInsights": {
     "<exact_metric_key>": "<1-2 sentence insight referencing actual values from the data. Each insight appears below its Vega-Lite chart.>"
-  }
+  },
+
+  "architectureDiagram": "<ASCII architecture diagram string with \\n for newlines>"
 }
 
 Rules:
@@ -269,6 +271,12 @@ Rules:
 - "metricInsights" must have one entry per metric key in metrics.queries, using exact key names
 - Reference specific numbers from the data (CPU cores, memory bytes, durations)
 - Be technical and concise — this is for infrastructure engineers
+- "architectureDiagram": Mermaid flowchart diagram. Use ONLY 'flowchart TD' syntax.
+  Use 'subgraph' for cluster boundaries. Node format: id["Label<br/>Annotation"].
+  Edge format: source -->|label| target. Show hub cluster → target cluster(s),
+  components grouped by role, data flow. Omit ConfigMaps/Secrets/RBAC.
+  Max 15-25 nodes. Single JSON string with \n for line breaks.
+- "architectureDiagramFormat": "mermaid"
 - Output ONLY the JSON object, no markdown fences or extra text
 
 ANALYSIS PLAN:
@@ -346,10 +354,10 @@ else
 fi
 
 # ============================================================================
-# Pass 4: Deep Dive + Capabilities Matrix + Feedback
+# Pass 4: Capabilities Matrix + Feedback
 # ============================================================================
 PASS4_FILE="${WORK_DIR}/pass_4.json"
-if any_section_requested "body" "capabilitiesMatrix" "feedback"; then
+if any_section_requested "capabilitiesMatrix" "feedback"; then
 
 IS_COMPARISON=$(jq -r '.isComparison // false' "${PASS1_FILE}" 2>/dev/null || echo "false")
 
@@ -377,19 +385,13 @@ else
 fi
 
 PASS4_PROMPT=$(cat <<EOF
-You are writing the research-paper body and capabilities assessment for a Kubernetes experiment.
+You are writing the capabilities assessment and feedback for a Kubernetes experiment.
 You have an analysis plan and the full experiment data.
 
 Output ONLY a JSON object with these sections:
 
 {
   ${CAP_MATRIX_INSTRUCTION}
-
-  "body": {
-    "methodology": "<How the experiment was structured: what was deployed, how it was measured, what the workflow did, and any limitations of the methodology>",
-    "results": "<Key findings with specific data points. Reference actual metric values, timings, and resource usage. Structure as a narrative connecting the data points.>",
-    "discussion": "<Interpretation of results: what they mean for real-world usage, how they compare to industry expectations, limitations of this benchmark, and caveats.>"
-  },
 
   "feedback": {
     "recommendations": [
@@ -404,9 +406,6 @@ Output ONLY a JSON object with these sections:
 }
 
 Rules:
-- body.methodology should describe the actual experiment structure from the data
-- body.results must reference specific metric values and timings
-- body.discussion should connect findings to real-world implications
 - capabilitiesMatrix (if comparison): 3-5 categories with 2-4 capabilities each. Values should be concise assessments (e.g., "Limited (LogQL)", "Full Lucene syntax", "~0.1 cores avg"). summary: a direct critical verdict — which technology wins and why, with the key trade-off
 - feedback.recommendations: 2-4 actionable items for the next experiment iteration
 - feedback.experimentDesign: 1-3 suggestions for improving the benchmark methodology
@@ -416,84 +415,104 @@ ANALYSIS PLAN:
 EOF
 )
 
-run_pass "pass_4_deep_dive" "${PASS4_PROMPT}
+run_pass "pass_4_capabilities" "${PASS4_PROMPT}
 ${PLAN_DATA}
 
 EXPERIMENT DATA:
 ${SUMMARY_DATA}" "${PASS4_FILE}" || true
 
 else
-  echo "==> Skipping pass 4 (deep dive) — no relevant sections requested"
+  echo "==> Skipping pass 4 (capabilities) — no relevant sections requested"
   echo '{}' > "${PASS4_FILE}"
 fi
 
 # ============================================================================
-# Pass 5: ASCII Architecture Diagram
+# Pass 5: Body Synthesis (rich narrative with typed content blocks)
 # ============================================================================
 PASS5_FILE="${WORK_DIR}/pass_5.json"
-if section_requested "architectureDiagram"; then
+if section_requested "body"; then
 
-PASS5_PROMPT=$(cat <<'EOF'
-You are creating an ASCII architecture diagram for a Kubernetes experiment benchmark page.
-The page uses monospace font (JetBrains Mono). Generate a clear topology diagram showing
-the experiment's cluster layout, components, and data flow.
+# Build prior-sections context from passes 2-4
+PRIOR_SECTIONS=""
+for prior_file in "${PASS2_FILE}" "${PASS3_FILE}" "${PASS4_FILE}"; do
+  if [ -f "${prior_file}" ] && [ "$(cat "${prior_file}")" != "{}" ]; then
+    PRIOR_SECTIONS="${PRIOR_SECTIONS}
+$(cat "${prior_file}")"
+  fi
+done
 
-Output ONLY a JSON object:
-{"architectureDiagram": "<diagram string with \n for newlines>"}
+# Extract available metric keys from summary.json
+METRIC_KEYS=""
+if jq -e '.metrics.queries' "${SUMMARY_FILE}" > /dev/null 2>&1; then
+  METRIC_KEYS=$(jq -r '.metrics.queries | keys | join(", ")' "${SUMMARY_FILE}")
+fi
 
-Diagram rules:
-- MAX 66 characters wide (must fit 600px content area at 0.75rem monospace)
-- Target 15-22 lines tall
-- Use box-drawing characters: ┌ ─ ┐ │ └ ┘ for inner boxes, ═ ╔ ╗ ╚ ╝ ║ for outer boundary
-- Show: hub cluster → provisioning arrow → target cluster(s)
-- Inside each target cluster box, group components by role
-- Show data flow with arrows: ──▶ (right), ◀── (left), │▼ (down), │▲ (up)
-- Show metrics backhaul path if applicable
-- Group components by role (e.g. "Loki + Promtail" not separate boxes for each)
-- Omit infrastructure resources (ConfigMaps, Secrets, RBAC, ServiceAccounts)
-- Label arrows with what flows through them (e.g. "metrics", "logs", "queries")
+PASS5_PROMPT=$(cat <<EOF
+You are writing the main analysis for a Kubernetes experiment benchmark page.
 
-Example format for a comparison experiment:
-╔══════════════════════════════════════════════════════════╗
-║  Hub Cluster (Talos)                                    ║
-║  ┌─────────────┐  ┌──────────┐  ┌───────────────────┐  ║
-║  │ ArgoCD      │  │Crossplane│  │ Argo Workflows    │  ║
-║  └──────┬──────┘  └────┬─────┘  └─────────┬─────────┘  ║
-╚═════════│══════════════│═══════════════════│═════════════╝
-          │ sync         │ provision         │ orchestrate
-    ┌─────▼──────┐ ┌─────▼──────┐           │
-    │ Target: A  │ │ Target: B  │◀──────────┘
-    │            │ │            │
-    │ Component1 │ │ Component2 │
-    │ Component3 │ │ Component4 │
-    │     │      │ │     │      │
-    └─────│──────┘ └─────│──────┘
-          │  metrics     │  metrics
-          └──────┬───────┘
-                 ▼
-          ┌────────────┐
-          │VictoriaM.  │
-          └────────────┘
+OUTPUT FORMAT: A JSON object with a single "body" key containing a "blocks" array.
+Each block has a "type" field. Available types:
 
-Rules:
-- Adapt the layout to the actual experiment topology (number of targets, components)
-- For single-target experiments, show one target box with all components
-- Keep it clean and readable — whitespace is better than clutter
-- Output ONLY the JSON object, no markdown fences or extra text
-- The diagram value must be a single JSON string with \n for line breaks
+  text       — Prose paragraph. Keep SHORT (2-3 sentences max). Let visuals speak.
+               Fields: type, content
+  topic      — Collapsible subsection. Has "title" and nested "blocks" array.
+               Fields: type, title, blocks
+  metric     — Inline chart. "key" must match a metric key listed below.
+               "size": "large" (full width) or "small" (compact, ~50% width).
+               Optional "insight" annotation below the chart.
+               Fields: type, key, size (optional), insight (optional)
+  comparison — Side-by-side value cards. "items" array with label + value + description.
+               Fields: type, items (array of {label, value, description?})
+  capabilityRow — Single capability row. "capability" name + "values" (tech → assessment).
+               Fields: type, capability, values
+  table      — Data table. "headers" array + "rows" (array of string arrays) + "caption".
+               Fields: type, headers, rows, caption (optional)
+  architecture — Mermaid flowchart diagram. "diagram" is 'flowchart TD' syntax with \\n.
+               "format" must be "mermaid". "caption" optional.
+               Fields: type, diagram, format, caption (optional)
+  callout    — Emphasis box. "variant" (info|warning|success|finding) + "title" + "content".
+               Fields: type, variant, title, content
+  recommendation — Action item. "priority" (p0-p3) + "title" + "description" + "effort" (low|medium|high).
+               Fields: type, priority, title, description, effort (optional)
+  row        — Horizontal layout group. Children render side-by-side (2-3 items).
+               Use to pair small metrics, or place a metric next to explanatory text.
+               On mobile, items stack vertically.
+               Fields: type, blocks
 
-ANALYSIS PLAN:
+STRUCTURE: Create 3-5 topic blocks, each covering one theme of the experiment
+(e.g., "Resource Efficiency", "Query Capabilities", "Production Readiness").
+Add brief intro text before the first topic, and a closing verdict after the last.
+
+PHILOSOPHY:
+- VISUAL-FIRST: Prefer showing a chart or comparison block over describing numbers in prose.
+  A metric block + one sentence of context > a paragraph restating metric values.
+- CHUNKED: Each topic should be self-contained. A reader can expand just one topic
+  to understand that aspect of the experiment.
+- MINIMAL PROSE: Text blocks should be 2-3 sentences connecting visuals, not data dumps.
+  The components tell the story — text blocks provide the connective tissue.
+- PAIR VISUALS: When using size: "small" metrics, wrap them in a "row" block so they
+  sit side-by-side. A metric + text also works well in a row. Never put more than 3
+  items in a row. Full-width blocks (tables, architecture, large metrics) stay outside rows.
+- INTERLEAVE: Alternate between visual blocks and brief text. Never stack >2 text blocks.
+
+AVAILABLE METRIC KEYS:
+${METRIC_KEYS}
+
+PRIOR ANALYSIS (use as source material — DO NOT repeat verbatim):
+${PRIOR_SECTIONS}
+
+EXPERIMENT DATA:
+${SUMMARY_DATA}
+${STUDY_CONTEXT}
+
+Output ONLY the JSON object with the "body" key, no markdown fences or extra text.
 EOF
 )
 
-run_pass "pass_5_diagram" "${PASS5_PROMPT}
-${PLAN_DATA}
-
-EXPERIMENT DATA:
-${SUMMARY_DATA}" "${PASS5_FILE}" || true
+run_pass "pass_5_body_synthesis" "${PASS5_PROMPT}" "${PASS5_FILE}" || true
 
 else
-  echo "==> Skipping pass 5 (diagram) — architectureDiagram not requested"
+  echo "==> Skipping pass 5 (body synthesis) — body not requested"
   echo '{}' > "${PASS5_FILE}"
 fi
 
@@ -506,18 +525,17 @@ FINAL_FILE="${WORK_DIR}/analysis.json"
 
 # Merge all pass outputs, then add backward-compat fields and metadata
 jq -s --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --arg model "claude-opus-4-6" '
-  # Start with pass 2 (core: abstract, targetAnalysis, performanceAnalysis, metricInsights)
+  # Start with pass 2 (core: abstract, targetAnalysis, performanceAnalysis, metricInsights, architectureDiagram)
   (.[1] // {}) *
   # Merge pass 3 (finopsAnalysis, secopsAnalysis)
   (.[2] // {}) *
-  # Merge pass 4 (capabilitiesMatrix, body, feedback)
+  # Merge pass 4 (capabilitiesMatrix, feedback)
   (.[3] // {}) *
-  # Merge pass 5 (architectureDiagram)
+  # Merge pass 5 (body synthesis)
   (.[4] // {}) +
   # Add backward-compat fields + metadata
   {
     summary: ((.[1] // {}).abstract // "Analysis incomplete"),
-    recommendations: (((.[3] // {}).feedback // {}).recommendations // []),
     generatedAt: $ts,
     model: $model
   }
@@ -574,8 +592,8 @@ jq -n \
       "1_plan": {file: "pass_1_plan.json", bytes: $pass1_size},
       "2_core": {file: "pass_2_core.json", bytes: $pass2_size},
       "3_finops_secops": {file: "pass_3_finops_secops.json", bytes: $pass3_size},
-      "4_deep_dive": {file: "pass_4_deep_dive.json", bytes: $pass4_size},
-      "5_diagram": {file: "pass_5_diagram.json", bytes: $pass5_size}
+      "4_capabilities": {file: "pass_4_capabilities.json", bytes: $pass4_size},
+      "5_body_synthesis": {file: "pass_5_body_synthesis.json", bytes: $pass5_size}
     },
     final: {file: "analysis_final.json", bytes: $final_size}
   }' > "${TRACE_FILE}"
@@ -585,8 +603,8 @@ for artifact in \
   "${PASS1_FILE}:analysis/pass_1_plan.json" \
   "${PASS2_FILE}:analysis/pass_2_core.json" \
   "${PASS3_FILE}:analysis/pass_3_finops_secops.json" \
-  "${PASS4_FILE}:analysis/pass_4_deep_dive.json" \
-  "${PASS5_FILE}:analysis/pass_5_diagram.json" \
+  "${PASS4_FILE}:analysis/pass_4_capabilities.json" \
+  "${PASS5_FILE}:analysis/pass_5_body_synthesis.json" \
   "${FINAL_FILE}:analysis/analysis_final.json" \
   "${TRACE_FILE}:analysis/trace.json"; do
   LOCAL="${artifact%%:*}"
@@ -599,7 +617,7 @@ for artifact in \
 done
 
 # Upload raw JSONL outputs (the full claude response before extraction) and stderr
-for pass_name in pass_1_plan pass_2_core pass_3_finops_secops pass_4_deep_dive pass_5_diagram; do
+for pass_name in pass_1_plan pass_2_core pass_3_finops_secops pass_4_capabilities pass_5_body_synthesis; do
   for suffix in _raw.json _stderr.log; do
     LOCAL="${WORK_DIR}/${pass_name}${suffix}"
     if [ -f "${LOCAL}" ] && [ -s "${LOCAL}" ]; then

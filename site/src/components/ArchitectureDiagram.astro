@@ -1,15 +1,22 @@
 ---
+import MermaidDiagram from './MermaidDiagram.astro';
+
 interface Props {
   diagram: string;
+  format?: 'ascii' | 'mermaid';
 }
 
-const { diagram } = Astro.props;
+const { diagram, format = 'ascii' } = Astro.props;
 ---
 
-<div class="arch-diagram">
-  <span class="arch-diagram-label">Architecture</span>
-  <pre class="arch-diagram-pre">{diagram}</pre>
-</div>
+{format === 'mermaid' ? (
+  <MermaidDiagram diagram={diagram} />
+) : (
+  <div class="arch-diagram">
+    <span class="arch-diagram-label">Architecture</span>
+    <pre class="arch-diagram-pre">{diagram}</pre>
+  </div>
+)}
 
 <style>
   .arch-diagram {

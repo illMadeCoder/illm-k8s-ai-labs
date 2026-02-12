@@ -1,0 +1,1168 @@
+{
+  "name": "ui-showcase-demo",
+  "namespace": "experiments",
+  "description": "Synthetic demo data exercising every UI block type in the rich narrative body — Loki vs Elasticsearch comparison with hand-crafted analysis",
+  "createdAt": "2026-02-12T08:00:00Z",
+  "completedAt": "2026-02-12T08:20:00Z",
+  "durationSeconds": 1200,
+  "phase": "Complete",
+  "tags": [
+    "comparison",
+    "observability",
+    "logging",
+    "demo"
+  ],
+  "study": {
+    "hypothesis": "A visual-first analysis body with typed content blocks tells a more effective story than paragraphs of prose — and Loki will use fewer resources than Elasticsearch while doing it",
+    "questions": [
+      "Can every body block type render correctly inline?",
+      "Do collapsible topics create a better reading experience?",
+      "What is the resource overhead difference between Loki and Elasticsearch?",
+      "How many distinct visual components can the AI weave into a coherent narrative?"
+    ],
+    "focus": [
+      "UI component coverage",
+      "visual storytelling",
+      "resource efficiency",
+      "query capability comparison"
+    ]
+  },
+  "analysisConfig": {
+    "sections": [
+      "abstract",
+      "targetAnalysis",
+      "performanceAnalysis",
+      "metricInsights",
+      "finopsAnalysis",
+      "secopsAnalysis",
+      "capabilitiesMatrix",
+      "body",
+      "feedback",
+      "architectureDiagram"
+    ]
+  },
+  "targets": [
+    {
+      "name": "app",
+      "clusterName": "ui-showcase-demo-app",
+      "clusterType": "gke",
+      "machineType": "e2-standard-4",
+      "nodeCount": 1,
+      "components": [
+        "loki",
+        "promtail",
+        "elasticsearch",
+        "fluent-bit",
+        "log-generator"
+      ]
+    }
+  ],
+  "workflow": {
+    "name": "ui-showcase-demo-wf",
+    "template": "ui-showcase-validation",
+    "phase": "Succeeded",
+    "startedAt": "2026-02-12T08:10:00Z",
+    "finishedAt": "2026-02-12T08:15:00Z"
+  },
+  "costEstimate": {
+    "totalUSD": 0.045,
+    "durationHours": 0.333,
+    "perTarget": {
+      "app": 0.045
+    },
+    "note": "Rough estimate based on on-demand GCE pricing; actual cost may differ."
+  },
+  "metrics": {
+    "collectedAt": "2026-02-12T08:19:30Z",
+    "timeRange": {
+      "start": "2026-02-12T08:00:00Z",
+      "end": "2026-02-12T08:20:00Z",
+      "duration": "20m0s",
+      "stepSeconds": 60
+    },
+    "queries": {
+      "loki_stack_cpu": {
+        "query": "sum(rate(container_cpu_usage_seconds_total{pod=~\"loki.*|promtail.*\"}[1m]))",
+        "type": "range",
+        "unit": "cores",
+        "description": "Loki stack CPU usage (loki + promtail)",
+        "data": [
+          {
+            "timestamp": "2026-02-12T08:10:00Z",
+            "value": 0.015
+          },
+          {
+            "timestamp": "2026-02-12T08:11:00Z",
+            "value": 0.042
+          },
+          {
+            "timestamp": "2026-02-12T08:12:00Z",
+            "value": 0.068
+          },
+          {
+            "timestamp": "2026-02-12T08:13:00Z",
+            "value": 0.075
+          },
+          {
+            "timestamp": "2026-02-12T08:14:00Z",
+            "value": 0.071
+          },
+          {
+            "timestamp": "2026-02-12T08:15:00Z",
+            "value": 0.073
+          },
+          {
+            "timestamp": "2026-02-12T08:16:00Z",
+            "value": 0.069
+          },
+          {
+            "timestamp": "2026-02-12T08:17:00Z",
+            "value": 0.072
+          },
+          {
+            "timestamp": "2026-02-12T08:18:00Z",
+            "value": 0.074
+          },
+          {
+            "timestamp": "2026-02-12T08:19:00Z",
+            "value": 0.070
+          }
+        ]
+      },
+      "es_stack_cpu": {
+        "query": "sum(rate(container_cpu_usage_seconds_total{pod=~\"elasticsearch.*|fluent-bit.*\"}[1m]))",
+        "type": "range",
+        "unit": "cores",
+        "description": "Elasticsearch stack CPU usage (ES + fluent-bit)",
+        "data": [
+          {
+            "timestamp": "2026-02-12T08:10:00Z",
+            "value": 0.020
+          },
+          {
+            "timestamp": "2026-02-12T08:11:00Z",
+            "value": 0.185
+          },
+          {
+            "timestamp": "2026-02-12T08:12:00Z",
+            "value": 0.320
+          },
+          {
+            "timestamp": "2026-02-12T08:13:00Z",
+            "value": 0.295
+          },
+          {
+            "timestamp": "2026-02-12T08:14:00Z",
+            "value": 0.275
+          },
+          {
+            "timestamp": "2026-02-12T08:15:00Z",
+            "value": 0.260
+          },
+          {
+            "timestamp": "2026-02-12T08:16:00Z",
+            "value": 0.255
+          },
+          {
+            "timestamp": "2026-02-12T08:17:00Z",
+            "value": 0.258
+          },
+          {
+            "timestamp": "2026-02-12T08:18:00Z",
+            "value": 0.262
+          },
+          {
+            "timestamp": "2026-02-12T08:19:00Z",
+            "value": 0.259
+          }
+        ]
+      },
+      "loki_stack_memory": {
+        "query": "sum(container_memory_working_set_bytes{pod=~\"loki.*|promtail.*\"})",
+        "type": "range",
+        "unit": "bytes",
+        "description": "Loki stack memory (loki + promtail)",
+        "data": [
+          {
+            "timestamp": "2026-02-12T08:10:00Z",
+            "value": 52428800
+          },
+          {
+            "timestamp": "2026-02-12T08:11:00Z",
+            "value": 78643200
+          },
+          {
+            "timestamp": "2026-02-12T08:12:00Z",
+            "value": 94371840
+          },
+          {
+            "timestamp": "2026-02-12T08:13:00Z",
+            "value": 100663296
+          },
+          {
+            "timestamp": "2026-02-12T08:14:00Z",
+            "value": 104857600
+          },
+          {
+            "timestamp": "2026-02-12T08:15:00Z",
+            "value": 106954752
+          },
+          {
+            "timestamp": "2026-02-12T08:16:00Z",
+            "value": 107479040
+          },
+          {
+            "timestamp": "2026-02-12T08:17:00Z",
+            "value": 108003328
+          },
+          {
+            "timestamp": "2026-02-12T08:18:00Z",
+            "value": 107741184
+          },
+          {
+            "timestamp": "2026-02-12T08:19:00Z",
+            "value": 107872256
+          }
+        ]
+      },
+      "es_stack_memory": {
+        "query": "sum(container_memory_working_set_bytes{pod=~\"elasticsearch.*|fluent-bit.*\"})",
+        "type": "range",
+        "unit": "bytes",
+        "description": "Elasticsearch stack memory (ES + fluent-bit)",
+        "data": [
+          {
+            "timestamp": "2026-02-12T08:10:00Z",
+            "value": 104857600
+          },
+          {
+            "timestamp": "2026-02-12T08:11:00Z",
+            "value": 314572800
+          },
+          {
+            "timestamp": "2026-02-12T08:12:00Z",
+            "value": 471859200
+          },
+          {
+            "timestamp": "2026-02-12T08:13:00Z",
+            "value": 524288000
+          },
+          {
+            "timestamp": "2026-02-12T08:14:00Z",
+            "value": 545259520
+          },
+          {
+            "timestamp": "2026-02-12T08:15:00Z",
+            "value": 555745280
+          },
+          {
+            "timestamp": "2026-02-12T08:16:00Z",
+            "value": 558891008
+          },
+          {
+            "timestamp": "2026-02-12T08:17:00Z",
+            "value": 560988160
+          },
+          {
+            "timestamp": "2026-02-12T08:18:00Z",
+            "value": 562036736
+          },
+          {
+            "timestamp": "2026-02-12T08:19:00Z",
+            "value": 561512448
+          }
+        ]
+      },
+      "cpu_rate_by_pod": {
+        "query": "sum(rate(container_cpu_usage_seconds_total[1m])) by (pod)",
+        "type": "range",
+        "unit": "cores",
+        "description": "CPU rate by pod",
+        "data": [
+          {
+            "labels": {
+              "pod": "loki-0"
+            },
+            "timestamp": "2026-02-12T08:15:00Z",
+            "value": 0.045
+          },
+          {
+            "labels": {
+              "pod": "loki-0"
+            },
+            "timestamp": "2026-02-12T08:16:00Z",
+            "value": 0.043
+          },
+          {
+            "labels": {
+              "pod": "loki-0"
+            },
+            "timestamp": "2026-02-12T08:17:00Z",
+            "value": 0.046
+          },
+          {
+            "labels": {
+              "pod": "loki-0"
+            },
+            "timestamp": "2026-02-12T08:18:00Z",
+            "value": 0.044
+          },
+          {
+            "labels": {
+              "pod": "loki-0"
+            },
+            "timestamp": "2026-02-12T08:19:00Z",
+            "value": 0.045
+          },
+          {
+            "labels": {
+              "pod": "promtail-xk9w2"
+            },
+            "timestamp": "2026-02-12T08:15:00Z",
+            "value": 0.028
+          },
+          {
+            "labels": {
+              "pod": "promtail-xk9w2"
+            },
+            "timestamp": "2026-02-12T08:16:00Z",
+            "value": 0.026
+          },
+          {
+            "labels": {
+              "pod": "promtail-xk9w2"
+            },
+            "timestamp": "2026-02-12T08:17:00Z",
+            "value": 0.026
+          },
+          {
+            "labels": {
+              "pod": "promtail-xk9w2"
+            },
+            "timestamp": "2026-02-12T08:18:00Z",
+            "value": 0.030
+          },
+          {
+            "labels": {
+              "pod": "promtail-xk9w2"
+            },
+            "timestamp": "2026-02-12T08:19:00Z",
+            "value": 0.025
+          },
+          {
+            "labels": {
+              "pod": "elasticsearch-0"
+            },
+            "timestamp": "2026-02-12T08:15:00Z",
+            "value": 0.210
+          },
+          {
+            "labels": {
+              "pod": "elasticsearch-0"
+            },
+            "timestamp": "2026-02-12T08:16:00Z",
+            "value": 0.205
+          },
+          {
+            "labels": {
+              "pod": "elasticsearch-0"
+            },
+            "timestamp": "2026-02-12T08:17:00Z",
+            "value": 0.212
+          },
+          {
+            "labels": {
+              "pod": "elasticsearch-0"
+            },
+            "timestamp": "2026-02-12T08:18:00Z",
+            "value": 0.208
+          },
+          {
+            "labels": {
+              "pod": "elasticsearch-0"
+            },
+            "timestamp": "2026-02-12T08:19:00Z",
+            "value": 0.209
+          },
+          {
+            "labels": {
+              "pod": "fluent-bit-lqm4n"
+            },
+            "timestamp": "2026-02-12T08:15:00Z",
+            "value": 0.050
+          },
+          {
+            "labels": {
+              "pod": "fluent-bit-lqm4n"
+            },
+            "timestamp": "2026-02-12T08:16:00Z",
+            "value": 0.050
+          },
+          {
+            "labels": {
+              "pod": "fluent-bit-lqm4n"
+            },
+            "timestamp": "2026-02-12T08:17:00Z",
+            "value": 0.046
+          },
+          {
+            "labels": {
+              "pod": "fluent-bit-lqm4n"
+            },
+            "timestamp": "2026-02-12T08:18:00Z",
+            "value": 0.054
+          },
+          {
+            "labels": {
+              "pod": "fluent-bit-lqm4n"
+            },
+            "timestamp": "2026-02-12T08:19:00Z",
+            "value": 0.050
+          },
+          {
+            "labels": {
+              "pod": "log-generator-7f8b9"
+            },
+            "timestamp": "2026-02-12T08:15:00Z",
+            "value": 0.008
+          },
+          {
+            "labels": {
+              "pod": "log-generator-7f8b9"
+            },
+            "timestamp": "2026-02-12T08:16:00Z",
+            "value": 0.008
+          },
+          {
+            "labels": {
+              "pod": "log-generator-7f8b9"
+            },
+            "timestamp": "2026-02-12T08:17:00Z",
+            "value": 0.009
+          },
+          {
+            "labels": {
+              "pod": "log-generator-7f8b9"
+            },
+            "timestamp": "2026-02-12T08:18:00Z",
+            "value": 0.008
+          },
+          {
+            "labels": {
+              "pod": "log-generator-7f8b9"
+            },
+            "timestamp": "2026-02-12T08:19:00Z",
+            "value": 0.008
+          }
+        ]
+      },
+      "memory_by_pod": {
+        "query": "sum(container_memory_working_set_bytes) by (pod)",
+        "type": "range",
+        "unit": "bytes",
+        "description": "Memory working set by pod",
+        "data": [
+          {
+            "labels": {
+              "pod": "loki-0"
+            },
+            "timestamp": "2026-02-12T08:15:00Z",
+            "value": 73400320
+          },
+          {
+            "labels": {
+              "pod": "loki-0"
+            },
+            "timestamp": "2026-02-12T08:17:00Z",
+            "value": 75497472
+          },
+          {
+            "labels": {
+              "pod": "loki-0"
+            },
+            "timestamp": "2026-02-12T08:19:00Z",
+            "value": 76546048
+          },
+          {
+            "labels": {
+              "pod": "promtail-xk9w2"
+            },
+            "timestamp": "2026-02-12T08:15:00Z",
+            "value": 33554432
+          },
+          {
+            "labels": {
+              "pod": "promtail-xk9w2"
+            },
+            "timestamp": "2026-02-12T08:17:00Z",
+            "value": 32505856
+          },
+          {
+            "labels": {
+              "pod": "promtail-xk9w2"
+            },
+            "timestamp": "2026-02-12T08:19:00Z",
+            "value": 31326208
+          },
+          {
+            "labels": {
+              "pod": "elasticsearch-0"
+            },
+            "timestamp": "2026-02-12T08:15:00Z",
+            "value": 503316480
+          },
+          {
+            "labels": {
+              "pod": "elasticsearch-0"
+            },
+            "timestamp": "2026-02-12T08:17:00Z",
+            "value": 513802240
+          },
+          {
+            "labels": {
+              "pod": "elasticsearch-0"
+            },
+            "timestamp": "2026-02-12T08:19:00Z",
+            "value": 516947968
+          },
+          {
+            "labels": {
+              "pod": "fluent-bit-lqm4n"
+            },
+            "timestamp": "2026-02-12T08:15:00Z",
+            "value": 52428800
+          },
+          {
+            "labels": {
+              "pod": "fluent-bit-lqm4n"
+            },
+            "timestamp": "2026-02-12T08:17:00Z",
+            "value": 47185920
+          },
+          {
+            "labels": {
+              "pod": "fluent-bit-lqm4n"
+            },
+            "timestamp": "2026-02-12T08:19:00Z",
+            "value": 44564480
+          },
+          {
+            "labels": {
+              "pod": "log-generator-7f8b9"
+            },
+            "timestamp": "2026-02-12T08:15:00Z",
+            "value": 10485760
+          },
+          {
+            "labels": {
+              "pod": "log-generator-7f8b9"
+            },
+            "timestamp": "2026-02-12T08:17:00Z",
+            "value": 10485760
+          },
+          {
+            "labels": {
+              "pod": "log-generator-7f8b9"
+            },
+            "timestamp": "2026-02-12T08:19:00Z",
+            "value": 10485760
+          }
+        ]
+      },
+      "total_cpu": {
+        "query": "sum(rate(container_cpu_usage_seconds_total[1m]))",
+        "type": "range",
+        "unit": "cores",
+        "description": "Total CPU usage across all components",
+        "data": [
+          {
+            "timestamp": "2026-02-12T08:10:00Z",
+            "value": 0.038
+          },
+          {
+            "timestamp": "2026-02-12T08:11:00Z",
+            "value": 0.230
+          },
+          {
+            "timestamp": "2026-02-12T08:12:00Z",
+            "value": 0.395
+          },
+          {
+            "timestamp": "2026-02-12T08:13:00Z",
+            "value": 0.378
+          },
+          {
+            "timestamp": "2026-02-12T08:14:00Z",
+            "value": 0.354
+          },
+          {
+            "timestamp": "2026-02-12T08:15:00Z",
+            "value": 0.341
+          },
+          {
+            "timestamp": "2026-02-12T08:16:00Z",
+            "value": 0.332
+          },
+          {
+            "timestamp": "2026-02-12T08:17:00Z",
+            "value": 0.339
+          },
+          {
+            "timestamp": "2026-02-12T08:18:00Z",
+            "value": 0.344
+          },
+          {
+            "timestamp": "2026-02-12T08:19:00Z",
+            "value": 0.337
+          }
+        ]
+      },
+      "total_memory": {
+        "query": "sum(container_memory_working_set_bytes)",
+        "type": "range",
+        "unit": "bytes",
+        "description": "Total memory across all components",
+        "data": [
+          {
+            "timestamp": "2026-02-12T08:10:00Z",
+            "value": 167772160
+          },
+          {
+            "timestamp": "2026-02-12T08:11:00Z",
+            "value": 403701760
+          },
+          {
+            "timestamp": "2026-02-12T08:12:00Z",
+            "value": 576716800
+          },
+          {
+            "timestamp": "2026-02-12T08:13:00Z",
+            "value": 639631360
+          },
+          {
+            "timestamp": "2026-02-12T08:14:00Z",
+            "value": 663748608
+          },
+          {
+            "timestamp": "2026-02-12T08:15:00Z",
+            "value": 673185792
+          },
+          {
+            "timestamp": "2026-02-12T08:16:00Z",
+            "value": 676331520
+          },
+          {
+            "timestamp": "2026-02-12T08:17:00Z",
+            "value": 679477248
+          },
+          {
+            "timestamp": "2026-02-12T08:18:00Z",
+            "value": 680525824
+          },
+          {
+            "timestamp": "2026-02-12T08:19:00Z",
+            "value": 679739392
+          }
+        ]
+      },
+      "loki_cpu_peak": {
+        "query": "max_over_time(sum(rate(container_cpu_usage_seconds_total{pod=~\"loki.*|promtail.*\"}[1m]))[20m:])",
+        "type": "instant",
+        "unit": "cores",
+        "description": "Loki stack peak CPU",
+        "data": [
+          {
+            "timestamp": "2026-02-12T08:19:00Z",
+            "value": 0.075
+          }
+        ]
+      },
+      "es_cpu_peak": {
+        "query": "max_over_time(sum(rate(container_cpu_usage_seconds_total{pod=~\"elasticsearch.*|fluent-bit.*\"}[1m]))[20m:])",
+        "type": "instant",
+        "unit": "cores",
+        "description": "ES stack peak CPU",
+        "data": [
+          {
+            "timestamp": "2026-02-12T08:19:00Z",
+            "value": 0.320
+          }
+        ]
+      },
+      "loki_memory_peak": {
+        "query": "max_over_time(sum(container_memory_working_set_bytes{pod=~\"loki.*|promtail.*\"})[20m:])",
+        "type": "instant",
+        "unit": "bytes",
+        "description": "Loki stack peak memory",
+        "data": [
+          {
+            "timestamp": "2026-02-12T08:19:00Z",
+            "value": 108003328
+          }
+        ]
+      },
+      "es_memory_peak": {
+        "query": "max_over_time(sum(container_memory_working_set_bytes{pod=~\"elasticsearch.*|fluent-bit.*\"})[20m:])",
+        "type": "instant",
+        "unit": "bytes",
+        "description": "ES stack peak memory",
+        "data": [
+          {
+            "timestamp": "2026-02-12T08:19:00Z",
+            "value": 562036736
+          }
+        ]
+      },
+      "pod_count": {
+        "query": "count(count by (pod) (container_memory_working_set_bytes{container!=\"POD\"}))",
+        "type": "instant",
+        "unit": "count",
+        "description": "Running pod count",
+        "data": [
+          {
+            "timestamp": "2026-02-12T08:19:00Z",
+            "value": 5
+          }
+        ]
+      },
+      "container_restarts": {
+        "query": "sum(kube_pod_container_status_restarts_total)",
+        "type": "instant",
+        "unit": "count",
+        "description": "Total container restarts",
+        "data": [
+          {
+            "timestamp": "2026-02-12T08:19:00Z",
+            "value": 0
+          }
+        ]
+      }
+    }
+  },
+  "analysis": {
+    "summary": "Hypothesis supported: Loki uses 5.2x less memory and 3.7x less CPU than Elasticsearch for equivalent log ingestion, validating its label-only indexing approach for resource-constrained environments.",
+    "metricInsights": {
+      "loki_stack_cpu": "Loki + Promtail stabilized at ~0.07 cores after initial startup, with minimal variance — consistent with Loki's lightweight label-only indexing approach.",
+      "es_stack_cpu": "Elasticsearch + Fluent Bit consumed ~0.26 cores at steady state, 3.7x more than Loki, driven primarily by Elasticsearch's full-text indexing pipeline.",
+      "loki_stack_memory": "Loki stack memory plateaued at ~103 MiB. The flat profile after minute 5 indicates steady-state chunk buffering with no memory leak.",
+      "es_stack_memory": "Elasticsearch stack memory climbed to ~535 MiB — dominated by ES JVM heap and Lucene segment caches. The 5.2x overhead vs Loki reflects full-text index maintenance.",
+      "cpu_rate_by_pod": "Elasticsearch-0 alone consumed more CPU than all Loki stack pods combined. The log-generator had negligible overhead at 50 lines/sec.",
+      "memory_by_pod": "Elasticsearch-0 used 480+ MiB while Loki-0 stayed under 73 MiB. Fluent Bit's memory footprint decreased over time as its buffer drained.",
+      "total_cpu": "Total cluster CPU peaked at 0.395 cores during component startup, settling to ~0.34 cores. Elasticsearch accounts for 76% of steady-state CPU.",
+      "total_memory": "Total memory converged at ~648 MiB. Removing Elasticsearch would halve the cluster's memory footprint.",
+      "loki_cpu_peak": "Loki stack peak CPU of 0.075 cores occurred during initial chunk flush — negligible in production terms.",
+      "es_cpu_peak": "ES stack peak CPU of 0.32 cores coincided with initial index creation. Steady-state was ~0.26 cores.",
+      "loki_memory_peak": "Peak 103 MiB is well within a 256 MiB container limit — Loki runs comfortably on minimal resources.",
+      "es_memory_peak": "Peak 536 MiB means Elasticsearch needs at least a 768 MiB container limit with headroom, 3x the Loki requirement.",
+      "pod_count": "5 pods total: 2 for Loki stack (loki-0, promtail), 2 for ES stack (elasticsearch-0, fluent-bit), plus the log generator.",
+      "container_restarts": "Zero container restarts throughout the experiment — both stacks deployed and ran stably on the preemptible node."
+    },
+    "generatedAt": "2026-02-12T08:25:00Z",
+    "model": "claude-opus-4-6",
+    "hypothesisVerdict": "supported",
+    "abstract": "The hypothesis is supported: Loki uses 5.2x less memory (103 MiB vs 536 MiB) and 3.7x less CPU (0.07 vs 0.26 cores) than Elasticsearch under identical 50 lines/sec log ingestion on a single preemptible e2-standard-4 node. This validates the fundamental architectural trade-off — Loki's label-only indexing avoids the computational and memory overhead of Elasticsearch's full-text inverted index. However, this efficiency comes at the cost of query flexibility: LogQL can only filter by pre-defined labels, while Elasticsearch supports arbitrary full-text search across all log fields. For resource-constrained environments where structured label queries suffice, Loki is the clear winner. The most actionable finding is that Elasticsearch's JVM heap alone exceeds Loki's total memory footprint, making it impractical for small clusters without dedicated resourcing.",
+    "architectureDiagram": "flowchart TD\n    subgraph hub[\"Hub Cluster (Talos)\"]\n        argocd[\"ArgoCD\"]\n        crossplane[\"Crossplane\"]\n        argo_wf[\"Argo Workflows\"]\n    end\n    subgraph target[\"Target: app<br/>(GKE e2-standard-4)\"]\n        loki[\"Loki<br/>(single)\"]\n        es[\"Elasticsearch<br/>(single-node)\"]\n        promtail[\"Promtail\"]\n        fluentbit[\"Fluent Bit\"]\n        loggen[\"Log Generator<br/>50 lines/s\"]\n    end\n    argocd -->|sync| target\n    crossplane -->|provision| target\n    argo_wf -->|orchestrate| target\n    loggen -->|logs| promtail\n    loggen -->|logs| fluentbit\n    promtail -->|push| loki\n    fluentbit -->|push| es\n    target -->|metrics| vm[\"VictoriaMetrics<br/>(hub)\"]",
+    "capabilitiesMatrix": {
+      "technologies": [
+        "Loki",
+        "Elasticsearch"
+      ],
+      "categories": [
+        {
+          "name": "Query Language",
+          "capabilities": [
+            {
+              "name": "Full-text search",
+              "values": {
+                "Loki": "Not supported — label filters only",
+                "Elasticsearch": "Full Lucene syntax with field-level search"
+              }
+            },
+            {
+              "name": "Label/field filtering",
+              "values": {
+                "Loki": "Native — primary query mechanism (LogQL)",
+                "Elasticsearch": "Supported via KQL and Lucene field queries"
+              }
+            },
+            {
+              "name": "Aggregation pipelines",
+              "values": {
+                "Loki": "LogQL metric queries (rate, count, sum)",
+                "Elasticsearch": "Rich aggregation framework (terms, histograms, nested)"
+              }
+            },
+            {
+              "name": "Regular expressions",
+              "values": {
+                "Loki": "Line filter regex (~=`pattern`)",
+                "Elasticsearch": "Regexp queries on analyzed fields"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Resource Efficiency",
+          "capabilities": [
+            {
+              "name": "Memory footprint",
+              "values": {
+                "Loki": "~103 MiB total stack",
+                "Elasticsearch": "~536 MiB total stack (5.2x more)"
+              }
+            },
+            {
+              "name": "CPU usage",
+              "values": {
+                "Loki": "~0.07 cores steady-state",
+                "Elasticsearch": "~0.26 cores steady-state (3.7x more)"
+              }
+            },
+            {
+              "name": "Minimum viable deployment",
+              "values": {
+                "Loki": "256 MiB limit, 0.1 CPU request",
+                "Elasticsearch": "768 MiB limit, 0.5 CPU request"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Storage Architecture",
+          "capabilities": [
+            {
+              "name": "Index strategy",
+              "values": {
+                "Loki": "Labels only — log lines stored as compressed chunks",
+                "Elasticsearch": "Full inverted index on all fields"
+              }
+            },
+            {
+              "name": "Storage backends",
+              "values": {
+                "Loki": "Object storage (S3, GCS), filesystem",
+                "Elasticsearch": "Local disk (SSD recommended), snapshot to S3"
+              }
+            },
+            {
+              "name": "Compression",
+              "values": {
+                "Loki": "Snappy/gzip on chunks — high compression ratio",
+                "Elasticsearch": "Per-segment compression — moderate ratio"
+              }
+            }
+          ]
+        },
+        {
+          "name": "Operations",
+          "capabilities": [
+            {
+              "name": "Deployment complexity",
+              "values": {
+                "Loki": "Single binary mode — one pod",
+                "Elasticsearch": "JVM tuning, heap sizing, cluster state management"
+              }
+            },
+            {
+              "name": "Scaling model",
+              "values": {
+                "Loki": "Horizontal (microservices mode) or vertical (single binary)",
+                "Elasticsearch": "Horizontal shard-based — minimum 3 nodes for HA"
+              }
+            },
+            {
+              "name": "Collector options",
+              "values": {
+                "Loki": "Promtail, Alloy, Fluentd",
+                "Elasticsearch": "Fluent Bit, Filebeat, Logstash"
+              }
+            }
+          ]
+        }
+      ],
+      "summary": "Loki wins decisively on resource efficiency (5.2x less memory, 3.7x less CPU) and operational simplicity (single binary vs JVM tuning). Elasticsearch wins on query power — if you need arbitrary full-text search across log content, Loki simply cannot do it. The trade-off is clear: choose Loki for cost-sensitive, label-oriented observability; choose Elasticsearch when rich ad-hoc search justifies the 5x resource overhead."
+    },
+    "body": {
+      "blocks": [
+        {
+          "type": "text",
+          "content": "This experiment deploys both Loki and Elasticsearch logging stacks side-by-side on a single GKE node, ingesting identical logs from a shared generator at 50 lines/sec. The goal: a direct, controlled resource comparison — and a showcase of every visual component in our analysis toolkit."
+        },
+        {
+          "type": "topic",
+          "title": "Resource Efficiency",
+          "blocks": [
+            {
+              "type": "text",
+              "content": "The headline finding is stark: Elasticsearch uses 5.2x more memory and 3.7x more CPU than Loki for the same workload. The charts below show the divergence clearly."
+            },
+            {
+              "type": "comparison",
+              "items": [
+                {
+                  "label": "Loki Peak Memory",
+                  "value": "103 MiB",
+                  "description": "Label-only indexing keeps the footprint minimal"
+                },
+                {
+                  "label": "ES Peak Memory",
+                  "value": "536 MiB",
+                  "description": "JVM heap + Lucene segment caches dominate"
+                },
+                {
+                  "label": "Loki Steady CPU",
+                  "value": "0.07 cores",
+                  "description": "Flat after initial chunk flush"
+                },
+                {
+                  "label": "ES Steady CPU",
+                  "value": "0.26 cores",
+                  "description": "Continuous indexing overhead"
+                }
+              ]
+            },
+            {
+              "type": "row",
+              "blocks": [
+                {
+                  "type": "metric",
+                  "key": "loki_stack_memory",
+                  "size": "small",
+                  "insight": "Loki plateaus at ~103 MiB within 5 minutes — no growth trend even under sustained ingestion."
+                },
+                {
+                  "type": "metric",
+                  "key": "es_stack_memory",
+                  "size": "small",
+                  "insight": "Elasticsearch climbs to 536 MiB and stabilizes. The JVM heap accounts for the majority of this footprint."
+                }
+              ]
+            },
+            {
+              "type": "metric",
+              "key": "cpu_rate_by_pod",
+              "size": "large",
+              "insight": "Per-pod breakdown reveals elasticsearch-0 alone consumes more CPU than the entire Loki stack combined."
+            },
+            {
+              "type": "callout",
+              "variant": "finding",
+              "title": "Elasticsearch's JVM heap exceeds Loki's total footprint",
+              "content": "Even with a minimal single-node deployment, Elasticsearch's default JVM heap reservation (256 MiB) is larger than Loki's entire working set. This makes Elasticsearch impractical for clusters with tight memory budgets."
+            }
+          ]
+        },
+        {
+          "type": "topic",
+          "title": "Query Capabilities",
+          "blocks": [
+            {
+              "type": "text",
+              "content": "Resource efficiency tells only half the story. Elasticsearch's higher overhead buys genuinely superior query capabilities — full-text search that Loki architecturally cannot provide."
+            },
+            {
+              "type": "capabilityRow",
+              "capability": "Full-text search",
+              "values": {
+                "Loki": "Not supported — label filters only",
+                "Elasticsearch": "Full Lucene syntax with field-level search"
+              }
+            },
+            {
+              "type": "capabilityRow",
+              "capability": "Aggregation pipelines",
+              "values": {
+                "Loki": "LogQL metric queries (rate, count, sum)",
+                "Elasticsearch": "Rich aggregation framework (terms, histograms, nested)"
+              }
+            },
+            {
+              "type": "text",
+              "content": "For teams that primarily filter logs by namespace, pod, and severity label — which covers most Kubernetes troubleshooting — LogQL is sufficient. Full-text search across log content becomes critical only for application-level debugging or compliance searches."
+            },
+            {
+              "type": "callout",
+              "variant": "info",
+              "title": "When does full-text search matter?",
+              "content": "If your debugging workflow involves searching for specific error messages, stack traces, or request IDs across all log fields, Elasticsearch is the only option. If you primarily filter by structured labels (namespace, pod, container, severity), Loki handles this natively at a fraction of the cost."
+            }
+          ]
+        },
+        {
+          "type": "topic",
+          "title": "Cost & Production Readiness",
+          "blocks": [
+            {
+              "type": "text",
+              "content": "Extrapolating from this experiment's resource consumption to a production 24/7 deployment reveals significant cost implications."
+            },
+            {
+              "type": "table",
+              "headers": [
+                "Scenario",
+                "Loki Stack",
+                "ES Stack",
+                "Savings"
+              ],
+              "rows": [
+                [
+                  "Single node (this experiment)",
+                  "$0.015/day",
+                  "$0.045/day",
+                  "67%"
+                ],
+                [
+                  "5-node cluster, 500 lines/sec",
+                  "$2.40/mo",
+                  "$12.80/mo",
+                  "81%"
+                ],
+                [
+                  "20-node cluster, 5000 lines/sec",
+                  "$18/mo",
+                  "$96/mo",
+                  "81%"
+                ],
+                [
+                  "Enterprise (100 nodes, HA)",
+                  "$120/mo",
+                  "$640/mo",
+                  "81%"
+                ]
+              ],
+              "caption": "Projected monthly costs based on observed per-core and per-GiB rates on GCE e2-standard instances (on-demand pricing)"
+            },
+            {
+              "type": "recommendation",
+              "priority": "p1",
+              "title": "Use Loki for resource-constrained environments",
+              "description": "For clusters under 20 nodes where structured label queries cover 90%+ of debugging needs, Loki saves 80% on logging infrastructure costs with minimal operational overhead.",
+              "effort": "low"
+            },
+            {
+              "type": "recommendation",
+              "priority": "p2",
+              "title": "Deploy Elasticsearch only when full-text search is required",
+              "description": "Reserve Elasticsearch for environments with compliance search requirements or application debugging that demands arbitrary field-level queries. Budget 3-5x the resources of a Loki deployment.",
+              "effort": "medium"
+            },
+            {
+              "type": "callout",
+              "variant": "warning",
+              "title": "Preemptible nodes and Elasticsearch",
+              "content": "This experiment ran on preemptible instances. Elasticsearch's JVM startup time and index recovery make it poorly suited for spot/preemptible nodes in production. Budget for on-demand instances if deploying ES, adding ~5x to the cost projections above."
+            }
+          ]
+        },
+        {
+          "type": "topic",
+          "title": "Deployment Architecture",
+          "blocks": [
+            {
+              "type": "text",
+              "content": "Both stacks were deployed to a single GKE node via ArgoCD, with a shared log generator feeding both pipelines simultaneously."
+            },
+            {
+              "type": "architecture",
+              "diagram": "flowchart TD\n    subgraph node[\"GKE Node (e2-standard-4)\"]\n        loki[\"Loki<br/>103 MiB\"]\n        es[\"Elasticsearch<br/>536 MiB\"]\n        promtail[\"Promtail<br/>31 MiB\"]\n        fluentbit[\"Fluent Bit<br/>45 MiB\"]\n        loggen[\"Log Generator<br/>50 lines/s\"]\n    end\n    loggen -->|logs| promtail\n    loggen -->|logs| fluentbit\n    promtail -->|push| loki\n    fluentbit -->|push| es\n    node -->|metrics| vm[\"VictoriaMetrics (hub)\"]",
+              "caption": "Component layout with observed steady-state memory usage",
+              "format": "mermaid"
+            },
+            {
+              "type": "row",
+              "blocks": [
+                {
+                  "type": "metric",
+                  "key": "total_memory",
+                  "size": "small",
+                  "insight": "Total cluster memory stabilized at ~648 MiB. Removing the ES stack would cut this nearly in half."
+                },
+                {
+                  "type": "callout",
+                  "variant": "success",
+                  "title": "Zero container restarts",
+                  "content": "Both stacks deployed and ran stably throughout the experiment with zero restarts, even on a preemptible node. Both are production-grade for basic deployments."
+                }
+              ]
+            }
+          ]
+        },
+        {
+          "type": "topic",
+          "title": "Experiment Methodology",
+          "blocks": [
+            {
+              "type": "text",
+              "content": "A controlled comparison deploying both stacks to the same node ensures resource measurements reflect the same hardware, network, and kernel conditions."
+            },
+            {
+              "type": "table",
+              "headers": [
+                "Parameter",
+                "Value"
+              ],
+              "rows": [
+                [
+                  "Node type",
+                  "GKE e2-standard-4 (preemptible)"
+                ],
+                [
+                  "Log rate",
+                  "50 structured JSON lines/sec"
+                ],
+                [
+                  "Observation window",
+                  "5 minutes steady-state"
+                ],
+                [
+                  "Metric collection",
+                  "VictoriaMetrics via Alloy (15s scrape)"
+                ],
+                [
+                  "Loki version",
+                  "Single binary mode (Helm 6.28.0)"
+                ],
+                [
+                  "ES version",
+                  "Single-node (Helm 7.17.3)"
+                ]
+              ],
+              "caption": "Experiment configuration parameters"
+            },
+            {
+              "type": "callout",
+              "variant": "warning",
+              "title": "Short observation window",
+              "content": "The 5-minute observation captures startup and early steady-state only. Production workloads with index rotation, compaction, and varying log volumes may show different resource profiles. A 2-4 hour run is recommended for production sizing decisions."
+            },
+            {
+              "type": "recommendation",
+              "priority": "p3",
+              "title": "Extend observation to 2+ hours for production sizing",
+              "description": "This demo run captures enough data for UI testing but not for production capacity planning. Run the full logging-comparison experiment with a 2-hour window for reliable steady-state measurements.",
+              "effort": "low"
+            }
+          ]
+        },
+        {
+          "type": "text",
+          "content": "Verdict: Loki is the clear choice for resource-constrained Kubernetes logging. Elasticsearch earns its overhead only when full-text search across log content is a non-negotiable requirement. For most operational observability, labels are enough — and 5x cheaper."
+        }
+      ]
+    },
+    "feedback": {
+      "recommendations": [
+        "Deploy Elasticsearch in-cluster with proper JVM tuning (not default settings) for a fairer resource comparison",
+        "Extend observation to 2-4 hours to capture index rotation, chunk compaction, and storage growth patterns",
+        "Add query latency benchmarks — run standardized queries against both backends and measure p50/p95/p99",
+        "Test with higher log volumes (500-5000 lines/sec) to find the crossover point where Loki's label-only approach becomes a bottleneck"
+      ],
+      "experimentDesign": [
+        "Add storage volume metrics (PV usage, S3 bytes written) to measure index growth rates for both stacks",
+        "Introduce a controlled log workload with known characteristics (fixed lines/sec, mixed structured/unstructured) for reproducibility",
+        "Run both stacks on separate nodes to eliminate resource contention as a confounding variable"
+      ]
+    },
+    "architectureDiagramFormat": "mermaid"
+  }
+}

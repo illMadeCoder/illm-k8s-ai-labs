@@ -1,0 +1,102 @@
+---
+interface Props {
+  diagram: string;
+  caption?: string;
+}
+
+const { diagram, caption } = Astro.props;
+const chartId = `mermaid-${Math.random().toString(36).slice(2, 10)}`;
+---
+
+<div class="mermaid-container">
+  <div id={chartId} class="mermaid-render"></div>
+  {caption && <p class="mermaid-caption">{caption}</p>}
+</div>
+
+<script define:vars={{ diagram, chartId }} is:inline>
+  (function() {
+    function render() {
+      if (typeof window.mermaidLib === 'undefined') {
+        setTimeout(render, 100);
+        return;
+      }
+
+      var el = document.getElementById(chartId);
+      if (!el) return;
+
+      if (!window.__mermaidInitialized) {
+        var style = getComputedStyle(document.documentElement);
+        var bg = style.getPropertyValue('--bg').trim();
+        var bgCard = style.getPropertyValue('--bg-card').trim();
+        var text = style.getPropertyValue('--text').trim();
+        var border = style.getPropertyValue('--border').trim();
+        var fontMono = style.getPropertyValue('--font-mono').trim();
+
+        window.mermaidLib.initialize({
+          startOnLoad: false,
+          theme: 'base',
+          themeVariables: {
+            background: bgCard,
+            primaryColor: bgCard,
+            primaryTextColor: text,
+            primaryBorderColor: border,
+            lineColor: border,
+            clusterBkg: bg,
+            clusterBorder: border,
+            edgeLabelBackground: bgCard,
+            fontFamily: fontMono,
+            fontSize: '13px',
+          },
+          flowchart: { htmlLabels: true, curve: 'basis', padding: 15 },
+        });
+        window.__mermaidInitialized = true;
+      }
+
+      try {
+        window.mermaidLib.render(chartId + '-svg', diagram).then(function(result) {
+          el.innerHTML = result.svg;
+        }).catch(function(err) {
+          el.innerHTML = '<pre style="color:var(--text-muted);font-size:0.75rem;white-space:pre;overflow-x:auto">' +
+            diagram.replace(/</g, '&lt;') + '</pre>';
+        });
+      } catch(err) {
+        el.innerHTML = '<pre style="color:var(--text-muted);font-size:0.75rem;white-space:pre;overflow-x:auto">' +
+          diagram.replace(/</g, '&lt;') + '</pre>';
+      }
+    }
+
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', render);
+    } else {
+      render();
+    }
+  })();
+</script>
+
+<style>
+  .mermaid-container {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1.25rem;
+    overflow-x: auto;
+    text-align: center;
+  }
+
+  .mermaid-render {
+    display: flex;
+    justify-content: center;
+  }
+
+  .mermaid-render :global(svg) {
+    max-width: 100%;
+    height: auto;
+  }
+
+  .mermaid-caption {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    margin: 0.75rem 0 0;
+    font-style: italic;
+  }
+</style>

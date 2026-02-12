@@ -81,7 +81,6 @@ export interface AnalysisResult {
   // Backward-compatible fields
   summary: string;
   metricInsights: Record<string, string>;
-  recommendations?: string[];
   generatedAt: string;
   model: string;
 
@@ -90,39 +89,11 @@ export interface AnalysisResult {
 
   // Structured analysis sections
   abstract?: string;
-  targetAnalysis?: TargetAnalysis;
-  performanceAnalysis?: PerformanceAnalysis;
-  finopsAnalysis?: FinopsAnalysis;
-  secopsAnalysis?: SecopsAnalysis;
   capabilitiesMatrix?: CapabilitiesMatrix;
   body?: AnalysisBody;
   feedback?: AnalysisFeedback;
   architectureDiagram?: string;
-}
-
-export interface TargetAnalysis {
-  overview: string;
-  perTarget?: Record<string, string>;
-  comparisonToBaseline?: string;
-}
-
-export interface PerformanceAnalysis {
-  overview: string;
-  findings?: string[];
-  bottlenecks?: string[];
-}
-
-export interface FinopsAnalysis {
-  overview: string;
-  costDrivers?: string[];
-  projection?: string;
-  optimizations?: string[];
-}
-
-export interface SecopsAnalysis {
-  overview: string;
-  findings?: string[];
-  supplyChain?: string;
+  architectureDiagramFormat?: 'ascii' | 'mermaid';
 }
 
 export interface CapabilitiesMatrix {
@@ -141,10 +112,20 @@ export interface CapabilityEntry {
   values: Record<string, string>;
 }
 
+export type BodyBlock =
+  | { type: 'text'; content: string }
+  | { type: 'topic'; title: string; blocks: BodyBlock[] }
+  | { type: 'metric'; key: string; insight?: string; size?: 'large' | 'small' }
+  | { type: 'comparison'; items: Array<{ label: string; value: string; description?: string }> }
+  | { type: 'capabilityRow'; capability: string; values: Record<string, string> }
+  | { type: 'table'; headers: string[]; rows: string[][]; caption?: string }
+  | { type: 'architecture'; diagram: string; caption?: string; format?: 'ascii' | 'mermaid' }
+  | { type: 'callout'; variant: 'info' | 'warning' | 'success' | 'finding'; title: string; content: string }
+  | { type: 'recommendation'; priority: 'p0' | 'p1' | 'p2' | 'p3'; title: string; description: string; effort?: 'low' | 'medium' | 'high' }
+  | { type: 'row'; blocks: BodyBlock[] };
+
 export interface AnalysisBody {
-  methodology: string;
-  results: string;
-  discussion: string;
+  blocks: BodyBlock[];
 }
 
 export interface AnalysisFeedback {

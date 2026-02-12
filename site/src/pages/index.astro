@@ -10,6 +10,7 @@ import {
   getComparisons,
   getStats,
   groupByDomain,
+  formatDisplayName,
 } from '../lib/experiments';
 import { loadCategories } from '../lib/categories';
 
@@ -21,6 +22,8 @@ const byDomain = groupByDomain(experiments);
 const categories = loadCategories();
 const recentGroups = groups.slice(0, 6);
 const base = import.meta.env.BASE_URL;
+
+const demoGroup = groups.find((g) => g.baseName === 'ui-showcase-demo');
 ---
 
 <Base title="K8s Cloud TestBed — Automated Kubernetes Benchmarks">
@@ -30,6 +33,27 @@ const base = import.meta.env.BASE_URL;
     componentCount={stats.componentCount}
     totalRuns={stats.totalRuns}
   />
+
+  {demoGroup && (
+    <section class="mb-12">
+      <a href={`${base}experiments/${demoGroup.baseName}/${demoGroup.latest.name}/`}
+        class="demo-card">
+        <div class="demo-top">
+          <span class="demo-badge">Live Demo</span>
+          <span class="demo-hint">Explore the full analysis experience</span>
+        </div>
+        <h2 class="demo-title">{formatDisplayName(demoGroup.baseName)}</h2>
+        <p class="demo-desc">{demoGroup.latest.description}</p>
+        <div class="demo-features">
+          <span class="demo-feature">Mermaid diagrams</span>
+          <span class="demo-feature">Vega-Lite charts</span>
+          <span class="demo-feature">Capabilities matrix</span>
+          <span class="demo-feature">AI narrative</span>
+        </div>
+        <span class="demo-cta">View demo experiment &rarr;</span>
+      </a>
+    </section>
+  )}
 
   {comparisons.length > 0 && (
     <section class="mb-12">
@@ -122,3 +146,86 @@ const base = import.meta.env.BASE_URL;
     </details>
   </section>
 </Base>
+
+<style>
+  .demo-card {
+    display: block;
+    background: var(--bg-card);
+    border: 1px solid color-mix(in srgb, var(--accent) 30%, transparent);
+    border-radius: var(--radius);
+    padding: 1.5rem;
+    text-decoration: none;
+    transition: border-color 0.15s ease;
+  }
+
+  .demo-card:hover {
+    border-color: var(--accent);
+  }
+
+  .demo-top {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 0.75rem;
+  }
+
+  .demo-badge {
+    font-size: 0.65rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    padding: 0.25rem 0.6rem;
+    background: color-mix(in srgb, var(--accent) 12%, transparent);
+    color: var(--accent);
+    border-radius: 2px;
+  }
+
+  .demo-hint {
+    font-size: 0.8rem;
+    color: var(--text-muted);
+  }
+
+  .demo-title {
+    font-family: var(--font-mono);
+    font-size: 1.15rem;
+    font-weight: 700;
+    color: var(--text);
+    margin: 0 0 0.5rem;
+    transition: color 0.15s ease;
+  }
+
+  .demo-card:hover .demo-title {
+    color: var(--accent);
+  }
+
+  .demo-desc {
+    font-size: 0.9rem;
+    color: var(--text-muted);
+    line-height: 1.6;
+    margin: 0 0 1rem;
+  }
+
+  .demo-features {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-bottom: 1rem;
+  }
+
+  .demo-feature {
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    padding: 0.3rem 0.6rem;
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-radius: 2px;
+    color: var(--text);
+  }
+
+  .demo-cta {
+    font-family: var(--font-mono);
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--accent);
+  }
+</style>
