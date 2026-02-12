@@ -186,9 +186,7 @@ code {
 
 details.section {
   border: 1px solid var(--border);
-  border-left: none;
-  border-right: none;
-  border-radius: 0;
+  border-radius: var(--radius);
   padding: 0;
   margin: 0;
 }
@@ -199,16 +197,16 @@ details.section + details.section {
 }
 
 details.section:first-of-type {
-  border-radius: 0;
+  border-radius: var(--radius) var(--radius) 0 0;
   margin-top: 2rem;
 }
 
 details.section:last-of-type {
-  border-radius: 0;
+  border-radius: 0 0 var(--radius) var(--radius);
 }
 
 details.section:only-of-type {
-  border-radius: 0;
+  border-radius: var(--radius);
 }
 
 details.section > summary.section-title {
@@ -267,51 +265,6 @@ details.section > details.section > summary.section-title code {
   padding: 0;
   border-radius: 0;
   font-size: 0.9em;
-}
-
-/* Collapse bar (Reddit-style left edge) */
-
-details.section {
-  position: relative;
-}
-
-details.section > .section-collapse-bar {
-  position: absolute;
-  left: 0;
-  top: 0;
-  bottom: 0;
-  width: 3px;
-  padding: 0;
-  background: var(--border);
-  cursor: pointer;
-  z-index: 2;
-  transition: width 0.12s ease, background-color 0.12s ease;
-  clip-path: inset(var(--_bar-top, 0) 0 0 0);
-}
-
-/* Wider invisible hit area for easier clicking */
-details.section > .section-collapse-bar::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: -6px;
-  width: 20px;
-  bottom: 0;
-}
-
-details.section > .section-collapse-bar:hover {
-  width: 4px;
-  background: var(--accent);
-}
-
-details.section > .section-collapse-bar:focus-visible {
-  width: 4px;
-  background: var(--accent);
-  box-shadow: 2px 0 0 0 color-mix(in srgb, var(--accent) 40%, transparent);
-}
-
-details.section:not([open]) > .section-collapse-bar {
-  display: none;
 }
 
 .tag {
@@ -401,6 +354,24 @@ details.section:not([open]) > .section-collapse-bar {
 }
 
 @media (max-width: 640px) {
+  details.section {
+    border-left: none;
+    border-right: none;
+    border-radius: 0;
+  }
+
+  details.section:first-of-type {
+    border-radius: 0;
+  }
+
+  details.section:last-of-type {
+    border-radius: 0;
+  }
+
+  details.section:only-of-type {
+    border-radius: 0;
+  }
+
   details.section > :not(summary):not(details) {
     padding: 0.5rem;
   }
@@ -419,10 +390,5 @@ details.section:not([open]) > .section-collapse-bar {
 
   th, td {
     padding: 0.5rem;
-  }
-
-  details.section > .section-collapse-bar::before {
-    left: -8px;
-    width: 28px;
   }
 }
