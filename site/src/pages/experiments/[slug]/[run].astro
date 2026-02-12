@@ -11,24 +11,27 @@ import CapabilitiesMatrix from '../../../components/CapabilitiesMatrix.astro';
 import AnalysisBody from '../../../components/AnalysisBody.astro';
 import AnalysisFeedback from '../../../components/AnalysisFeedback.astro';
 import ArchitectureDiagram from '../../../components/ArchitectureDiagram.astro';
-import { loadAllExperiments, getBaseName, formatDisplayName } from '../../../lib/experiments';
+import { loadAllExperiments, getBaseName, formatDisplayName, groupExperiments } from '../../../lib/experiments';
 import { formatDuration, formatDate, formatCost, formatValue } from '../../../lib/format';
 import { buildSpec } from '../../../lib/vega-specs';
 import type { ExperimentSummary } from '../../../types';
 
 export function getStaticPaths() {
   const experiments = loadAllExperiments();
+  const groups = groupExperiments(experiments);
+  const groupMap = new Map(groups.map((g) => [g.baseName, g.runs]));
   return experiments.map((exp) => ({
     params: { slug: getBaseName(exp.name), run: exp.name },
-    props: { experiment: exp },
+    props: { experiment: exp, siblingRuns: groupMap.get(getBaseName(exp.name)) ?? [exp] },
   }));
 }
 
 interface Props {
   experiment: ExperimentSummary;
+  siblingRuns: ExperimentSummary[];
 }
 
-const { experiment } = Astro.props;
+const { experiment, siblingRuns } = Astro.props;
 const base = import.meta.env.BASE_URL;
 const baseName = getBaseName(experiment.name);
 const displayName = formatDisplayName(baseName);
@@ -93,6 +96,54 @@ const verdictLabel = verdict
     <TargetTable targets={experiment.targets} />
     {experiment.costEstimate && (
       <CostBreakdown cost={experiment.costEstimate} />
+    )}
+    {siblingRuns.length > 1 && (
+      <details class="section run-history">
+        <summary class="section-title">Run History ({siblingRuns.length} runs)</summary>
+        <table>
+          <thead>
+            <tr>
+              <th>Run</th>
+              <th>Phase</th>
+              <th>Hypothesis</th>
+              <th>Date</th>
+              <th>Duration</th>
+              <th>Cost</th>
+            </tr>
+          </thead>
+          <tbody>
+            {siblingRuns.map((run) => {
+              const runBadge = run.phase === 'Complete'
+                ? 'badge-complete'
+                : run.phase === 'Failed'
+                  ? 'badge-failed'
+                  : 'badge-running';
+              const isCurrent = run.name === experiment.name;
+              const runVerdict = run.analysis?.hypothesisVerdict;
+              return (
+                <tr class={isCurrent ? 'current-run' : ''}>
+                  <td>
+                    {isCurrent ? (
+                      <code class="current-run-name">{run.name}</code>
+                    ) : (
+                      <a href={`${base}experiments/${baseName}/${run.name}/`}>
+                        <code>{run.name}</code>
+                      </a>
+                    )}
+                  </td>
+                  <td><span class={`badge ${runBadge}`}>{run.phase}</span></td>
+                  <td>{runVerdict ? (
+                    <span class={`badge verdict-badge verdict-badge-${runVerdict.replace(/\s+/g, '-')}`}>{runVerdict}</span>
+                  ) : '—'}</td>
+                  <td>{formatDate(run.createdAt)}</td>
+                  <td>{formatDuration(run.durationSeconds)}</td>
+                  <td>{run.costEstimate ? formatCost(run.costEstimate.totalUSD) : '—'}</td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </details>
     )}
   </details>
 
@@ -339,6 +390,36 @@ const verdictLabel = verdict
     background: var(--bg-surface);
   }
   .verdict-insufficient-data .verdict-value {
+    color: var(--text-muted);
+  }
+  .current-run {
+    background: color-mix(in srgb, var(--accent) 8%, transparent);
+  }
+  .current-run-name {
+    font-weight: 700;
+    color: var(--accent);
+  }
+  .verdict-badge {
+    font-size: 0.7rem;
+    font-weight: 600;
+    padding: 0.15rem 0.5rem;
+    border-radius: 2px;
+    text-transform: capitalize;
+  }
+  .verdict-badge-supported {
+    background: color-mix(in srgb, #22c55e 15%, transparent);
+    color: #22c55e;
+  }
+  .verdict-badge-partially-supported {
+    background: color-mix(in srgb, #eab308 15%, transparent);
+    color: #eab308;
+  }
+  .verdict-badge-not-supported {
+    background: color-mix(in srgb, #ef4444 15%, transparent);
+    color: #ef4444;
+  }
+  .verdict-badge-insufficient-data {
+    background: var(--bg-surface);
     color: var(--text-muted);
   }
   .empty-state {
