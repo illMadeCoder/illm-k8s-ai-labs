@@ -20,8 +20,39 @@ const chartId = `vega-${Math.random().toString(36).slice(2, 10)}`;
       }
       var el = document.getElementById(chartId);
       if (!el) return;
-      vegaEmbed(el, spec, { actions: false, renderer: 'svg' })
-        .catch(function(err) { el.textContent = 'Chart error: ' + err; });
+      var style = getComputedStyle(document.documentElement);
+      var text = style.getPropertyValue('--text').trim();
+      var textMuted = style.getPropertyValue('--text-muted').trim();
+      var border = style.getPropertyValue('--border').trim();
+      var accent = style.getPropertyValue('--accent').trim();
+      var fontMono = style.getPropertyValue('--font-mono').trim();
+      vegaEmbed(el, spec, {
+        actions: false,
+        renderer: 'svg',
+        config: {
+          background: 'transparent',
+          font: fontMono,
+          title: { color: text, font: fontMono, fontSize: 13, fontWeight: 600 },
+          axis: {
+            labelColor: textMuted,
+            titleColor: textMuted,
+            gridColor: border,
+            domainColor: border,
+            tickColor: border,
+            labelFont: fontMono,
+            titleFont: fontMono,
+            labelFontSize: 11,
+            titleFontSize: 12,
+          },
+          bar: { color: accent },
+          line: { color: accent },
+          point: { color: accent },
+          view: { stroke: 'transparent' },
+          range: {
+            category: [accent, '#a78bfa', '#2dd4bf', '#f472b6', '#fbbf24', '#34d399']
+          },
+        }
+      }).catch(function(err) { el.textContent = 'Chart error: ' + err; });
     }
     if (document.readyState === 'loading') {
       document.addEventListener('DOMContentLoaded', render);

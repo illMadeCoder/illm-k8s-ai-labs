@@ -153,15 +153,20 @@ const analysis = experiment.analysis;
   {metricEntries.length > 0 && (
     <details class="section">
       <summary class="section-title">Metrics ({metricEntries.length})</summary>
-      {metricEntries.map(([name, qr]) => (
-        <details class="section metric-detail">
-          <summary class="section-title"><code>{name}</code></summary>
-          <VegaChart spec={buildSpec(name, qr)} />
-          {analysis?.metricInsights?.[name] && (
-            <p class="metric-insight">{analysis.metricInsights[name]}</p>
-          )}
-        </details>
-      ))}
+      <div class="metrics-list">
+        {metricEntries.map(([name, qr]) => (
+          <div class="metric-panel">
+            <div class="metric-panel-header">
+              <code class="metric-panel-name">{name}</code>
+              {qr.unit && <span class="metric-panel-unit">{qr.unit}</span>}
+            </div>
+            <VegaChart spec={buildSpec(name, qr)} />
+            {analysis?.metricInsights?.[name] && (
+              <p class="metric-panel-insight">{analysis.metricInsights[name]}</p>
+            )}
+          </div>
+        ))}
+      </div>
     </details>
   )}
 
@@ -327,5 +332,48 @@ const analysis = experiment.analysis;
     font-weight: 600;
     padding: 0.2rem 0.6rem;
     border-radius: 2px;
+  }
+  .metrics-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    padding: 1rem;
+  }
+  .metric-panel {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+  .metric-panel-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid var(--border);
+  }
+  .metric-panel-name {
+    font-family: var(--font-mono);
+    font-size: 0.85rem;
+    font-weight: 600;
+    background: none;
+    padding: 0;
+  }
+  .metric-panel-unit {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    background: var(--bg-surface);
+    padding: 0.1rem 0.4rem;
+    border-radius: 2px;
+  }
+  .metric-panel-insight {
+    margin: 0;
+    padding: 0.75rem 1rem;
+    border-top: 1px solid var(--border);
+    font-size: 0.9rem;
+    color: var(--text);
+    line-height: 1.65;
   }
 </style>

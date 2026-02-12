@@ -4,7 +4,7 @@ interface VegaLiteSpec {
   $schema: string;
   width: string;
   height: number;
-  title: string;
+  title?: string;
   data: { values: VegaDataPoint[] };
   mark: unknown;
   encoding: unknown;
@@ -56,13 +56,12 @@ export function buildBarSpec(name: string, qr: QueryResult): VegaLiteSpec {
   const seriesCount = values.length;
   const hasLongLabels = values.some((v) => v.series.length > 15);
   const needsAngle = seriesCount > 3 || hasLongLabels;
-  const height = Math.min(500, Math.max(250, 200 + seriesCount * 40));
+  const height = Math.min(350, Math.max(250, 200 + seriesCount * 40));
 
   return {
     $schema: 'https://vega.github.io/schema/vega-lite/v5.json',
     width: 'container',
     height,
-    title: qr.description ?? name,
     data: { values },
     mark: { type: 'bar', tooltip: true, cornerRadiusEnd: 4 },
     encoding: {
@@ -72,7 +71,6 @@ export function buildBarSpec(name: string, qr: QueryResult): VegaLiteSpec {
         axis: { labelAngle: needsAngle ? -45 : 0, labelLimit: 200 },
       },
       y: { field: 'value', type: 'quantitative', title: yTitle },
-      color: { field: 'series', type: 'nominal', title: 'Target', legend: null },
     },
   };
 }
@@ -91,7 +89,6 @@ export function buildLineSpec(name: string, qr: QueryResult): VegaLiteSpec {
     $schema: 'https://vega.github.io/schema/vega-lite/v5.json',
     width: 'container',
     height: 300,
-    title: qr.description ?? name,
     data: { values },
     mark: { type: 'line', tooltip: true, point: true },
     encoding: {
