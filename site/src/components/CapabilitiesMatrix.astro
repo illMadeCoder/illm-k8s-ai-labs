@@ -17,8 +17,8 @@ const { matrix } = Astro.props;
     )}
 
     {matrix.categories.map((category) => (
-      <Fragment>
-        <div class="cap-category-label">{category.name}</div>
+      <details class="cap-category">
+        <summary class="cap-category-label">{category.name}</summary>
         {category.capabilities.map((cap) => (
           <div class="cap-panel">
             <div class="cap-panel-header">
@@ -34,7 +34,7 @@ const { matrix } = Astro.props;
             </div>
           </div>
         ))}
-      </Fragment>
+      </details>
     ))}
   </div>
 </details>
@@ -56,6 +56,12 @@ const { matrix } = Astro.props;
     line-height: 1.65;
   }
 
+  .cap-category {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+  }
+
   .cap-category-label {
     font-family: var(--font-mono);
     font-size: 0.85rem;
@@ -64,6 +70,20 @@ const { matrix } = Astro.props;
     letter-spacing: 0.06em;
     color: var(--text-muted);
     padding: 0.75rem 0 0;
+    cursor: pointer;
+    list-style: none;
+  }
+
+  .cap-category-label::-webkit-details-marker {
+    display: none;
+  }
+
+  .cap-category-label::before {
+    content: '▸ ';
+  }
+
+  .cap-category[open] > .cap-category-label::before {
+    content: '▾ ';
   }
 
   .cap-panel {
