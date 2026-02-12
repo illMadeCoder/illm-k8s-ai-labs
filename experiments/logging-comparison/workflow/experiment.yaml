@@ -35,14 +35,6 @@ spec:
                   value: elasticsearch
                 - name: namespace
                   value: logging-comparison
-        - - name: check-kibana
-            template: check-deployment
-            arguments:
-              parameters:
-                - name: deployment
-                  value: kibana
-                - name: namespace
-                  value: logging-comparison
         - - name: check-log-generator
             template: check-deployment
             arguments:
