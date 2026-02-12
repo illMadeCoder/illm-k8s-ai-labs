@@ -1,0 +1,53 @@
+---
+interface Props {
+  diagram: string;
+}
+
+const { diagram } = Astro.props;
+---
+
+<div class="arch-diagram">
+  <span class="arch-diagram-label">Architecture</span>
+  <pre class="arch-diagram-pre">{diagram}</pre>
+</div>
+
+<style>
+  .arch-diagram {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 1rem 1.25rem;
+    margin: 1rem 0;
+    overflow-x: auto;
+  }
+
+  .arch-diagram-label {
+    display: block;
+    font-size: 0.65rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--text-muted);
+    background: var(--bg-surface);
+    display: inline-block;
+    padding: 0.15rem 0.5rem;
+    border-radius: 2px;
+    margin-bottom: 0.75rem;
+  }
+
+  .arch-diagram-pre {
+    margin: 0;
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    line-height: 1.4;
+    color: var(--text);
+    white-space: pre;
+    overflow-x: auto;
+  }
+
+  @media (max-width: 480px) {
+    .arch-diagram-pre {
+      font-size: 0.65rem;
+    }
+  }
+</style>

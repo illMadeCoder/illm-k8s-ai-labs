@@ -10,6 +10,7 @@ import AnalysisSection from '../../../components/AnalysisSection.astro';
 import CapabilitiesMatrix from '../../../components/CapabilitiesMatrix.astro';
 import AnalysisBody from '../../../components/AnalysisBody.astro';
 import AnalysisFeedback from '../../../components/AnalysisFeedback.astro';
+import ArchitectureDiagram from '../../../components/ArchitectureDiagram.astro';
 import { loadAllExperiments, getBaseName, formatDisplayName } from '../../../lib/experiments';
 import { formatDuration, formatDate, formatCost } from '../../../lib/format';
 import { buildSpec } from '../../../lib/vega-specs';
@@ -117,6 +118,9 @@ const analysis = experiment.analysis;
             model={analysis.model}
             generatedAt={analysis.generatedAt}
           />
+        )}
+        {analysis?.architectureDiagram && (
+          <ArchitectureDiagram diagram={analysis.architectureDiagram} />
         )}
         {!hasRichAnalysis && analysis?.summary && (
           <div class="analysis-box">

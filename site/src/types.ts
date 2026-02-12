@@ -93,6 +93,7 @@ export interface AnalysisResult {
   capabilitiesMatrix?: CapabilitiesMatrix;
   body?: AnalysisBody;
   feedback?: AnalysisFeedback;
+  architectureDiagram?: string;
 }
 
 export interface TargetAnalysis {

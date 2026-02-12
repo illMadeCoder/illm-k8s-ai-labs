@@ -3,11 +3,12 @@ set -euo pipefail
 
 # Multi-pass AI experiment analyzer
 #
-# Produces research-paper quality analysis via 4 focused claude -p calls:
+# Produces research-paper quality analysis via 5 focused claude -p calls:
 #   Pass 1: Analysis plan (technologies, focus areas, domain context)
 #   Pass 2: Core analysis (abstract, targetAnalysis, performanceAnalysis, metricInsights)
 #   Pass 3: FinOps + SecOps analysis
 #   Pass 4: Deep dive + capabilities matrix + feedback
+#   Pass 5: ASCII architecture diagram
 #
 # Required environment variables:
 #   EXPERIMENT_NAME  - experiment name (used for S3 key and GitHub path)
@@ -376,9 +377,72 @@ EXPERIMENT DATA:
 ${SUMMARY_DATA}" "${PASS4_FILE}" || true
 
 # ============================================================================
+# Pass 5: ASCII Architecture Diagram
+# ============================================================================
+PASS5_PROMPT=$(cat <<'EOF'
+You are creating an ASCII architecture diagram for a Kubernetes experiment benchmark page.
+The page uses monospace font (JetBrains Mono). Generate a clear topology diagram showing
+the experiment's cluster layout, components, and data flow.
+
+Output ONLY a JSON object:
+{"architectureDiagram": "<diagram string with \n for newlines>"}
+
+Diagram rules:
+- MAX 66 characters wide (must fit 600px content area at 0.75rem monospace)
+- Target 15-22 lines tall
+- Use box-drawing characters: ┌ ─ ┐ │ └ ┘ for inner boxes, ═ ╔ ╗ ╚ ╝ ║ for outer boundary
+- Show: hub cluster → provisioning arrow → target cluster(s)
+- Inside each target cluster box, group components by role
+- Show data flow with arrows: ──▶ (right), ◀── (left), │▼ (down), │▲ (up)
+- Show metrics backhaul path if applicable
+- Group components by role (e.g. "Loki + Promtail" not separate boxes for each)
+- Omit infrastructure resources (ConfigMaps, Secrets, RBAC, ServiceAccounts)
+- Label arrows with what flows through them (e.g. "metrics", "logs", "queries")
+
+Example format for a comparison experiment:
+╔══════════════════════════════════════════════════════════╗
+║  Hub Cluster (Talos)                                    ║
+║  ┌─────────────┐  ┌──────────┐  ┌───────────────────┐  ║
+║  │ ArgoCD      │  │Crossplane│  │ Argo Workflows    │  ║
+║  └──────┬──────┘  └────┬─────┘  └─────────┬─────────┘  ║
+╚═════════│══════════════│═══════════════════│═════════════╝
+          │ sync         │ provision         │ orchestrate
+    ┌─────▼──────┐ ┌─────▼──────┐           │
+    │ Target: A  │ │ Target: B  │◀──────────┘
+    │            │ │            │
+    │ Component1 │ │ Component2 │
+    │ Component3 │ │ Component4 │
+    │     │      │ │     │      │
+    └─────│──────┘ └─────│──────┘
+          │  metrics     │  metrics
+          └──────┬───────┘
+                 ▼
+          ┌────────────┐
+          │VictoriaM.  │
+          └────────────┘
+
+Rules:
+- Adapt the layout to the actual experiment topology (number of targets, components)
+- For single-target experiments, show one target box with all components
+- Keep it clean and readable — whitespace is better than clutter
+- Output ONLY the JSON object, no markdown fences or extra text
+- The diagram value must be a single JSON string with \n for line breaks
+
+ANALYSIS PLAN:
+EOF
+)
+
+PASS5_FILE="${WORK_DIR}/pass_5.json"
+run_pass "pass_5_diagram" "${PASS5_PROMPT}
+${PLAN_DATA}
+
+EXPERIMENT DATA:
+${SUMMARY_DATA}" "${PASS5_FILE}" || true
+
+# ============================================================================
 # Assembly: Merge all passes into final AnalysisResult
 # ============================================================================
-echo "==> Assembling final analysis from 4 passes"
+echo "==> Assembling final analysis from 5 passes"
 
 FINAL_FILE="${WORK_DIR}/analysis.json"
 
@@ -389,7 +453,9 @@ jq -s --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --arg model "claude-opus-4-6" '
   # Merge pass 3 (finopsAnalysis, secopsAnalysis)
   (.[2] // {}) *
   # Merge pass 4 (capabilitiesMatrix, body, feedback)
-  (.[3] // {}) +
+  (.[3] // {}) *
+  # Merge pass 5 (architectureDiagram)
+  (.[4] // {}) +
   # Add backward-compat fields + metadata
   {
     summary: ((.[1] // {}).abstract // "Analysis incomplete"),
@@ -397,7 +463,7 @@ jq -s --arg ts "$(date -u +%Y-%m-%dT%H:%M:%SZ)" --arg model "claude-opus-4-6" '
     generatedAt: $ts,
     model: $model
   }
-' "${PASS1_FILE}" "${PASS2_FILE}" "${PASS3_FILE}" "${PASS4_FILE}" > "${FINAL_FILE}"
+' "${PASS1_FILE}" "${PASS2_FILE}" "${PASS3_FILE}" "${PASS4_FILE}" "${PASS5_FILE}" > "${FINAL_FILE}"
 
 # Remove the plan fields from the final output (they were just for inter-pass context)
 jq 'del(.technologies, .isComparison, .focusAreas, .domainContext, .domain)' \
@@ -433,6 +499,7 @@ jq -n \
   --argjson pass2_size "$(wc -c < "${PASS2_FILE}")" \
   --argjson pass3_size "$(wc -c < "${PASS3_FILE}")" \
   --argjson pass4_size "$(wc -c < "${PASS4_FILE}")" \
+  --argjson pass5_size "$(wc -c < "${PASS5_FILE}")" \
   --argjson final_size "$(wc -c < "${FINAL_FILE}")" \
   '{
     experiment: $experiment,
@@ -441,7 +508,8 @@ jq -n \
       "1_plan": {file: "pass_1_plan.json", bytes: $pass1_size},
       "2_core": {file: "pass_2_core.json", bytes: $pass2_size},
       "3_finops_secops": {file: "pass_3_finops_secops.json", bytes: $pass3_size},
-      "4_deep_dive": {file: "pass_4_deep_dive.json", bytes: $pass4_size}
+      "4_deep_dive": {file: "pass_4_deep_dive.json", bytes: $pass4_size},
+      "5_diagram": {file: "pass_5_diagram.json", bytes: $pass5_size}
     },
     final: {file: "analysis_final.json", bytes: $final_size}
   }' > "${TRACE_FILE}"
@@ -452,6 +520,7 @@ for artifact in \
   "${PASS2_FILE}:analysis/pass_2_core.json" \
   "${PASS3_FILE}:analysis/pass_3_finops_secops.json" \
   "${PASS4_FILE}:analysis/pass_4_deep_dive.json" \
+  "${PASS5_FILE}:analysis/pass_5_diagram.json" \
   "${FINAL_FILE}:analysis/analysis_final.json" \
   "${TRACE_FILE}:analysis/trace.json"; do
   LOCAL="${artifact%%:*}"
@@ -464,7 +533,7 @@ for artifact in \
 done
 
 # Upload raw JSONL outputs (the full claude response before extraction) and stderr
-for pass_name in pass_1_plan pass_2_core pass_3_finops_secops pass_4_deep_dive; do
+for pass_name in pass_1_plan pass_2_core pass_3_finops_secops pass_4_deep_dive pass_5_diagram; do
   for suffix in _raw.json _stderr.log; do
     LOCAL="${WORK_DIR}/${pass_name}${suffix}"
     if [ -f "${LOCAL}" ] && [ -s "${LOCAL}" ]; then
@@ -536,4 +605,4 @@ else
   echo "==> GITHUB_TOKEN or GITHUB_REPO not set — skipping GitHub commit"
 fi
 
-echo "==> Analysis complete for ${EXPERIMENT_NAME} (4 passes)"
+echo "==> Analysis complete for ${EXPERIMENT_NAME} (5 passes)"

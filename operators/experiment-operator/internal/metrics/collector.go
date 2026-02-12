@@ -137,6 +137,7 @@ type AnalysisResult struct {
 	CapabilitiesMatrix  *CapabilitiesMatrix  `json:"capabilitiesMatrix,omitempty"`
 	Body                *AnalysisBody        `json:"body,omitempty"`
 	Feedback            *AnalysisFeedback    `json:"feedback,omitempty"`
+	ArchitectureDiagram string               `json:"architectureDiagram,omitempty"`
 }
 
 // TargetAnalysis describes how infrastructure choices affect metrics.
