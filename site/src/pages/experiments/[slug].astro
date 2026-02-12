@@ -85,43 +85,42 @@ const analysis = latest.analysis;
     {latest.costEstimate && (
       <CostBreakdown cost={latest.costEstimate} />
     )}
-  </details>
-
-  <details class="section run-history">
-    <summary class="section-title">Run History ({group.runs.length} {group.runs.length === 1 ? 'run' : 'runs'})</summary>
-    <table>
-      <thead>
-        <tr>
-          <th>Run</th>
-          <th>Phase</th>
-          <th>Date</th>
-          <th>Duration</th>
-          <th>Cost</th>
-        </tr>
-      </thead>
-      <tbody>
-        {group.runs.map((run) => {
-          const runBadge = run.phase === 'Complete'
-            ? 'badge-complete'
-            : run.phase === 'Failed'
-              ? 'badge-failed'
-              : 'badge-running';
-          return (
-            <tr>
-              <td>
-                <a href={`${base}experiments/${group.baseName}/${run.name}/`}>
-                  <code>{run.name}</code>
-                </a>
-              </td>
-              <td><span class={`badge ${runBadge}`}>{run.phase}</span></td>
-              <td>{formatDate(run.createdAt)}</td>
-              <td>{formatDuration(run.durationSeconds)}</td>
-              <td>{run.costEstimate ? formatCost(run.costEstimate.totalUSD) : '—'}</td>
-            </tr>
-          );
-        })}
-      </tbody>
-    </table>
+    <details class="section run-history">
+      <summary class="section-title">Run History ({group.runs.length} {group.runs.length === 1 ? 'run' : 'runs'})</summary>
+      <table>
+        <thead>
+          <tr>
+            <th>Run</th>
+            <th>Phase</th>
+            <th>Date</th>
+            <th>Duration</th>
+            <th>Cost</th>
+          </tr>
+        </thead>
+        <tbody>
+          {group.runs.map((run) => {
+            const runBadge = run.phase === 'Complete'
+              ? 'badge-complete'
+              : run.phase === 'Failed'
+                ? 'badge-failed'
+                : 'badge-running';
+            return (
+              <tr>
+                <td>
+                  <a href={`${base}experiments/${group.baseName}/${run.name}/`}>
+                    <code>{run.name}</code>
+                  </a>
+                </td>
+                <td><span class={`badge ${runBadge}`}>{run.phase}</span></td>
+                <td>{formatDate(run.createdAt)}</td>
+                <td>{formatDuration(run.durationSeconds)}</td>
+                <td>{run.costEstimate ? formatCost(run.costEstimate.totalUSD) : '—'}</td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+    </details>
   </details>
 
   {(latest.study?.hypothesis || latest.study?.questions?.length || latest.study?.focus?.length || hasRichAnalysis || analysis?.summary) && (
