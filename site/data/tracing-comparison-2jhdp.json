@@ -1,0 +1,250 @@
+{
+  "name": "tracing-comparison-2jhdp",
+  "namespace": "experiments",
+  "description": "Tempo vs Jaeger tracing comparison - architecture, query languages, features",
+  "createdAt": "2026-02-12T18:20:58Z",
+  "completedAt": "2026-02-12T18:55:27.853486934Z",
+  "durationSeconds": 2069.853486934,
+  "phase": "Complete",
+  "tags": [
+    "comparison",
+    "observability",
+    "tracing"
+  ],
+  "study": {
+    "hypothesis": "Tempo will use fewer resources than Jaeger because it writes traces directly to object storage without an indexing layer, avoiding the CPU and memory overhead of Elasticsearch or Cassandra that Jaeger requires, while Jaeger will provide a more mature query UI because its longer ecosystem tenure has produced richer search, comparison, and dependency graph tooling",
+    "questions": [
+      "What is the resource overhead of each tracing backend under equivalent trace volume?",
+      "How do TraceQL and Jaeger's query API compare for operational debugging workflows?",
+      "What are the storage architecture trade-offs (object storage vs. Elasticsearch/Cassandra)?"
+    ],
+    "focus": [
+      "resource efficiency",
+      "query capability",
+      "storage backend architecture",
+      "OTLP ingestion compatibility"
+    ]
+  },
+  "analysisConfig": {
+    "sections": [
+      "abstract",
+      "targetAnalysis",
+      "performanceAnalysis",
+      "metricInsights",
+      "finopsAnalysis",
+      "secopsAnalysis",
+      "body",
+      "capabilitiesMatrix",
+      "feedback",
+      "architectureDiagram"
+    ]
+  },
+  "targets": [
+    {
+      "name": "app",
+      "clusterName": "tracing-comparison-2jhdp-app",
+      "clusterType": "gke",
+      "machineType": "e2-standard-4",
+      "nodeCount": 1
+    }
+  ],
+  "workflow": {
+    "name": "tracing-comparison-2jhdp-validation",
+    "template": "tracing-comparison-validation",
+    "phase": "Succeeded",
+    "startedAt": "2026-02-12T18:34:55Z",
+    "finishedAt": "2026-02-12T18:55:19Z"
+  },
+  "metrics": {
+    "collectedAt": "2026-02-12T18:55:28.029991657Z",
+    "source": "target:cadvisor",
+    "timeRange": {
+      "start": "2026-02-12T18:20:58Z",
+      "end": "2026-02-12T18:55:28.029991657Z",
+      "duration": "34m30.029991657s",
+      "stepSeconds": 0
+    },
+    "queries": {
+      "cpu_by_pod": {
+        "query": "container_cpu_usage_seconds_total by pod (cadvisor)",
+        "type": "instant",
+        "unit": "cores",
+        "description": "CPU usage by pod (cumulative seconds)",
+        "data": [
+          {
+            "labels": {
+              "pod": "jaeger-cassandra-2"
+            },
+            "timestamp": "2026-02-12T18:55:28.029991657Z",
+            "value": 214.489907
+          },
+          {
+            "labels": {
+              "pod": "kube-state-metrics-0"
+            },
+            "timestamp": "2026-02-12T18:55:28.029991657Z",
+            "value": 1.486793
+          },
+          {
+            "labels": {
+              "pod": "ts-vm-hub-n9rrc-0"
+            },
+            "timestamp": "2026-02-12T18:55:28.029991657Z",
+            "value": 1.093514
+          },
+          {
+            "labels": {
+              "pod": "tempo-0"
+            },
+            "timestamp": "2026-02-12T18:55:28.029991657Z",
+            "value": 1.063104
+          },
+          {
+            "labels": {
+              "pod": "alloy-bjv4f"
+            },
+            "timestamp": "2026-02-12T18:55:28.029991657Z",
+            "value": 5.30576
+          },
+          {
+            "labels": {
+              "pod": "jaeger-cassandra-1"
+            },
+            "timestamp": "2026-02-12T18:55:28.029991657Z",
+            "value": 240.355321
+          },
+          {
+            "labels": {
+              "pod": "jaeger-cassandra-0"
+            },
+            "timestamp": "2026-02-12T18:55:28.029991657Z",
+            "value": 256.12567
+          },
+          {
+            "labels": {
+              "pod": "otel-collector-opentelemetry-collector-6b4bb768c4-9bh5w"
+            },
+            "timestamp": "2026-02-12T18:55:28.029991657Z",
+            "value": 3.565347
+          },
+          {
+            "labels": {
+              "pod": "operator-64d66c8747-5vbb2"
+            },
+            "timestamp": "2026-02-12T18:55:28.029991657Z",
+            "value": 2.471108
+          }
+        ]
+      },
+      "cpu_total": {
+        "query": "sum(container_cpu_usage_seconds_total) (cadvisor)",
+        "type": "instant",
+        "unit": "cores",
+        "description": "Total CPU usage (cumulative seconds)",
+        "data": [
+          {
+            "labels": {
+              "scope": "total"
+            },
+            "timestamp": "2026-02-12T18:55:28.029991657Z",
+            "value": 725.956524
+          }
+        ]
+      },
+      "memory_by_pod": {
+        "query": "container_memory_working_set_bytes by pod (cadvisor)",
+        "type": "instant",
+        "unit": "bytes",
+        "description": "Memory working set by pod",
+        "data": [
+          {
+            "labels": {
+              "pod": "alloy-bjv4f"
+            },
+            "timestamp": "2026-02-12T18:55:28.029991657Z",
+            "value": 43569152
+          },
+          {
+            "labels": {
+              "pod": "jaeger-cassandra-1"
+            },
+            "timestamp": "2026-02-12T18:55:28.029991657Z",
+            "value": 2373337088
+          },
+          {
+            "labels": {
+              "pod": "jaeger-cassandra-0"
+            },
+            "timestamp": "2026-02-12T18:55:28.029991657Z",
+            "value": 2366414848
+          },
+          {
+            "labels": {
+              "pod": "kube-state-metrics-0"
+            },
+            "timestamp": "2026-02-12T18:55:28.029991657Z",
+            "value": 30560256
+          },
+          {
+            "labels": {
+              "pod": "otel-collector-opentelemetry-collector-6b4bb768c4-9bh5w"
+            },
+            "timestamp": "2026-02-12T18:55:28.029991657Z",
+            "value": 34729984
+          },
+          {
+            "labels": {
+              "pod": "operator-64d66c8747-5vbb2"
+            },
+            "timestamp": "2026-02-12T18:55:28.029991657Z",
+            "value": 28536832
+          },
+          {
+            "labels": {
+              "pod": "ts-vm-hub-n9rrc-0"
+            },
+            "timestamp": "2026-02-12T18:55:28.029991657Z",
+            "value": 25370624
+          },
+          {
+            "labels": {
+              "pod": "tempo-0"
+            },
+            "timestamp": "2026-02-12T18:55:28.029991657Z",
+            "value": 41455616
+          },
+          {
+            "labels": {
+              "pod": "jaeger-cassandra-2"
+            },
+            "timestamp": "2026-02-12T18:55:28.029991657Z",
+            "value": 2368704512
+          }
+        ]
+      },
+      "memory_total": {
+        "query": "sum(container_memory_working_set_bytes) (cadvisor)",
+        "type": "instant",
+        "unit": "bytes",
+        "description": "Total memory working set",
+        "data": [
+          {
+            "labels": {
+              "scope": "total"
+            },
+            "timestamp": "2026-02-12T18:55:28.029991657Z",
+            "value": 7312678912
+          }
+        ]
+      }
+    }
+  },
+  "costEstimate": {
+    "totalUSD": 0.01540890929161978,
+    "durationHours": 0.5749593019261111,
+    "perTarget": {
+      "app": 0.01540890929161978
+    },
+    "note": "Rough estimate based on on-demand GCE pricing; actual cost may differ."
+  }
+}
