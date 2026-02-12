@@ -39,7 +39,7 @@ const currentPath = Astro.url.pathname;
   </head>
   <body class="min-h-screen flex flex-col bg-bg text-text">
     <header class="border-b border-border">
-      <nav class="max-w-6xl mx-auto px-6 py-4">
+      <nav class="max-w-6xl mx-auto px-3 sm:px-6 py-4">
         <div class="flex items-center justify-between">
           <div class="flex items-center gap-8">
             <a href={base} class="font-bold text-lg text-text hover:text-accent no-underline transition-colors">
@@ -106,11 +106,11 @@ const currentPath = Astro.url.pathname;
       </nav>
     </header>
     <slot name="breadcrumb" />
-    <main class="max-w-6xl mx-auto px-6 py-8 w-full flex-1">
+    <main class="max-w-6xl mx-auto px-3 sm:px-6 py-8 w-full flex-1">
       <slot />
     </main>
     <footer class="mt-auto border-t border-border">
-      <div class="max-w-6xl mx-auto px-6 py-6 text-center text-sm text-text-muted">
+      <div class="max-w-6xl mx-auto px-3 sm:px-6 py-6 text-center text-sm text-text-muted">
         <p>
           Built with <a href="https://astro.build" class="hover:text-accent" target="_blank" rel="noopener">Astro</a> +
           <a href={`${base}about/`} class="hover:text-accent">experiment-operator</a>
