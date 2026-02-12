@@ -27,8 +27,8 @@ const targets = Object.entries(cost.perTarget ?? {});
         </tr>
       ))}
       <tr class="total-row">
-        <td><strong>Total</strong></td>
-        <td><strong>{formatCost(cost.totalUSD)}</strong></td>
+        <td>Total</td>
+        <td>{formatCost(cost.totalUSD)}</td>
       </tr>
     </tbody>
   </table>
@@ -42,5 +42,6 @@ const targets = Object.entries(cost.perTarget ?? {});
   .total-row td {
     border-top: 2px solid var(--border);
     border-bottom: none;
+    font-weight: 700;
   }
 </style>
