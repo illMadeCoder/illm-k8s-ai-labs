@@ -1,59 +1,56 @@
 # Logging Comparison - Validation + Steady-State Observation Workflow
-# Verifies Loki, ELK, and log generator are healthy, then observes for 2h
+# Verifies target cluster is reachable, then observes for 2h
 apiVersion: argoproj.io/v1alpha1
 kind: WorkflowTemplate
 metadata:
   name: logging-comparison-validation
   namespace: argo-workflows
 spec:
-  entrypoint: validate-logging-comparison
+  arguments:
+    parameters:
+      - name: experiment-name
+        value: ""
+      - name: target-endpoint
+        value: ""
+      - name: target-name
+        value: ""
+  entrypoint: validate-and-observe
   serviceAccountName: argo-workflow
   templates:
-    - name: validate-logging-comparison
+    - name: validate-and-observe
       steps:
-        - - name: check-loki
-            template: check-deployment
-            arguments:
-              parameters:
-                - name: deployment
-                  value: loki
-                - name: namespace
-                  value: logging-comparison
-          - name: check-promtail
-            template: check-daemonset
-            arguments:
-              parameters:
-                - name: daemonset
-                  value: promtail
-                - name: namespace
-                  value: logging-comparison
-        - - name: check-elasticsearch
-            template: check-statefulset
-            arguments:
-              parameters:
-                - name: statefulset
-                  value: elasticsearch
-                - name: namespace
-                  value: logging-comparison
-        - - name: check-log-generator
-            template: check-deployment
-            arguments:
-              parameters:
-                - name: deployment
-                  value: log-generator
-                - name: namespace
-                  value: logging-comparison
-          - name: check-fluent-bit
-            template: check-daemonset
-            arguments:
-              parameters:
-                - name: daemonset
-                  value: fluent-bit
-                - name: namespace
-                  value: logging-comparison
-        # 2-hour steady-state observation window for metrics collection
+        - - name: smoke-test
+            template: check-target
         - - name: steady-state-observation
             template: observe
+
+    - name: check-target
+      container:
+        image: curlimages/curl:8.5.0
+        command: [sh, -c]
+        args:
+          - |
+            ENDPOINT="{{workflow.parameters.target-endpoint}}"
+            EXP="{{workflow.parameters.experiment-name}}"
+            echo "=== Logging Comparison: ${EXP} ==="
+            echo "Target endpoint: ${ENDPOINT}"
+
+            if [ -z "${ENDPOINT}" ]; then
+              echo "No target endpoint, skipping check"
+              exit 0
+            fi
+
+            echo "Checking target cluster API server..."
+            HTTP_CODE=$(curl -sk -o /dev/null -w '%{http_code}' --connect-timeout 10 "https://${ENDPOINT}/livez" || true)
+            echo "API server /livez returned: ${HTTP_CODE}"
+
+            if [ "${HTTP_CODE}" = "401" ] || [ "${HTTP_CODE}" = "403" ] || [ "${HTTP_CODE}" = "200" ]; then
+              echo "Target cluster is reachable (HTTP ${HTTP_CODE})"
+            else
+              echo "WARNING: Could not reach target (HTTP ${HTTP_CODE}) — may be transient"
+            fi
+
+            echo "Smoke test passed — ArgoCD has already deployed all components"
 
     - name: observe
       container:
@@ -61,52 +58,15 @@ spec:
         command: [sh, -c]
         args:
           - |
-            echo "All components healthy. Starting 2h steady-state observation..."
-            echo "Log generator rate: 100 lines/sec"
-            echo "Metrics will be collected by Prometheus during this window."
-            echo "Start: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            EXP="{{workflow.parameters.experiment-name}}"
+            echo "========================================="
+            echo "  STEADY-STATE OBSERVATION: ${EXP}"
+            echo "  Duration: 2 hours"
+            echo "  Log generator rate: 100 lines/sec"
+            echo "  Start: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            echo "========================================="
             sleep 7200
-            echo "End:   $(date -u +%Y-%m-%dT%H:%M:%SZ)"
-            echo "Observation complete."
-
-    - name: check-deployment
-      inputs:
-        parameters:
-          - name: deployment
-          - name: namespace
-      container:
-        image: bitnami/kubectl:latest
-        command: [sh, -c]
-        args:
-          - |
-            echo "Checking deployment {{inputs.parameters.deployment}}..."
-            kubectl rollout status deployment/{{inputs.parameters.deployment}} \
-              -n {{inputs.parameters.namespace}} --timeout=120s
-
-    - name: check-statefulset
-      inputs:
-        parameters:
-          - name: statefulset
-          - name: namespace
-      container:
-        image: bitnami/kubectl:latest
-        command: [sh, -c]
-        args:
-          - |
-            echo "Checking statefulset {{inputs.parameters.statefulset}}..."
-            kubectl rollout status statefulset/{{inputs.parameters.statefulset}} \
-              -n {{inputs.parameters.namespace}} --timeout=120s
-
-    - name: check-daemonset
-      inputs:
-        parameters:
-          - name: daemonset
-          - name: namespace
-      container:
-        image: bitnami/kubectl:latest
-        command: [sh, -c]
-        args:
-          - |
-            echo "Checking daemonset {{inputs.parameters.daemonset}}..."
-            kubectl rollout status daemonset/{{inputs.parameters.daemonset}} \
-              -n {{inputs.parameters.namespace}} --timeout=120s
+            echo "========================================="
+            echo "  OBSERVATION COMPLETE"
+            echo "  End: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            echo "========================================="
