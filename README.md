@@ -325,6 +325,11 @@ docs/roadmap/                        10 phases, ~50 target experiments
 
 ## Supply Chain Security — SLSA Level 2
 
+The whole point of running experiments is to trust the results. If someone pushes
+a dodgy operator image or tampers with a component chart, the benchmark numbers
+are meaningless. SLSA gives us a verifiable chain from source to running container
+so we can be confident that what ran the experiment is actually what we built.
+
 ```
 GitHub Actions ──► Trivy scan ──► Syft SBOM ──► Cosign keyless sign
                                                        │

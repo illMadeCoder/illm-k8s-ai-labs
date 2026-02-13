@@ -230,9 +230,9 @@ styled card on the experiment detail page. Be specific with numbers from the dat
 Output ONLY a JSON object with these sections:
 
 {
-  "hypothesisVerdict": "<EXACTLY one of: supported | unsupported | insufficient>",
+  "hypothesisVerdict": "<EXACTLY one of: validated | invalidated | insufficient>",
 
-  "abstract": "<4-6 sentence abstract. Start by stating whether the experiment conclusively supports, partially supports, or fails to support the hypothesis, and WHY. Summarize the key evidence. If the experiment was insufficient to evaluate the hypothesis (e.g. missing metrics, wrong granularity, too short), say so explicitly and what would be needed. End with the most actionable finding.>",
+  "abstract": "<4-6 sentence abstract. Start by stating whether the experiment conclusively validates, partially validates, or invalidates the hypothesis, and WHY. Summarize the key evidence. If the experiment was insufficient to evaluate the hypothesis (e.g. missing metrics, wrong granularity, too short), say so explicitly and what would be needed. End with the most actionable finding.>",
 
   "targetAnalysis": {
     "overview": "<How infrastructure choices (machine type, node count, preemptible) affect the results>",
@@ -260,7 +260,7 @@ Output ONLY a JSON object with these sections:
 }
 
 Rules:
-- "hypothesisVerdict" MUST be exactly one of the three allowed values (supported, unsupported, insufficient) — it is displayed as a status badge in the experiment header
+- "hypothesisVerdict" MUST be exactly one of the three allowed values (validated, invalidated, insufficient) — it is displayed as a status badge in the experiment header
 - "abstract" is the most important section — it appears directly below the hypothesis on the experiment page
 - The abstract MUST open with a verdict on the hypothesis matching hypothesisVerdict
 - Explain the causal reasoning: does the data confirm WHY the hypothesis predicted this outcome?
