@@ -32,10 +32,8 @@ const demoGroup = groups.find((g) => g.baseName === 'ui-showcase-demo');
     domainCount={stats.domainCount || categories.length}
     componentCount={stats.componentCount}
     totalRuns={stats.totalRuns}
-  />
-
-  {demoGroup && (
-    <section class="mb-12">
+  >
+    {demoGroup && (
       <a href={`${base}experiments/${demoGroup.baseName}/`}
         class="demo-card">
         <div class="demo-top">
@@ -52,8 +50,8 @@ const demoGroup = groups.find((g) => g.baseName === 'ui-showcase-demo');
         </div>
         <span class="demo-cta">View demo experiment &rarr;</span>
       </a>
-    </section>
-  )}
+    )}
+  </Hero>
 
   {comparisons.length > 0 && (
     <section class="mb-12">
