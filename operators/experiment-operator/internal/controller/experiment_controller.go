@@ -696,6 +696,10 @@ func (r *ExperimentReconciler) checkAnalysisJob(ctx context.Context, exp *experi
 			ObservedGeneration: exp.Generation,
 			Message:            "Analyzer Job was deleted (TTL) before completion could be verified",
 		})
+		// Published experiments should not appear Complete when analysis failed
+		if exp.Spec.Publish && exp.Status.Phase == experimentsv1alpha1.PhaseComplete {
+			exp.Status.Phase = experimentsv1alpha1.PhaseFailed
+		}
 		return
 	}
 
@@ -728,6 +732,10 @@ func (r *ExperimentReconciler) checkAnalysisJob(ctx context.Context, exp *experi
 				ObservedGeneration: exp.Generation,
 				Message:            fmt.Sprintf("Analyzer Job failed: %s", cond.Message),
 			})
+			// Published experiments should not appear Complete when analysis failed
+			if exp.Spec.Publish && exp.Status.Phase == experimentsv1alpha1.PhaseComplete {
+				exp.Status.Phase = experimentsv1alpha1.PhaseFailed
+			}
 			log.Info("Analyzer Job failed", "job", exp.Status.AnalysisJobName, "message", cond.Message)
 			return
 		}
