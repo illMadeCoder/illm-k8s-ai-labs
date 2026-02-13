@@ -75,6 +75,16 @@ spec:
         - app: victoria-metrics
         - app: mimir
         - app: minio
+          params:
+            buckets[0].name: "mimir-blocks"
+            buckets[0].policy: "none"
+            buckets[0].purge: "false"
+            buckets[1].name: "mimir-ruler"
+            buckets[1].policy: "none"
+            buckets[1].purge: "false"
+            buckets[2].name: "mimir-alertmanager"
+            buckets[2].policy: "none"
+            buckets[2].purge: "false"
         - app: cardinality-generator
 
   metrics:

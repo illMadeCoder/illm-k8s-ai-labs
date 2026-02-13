@@ -15,7 +15,7 @@ data:
         s3:
           endpoint: minio.minio.svc:9000
           bucket_name: mimir-blocks
-          access_key_id: minio
+          access_key_id: admin
           secret_access_key: minio123
           insecure: true
 
