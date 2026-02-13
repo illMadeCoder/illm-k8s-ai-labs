@@ -32,7 +32,7 @@ spec:
             arguments:
               parameters:
                 - name: deployment
-                  value: mimir-distributor
+                  value: mimir-monolithic
                 - name: namespace
                   value: mimir
         - - name: check-cardinality-generator

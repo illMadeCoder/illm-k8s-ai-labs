@@ -7,14 +7,20 @@ prometheus:
     # Same retention as other TSDBs
     retention: 2h
 
+    # Remote write to Mimir so it actually receives metrics
+    remoteWrite:
+      - url: http://mimir-gateway.mimir.svc:80/api/v1/push
+        headers:
+          X-Scope-OrgID: anonymous
+
     # Resources - baseline for comparison
     resources:
       requests:
         cpu: 100m
         memory: 256Mi
       limits:
-        cpu: 500m
-        memory: 512Mi
+        cpu: 1
+        memory: 1Gi
 
     # Ephemeral storage
     storageSpec: {}
@@ -50,17 +56,9 @@ grafana:
       cpu: 200m
       memory: 256Mi
 
-# Alertmanager - minimal
+# Alertmanager - disabled (experiment param overrides to false anyway)
 alertmanager:
-  enabled: true
-  alertmanagerSpec:
-    resources:
-      requests:
-        cpu: 10m
-        memory: 32Mi
-      limits:
-        cpu: 100m
-        memory: 128Mi
+  enabled: false
 
 # Prometheus Operator
 prometheusOperator:

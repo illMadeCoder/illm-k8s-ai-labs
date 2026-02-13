@@ -1,5 +1,5 @@
 # TSDB Comparison - Validation + Steady-State Observation Workflow
-# Verifies target cluster is reachable, then observes for 20 minutes
+# Verifies target cluster is reachable, then observes for 90 minutes
 apiVersion: argoproj.io/v1alpha1
 kind: WorkflowTemplate
 metadata:
@@ -61,11 +61,11 @@ spec:
             EXP="{{workflow.parameters.experiment-name}}"
             echo "========================================="
             echo "  STEADY-STATE OBSERVATION: ${EXP}"
-            echo "  Duration: 20 minutes"
+            echo "  Duration: 90 minutes"
             echo "  TSDBs: Prometheus, VictoriaMetrics, Mimir"
             echo "  Start: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
             echo "========================================="
-            sleep 1200
+            sleep 5400
             echo "========================================="
             echo "  OBSERVATION COMPLETE"
             echo "  End: $(date -u +%Y-%m-%dT%H:%M:%SZ)"

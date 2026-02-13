@@ -1,4 +1,4 @@
-# Grafana Mimir - Helm values for TSDB comparison tutorial
+# Grafana Mimir - Helm values for TSDB comparison
 # Uses mimir-distributed chart in monolithic mode for simplicity
 # https://github.com/grafana/mimir/tree/main/operations/helm/charts/mimir-distributed
 
@@ -52,15 +52,14 @@ mimir:
         secret_access_key: minio123
         insecure: true
 
-# Resource limits for monolithic deployment
-mimir:
+  # Resources for monolithic deployment (merged from duplicate block)
   resources:
     requests:
-      cpu: 100m
-      memory: 256Mi
+      cpu: 200m
+      memory: 512Mi
     limits:
-      cpu: 500m
-      memory: 1Gi
+      cpu: 1
+      memory: 2Gi
 
 # Disable distributed components (using monolithic)
 ingester:
@@ -89,11 +88,11 @@ monolithic:
   replicas: 1
   resources:
     requests:
-      cpu: 100m
-      memory: 256Mi
+      cpu: 200m
+      memory: 512Mi
     limits:
-      cpu: 500m
-      memory: 1Gi
+      cpu: 1
+      memory: 2Gi
   persistentVolume:
     enabled: false
 
