@@ -312,6 +312,31 @@ func (r *ExperimentReconciler) collectAndStoreResults(ctx context.Context, exp *
 			} else {
 				log.Info("Cadvisor metrics returned empty", "cluster", clusterName)
 			}
+
+			// If spec.metrics is defined, also query hub VM for custom PromQL queries
+			// and merge results. This gives us both: cadvisor instant data + rich
+			// custom time-series from hub VictoriaMetrics.
+			if len(exp.Spec.Metrics) > 0 && r.MetricsURL != "" {
+				log.Info("Custom metrics defined, also querying hub VM", "cluster", clusterName, "queryCount", len(exp.Spec.Metrics))
+				hubResult, hubErr := metrics.CollectMetricsSnapshot(ctx, r.MetricsURL, exp)
+				if hubErr != nil {
+					log.Error(hubErr, "Hub VM custom metrics query failed", "cluster", clusterName)
+				} else if hubResult != nil && !metrics.AllQueriesEmpty(hubResult) {
+					if metricsResult != nil {
+						// Merge: keep cadvisor basics, add custom query results
+						for k, v := range hubResult.Queries {
+							metricsResult.Queries[k] = v
+						}
+						log.Info("Merged hub VM custom queries into cadvisor result",
+							"cluster", clusterName, "hubQueries", len(hubResult.Queries))
+					} else {
+						metricsResult = hubResult
+						log.Info("Using hub VM result (cadvisor was empty)", "cluster", clusterName)
+					}
+				} else {
+					log.Info("Hub VM custom queries returned empty", "cluster", clusterName)
+				}
+			}
 			continue
 		}
 

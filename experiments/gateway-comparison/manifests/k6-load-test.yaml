@@ -1,0 +1,301 @@
+# Gateway Comparison v2 — k6 Load Test
+# Deployed by ArgoCD as part of the gateway-comparison manifests.
+# Init container discovers gateway endpoints, waits for idle baseline,
+# then k6 runs a 16-minute multi-stage load test against all 3 gateways.
+---
+# k6 test script
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: k6-gateway-load-test
+  namespace: gateway-comparison
+data:
+  gateway-load-test.js: |
+    import http from 'k6/http';
+    import { check, sleep } from 'k6';
+    import { Trend, Rate, Counter } from 'k6/metrics';
+
+    // Per-gateway custom metrics
+    const nginxLatency = new Trend('nginx_latency', true);
+    const traefikLatency = new Trend('traefik_latency', true);
+    const envoyLatency = new Trend('envoy_latency', true);
+
+    const nginxErrors = new Rate('nginx_errors');
+    const traefikErrors = new Rate('traefik_errors');
+    const envoyErrors = new Rate('envoy_errors');
+
+    const nginxRequests = new Counter('nginx_requests');
+    const traefikRequests = new Counter('traefik_requests');
+    const envoyRequests = new Counter('envoy_requests');
+
+    // Gateway IPs from env vars (written by init container)
+    const NGINX_IP = __ENV.NGINX_IP || '';
+    const TRAEFIK_IP = __ENV.TRAEFIK_IP || '';
+    const ENVOY_IP = __ENV.ENVOY_IP || '';
+
+    // Load profile: 16 minutes total
+    export const options = {
+      stages: [
+        { duration: '2m', target: 1 },    // warmup
+        { duration: '2m', target: 10 },   // ramp to 10 VU
+        { duration: '3m', target: 10 },   // hold 10 VU
+        { duration: '2m', target: 50 },   // ramp to 50 VU
+        { duration: '5m', target: 50 },   // hold 50 VU
+        { duration: '2m', target: 0 },    // cooldown
+      ],
+      thresholds: {
+        'nginx_latency': ['p(99)<5000'],
+        'traefik_latency': ['p(99)<5000'],
+        'envoy_latency': ['p(99)<5000'],
+      },
+    };
+
+    // Send requests to a single gateway and record metrics
+    function testGateway(ip, name, latencyMetric, errorMetric, requestMetric) {
+      if (!ip) return;
+
+      // 1. Path routing: /echo
+      const echoRes = http.get(`http://${ip}/echo`, {
+        headers: { 'Host': '' },
+        timeout: '10s',
+        tags: { gateway: name, route: 'echo' },
+      });
+      latencyMetric.add(echoRes.timings.duration);
+      errorMetric.add(echoRes.status !== 200);
+      requestMetric.add(1);
+
+      // 2. API routing: /api/get
+      const apiRes = http.get(`http://${ip}/api/get`, {
+        headers: { 'Host': '' },
+        timeout: '10s',
+        tags: { gateway: name, route: 'api' },
+      });
+      latencyMetric.add(apiRes.timings.duration);
+      errorMetric.add(apiRes.status !== 200);
+      requestMetric.add(1);
+
+      // 3. Host routing
+      const hostMap = {
+        'nginx': 'api.nginx.local',
+        'traefik': 'api.traefik.local',
+        'envoy': 'api.envoy.local',
+      };
+      const hostRes = http.get(`http://${ip}/get`, {
+        headers: { 'Host': hostMap[name] || '' },
+        timeout: '10s',
+        tags: { gateway: name, route: 'host' },
+      });
+      latencyMetric.add(hostRes.timings.duration);
+      errorMetric.add(hostRes.status !== 200);
+      requestMetric.add(1);
+    }
+
+    export default function () {
+      // Each VU iteration: 3 requests per gateway = 9 requests total
+      testGateway(NGINX_IP, 'nginx', nginxLatency, nginxErrors, nginxRequests);
+      testGateway(TRAEFIK_IP, 'traefik', traefikLatency, traefikErrors, traefikRequests);
+      testGateway(ENVOY_IP, 'envoy', envoyLatency, envoyErrors, envoyRequests);
+
+      sleep(0.5); // Brief pause between iterations
+    }
+
+    export function handleSummary(data) {
+      console.log('=== GATEWAY COMPARISON LOAD TEST SUMMARY ===');
+
+      for (const gw of ['nginx', 'traefik', 'envoy']) {
+        const latency = data.metrics[`${gw}_latency`];
+        const errors = data.metrics[`${gw}_errors`];
+        const reqs = data.metrics[`${gw}_requests`];
+        if (latency && latency.values) {
+          console.log(`${gw}:`);
+          console.log(`  requests: ${reqs ? reqs.values.count : 'N/A'}`);
+          console.log(`  p50: ${latency.values['p(50)'].toFixed(2)}ms`);
+          console.log(`  p90: ${latency.values['p(90)'].toFixed(2)}ms`);
+          console.log(`  p99: ${latency.values['p(99)'].toFixed(2)}ms`);
+          console.log(`  error_rate: ${errors ? (errors.values.rate * 100).toFixed(1) : 'N/A'}%`);
+        }
+      }
+
+      return {};
+    }
+---
+# Endpoint discovery script
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: k6-discover-endpoints
+  namespace: gateway-comparison
+data:
+  discover-endpoints.sh: |
+    #!/bin/sh
+    set -e
+
+    echo "========================================="
+    echo "  GATEWAY ENDPOINT DISCOVERY"
+    echo "  Start: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    echo "========================================="
+
+    SHARED_DIR="/shared"
+    MAX_ATTEMPTS=30
+    POLL_INTERVAL=10
+
+    NGINX_IP=""
+    TRAEFIK_IP=""
+    ENVOY_IP=""
+
+    for attempt in $(seq 1 $MAX_ATTEMPTS); do
+      echo "[$(date -u +%H:%M:%S)] Discovery attempt $attempt/$MAX_ATTEMPTS..."
+
+      # NGINX Ingress LB IP
+      if [ -z "$NGINX_IP" ]; then
+        NGINX_IP=$(kubectl get svc ingress-nginx-controller -n ingress-nginx \
+          -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || true)
+        [ -n "$NGINX_IP" ] && echo "  Found NGINX IP: $NGINX_IP"
+      fi
+
+      # Traefik LB IP
+      if [ -z "$TRAEFIK_IP" ]; then
+        TRAEFIK_IP=$(kubectl get svc traefik -n traefik-system \
+          -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || true)
+        [ -n "$TRAEFIK_IP" ] && echo "  Found Traefik IP: $TRAEFIK_IP"
+      fi
+
+      # Envoy Gateway IP (from Gateway status)
+      if [ -z "$ENVOY_IP" ]; then
+        ENVOY_IP=$(kubectl get gateway envoy-gateway -n gateway-comparison \
+          -o jsonpath='{.status.addresses[0].value}' 2>/dev/null || true)
+        [ -n "$ENVOY_IP" ] && echo "  Found Envoy IP: $ENVOY_IP"
+      fi
+
+      # Check if all found
+      if [ -n "$NGINX_IP" ] && [ -n "$TRAEFIK_IP" ] && [ -n "$ENVOY_IP" ]; then
+        echo "All gateway IPs discovered!"
+        break
+      fi
+
+      if [ "$attempt" -eq "$MAX_ATTEMPTS" ]; then
+        echo "WARNING: Not all gateways discovered after $MAX_ATTEMPTS attempts"
+        echo "  NGINX: ${NGINX_IP:-NOT_FOUND}"
+        echo "  Traefik: ${TRAEFIK_IP:-NOT_FOUND}"
+        echo "  Envoy: ${ENVOY_IP:-NOT_FOUND}"
+        # Continue anyway with whatever we have
+        break
+      fi
+
+      sleep $POLL_INTERVAL
+    done
+
+    echo ""
+    echo "Verifying HTTP connectivity..."
+
+    verify_gateway() {
+      local name=$1
+      local ip=$2
+      if [ -z "$ip" ]; then
+        echo "  SKIP $name (no IP)"
+        return
+      fi
+      local code
+      code=$(wget -q -O /dev/null -S --timeout=5 "http://$ip/" 2>&1 | grep "HTTP/" | tail -1 | awk '{print $2}' || echo "FAIL")
+      echo "  $name ($ip): HTTP $code"
+    }
+
+    verify_gateway "NGINX" "$NGINX_IP"
+    verify_gateway "Traefik" "$TRAEFIK_IP"
+    verify_gateway "Envoy" "$ENVOY_IP"
+
+    # Write IPs to shared volume for k6 container
+    echo "$NGINX_IP" > "$SHARED_DIR/nginx_ip"
+    echo "$TRAEFIK_IP" > "$SHARED_DIR/traefik_ip"
+    echo "$ENVOY_IP" > "$SHARED_DIR/envoy_ip"
+
+    echo ""
+    echo "========================================="
+    echo "  WAITING 10 MINUTES FOR IDLE BASELINE"
+    echo "  Purpose: Let metrics capture idle state"
+    echo "  Wait start: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    echo "========================================="
+    sleep 600
+    echo "Idle baseline wait complete: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+    echo "Starting k6 load test..."
+---
+# k6 load test Job
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: k6-gateway-load-test
+  namespace: gateway-comparison
+  labels:
+    app: k6-gateway-load-test
+    experiment: gateway-comparison
+spec:
+  backoffLimit: 1
+  ttlSecondsAfterFinished: 3600
+  template:
+    metadata:
+      labels:
+        app: k6-gateway-load-test
+        experiment: gateway-comparison
+    spec:
+      serviceAccountName: benchmark-runner
+      restartPolicy: Never
+      volumes:
+        - name: k6-scripts
+          configMap:
+            name: k6-gateway-load-test
+        - name: discover-scripts
+          configMap:
+            name: k6-discover-endpoints
+            defaultMode: 0755
+        - name: shared
+          emptyDir: {}
+      initContainers:
+        - name: discover-endpoints
+          image: bitnami/kubectl:1.29
+          command: ["/scripts/discover-endpoints.sh"]
+          volumeMounts:
+            - name: discover-scripts
+              mountPath: /scripts
+            - name: shared
+              mountPath: /shared
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+      containers:
+        - name: k6
+          image: grafana/k6:0.54.0
+          command: [sh, -c]
+          args:
+            - |
+              # Read gateway IPs from shared volume
+              export NGINX_IP=$(cat /shared/nginx_ip 2>/dev/null || echo "")
+              export TRAEFIK_IP=$(cat /shared/traefik_ip 2>/dev/null || echo "")
+              export ENVOY_IP=$(cat /shared/envoy_ip 2>/dev/null || echo "")
+
+              echo "Gateway IPs:"
+              echo "  NGINX:   $NGINX_IP"
+              echo "  Traefik: $TRAEFIK_IP"
+              echo "  Envoy:   $ENVOY_IP"
+
+              if [ -z "$NGINX_IP" ] && [ -z "$TRAEFIK_IP" ] && [ -z "$ENVOY_IP" ]; then
+                echo "ERROR: No gateway IPs discovered, cannot run load test"
+                exit 1
+              fi
+
+              k6 run /scripts/gateway-load-test.js
+          volumeMounts:
+            - name: k6-scripts
+              mountPath: /scripts
+            - name: shared
+              mountPath: /shared
+          resources:
+            requests:
+              cpu: 200m
+              memory: 256Mi
+            limits:
+              cpu: "1"
+              memory: 512Mi

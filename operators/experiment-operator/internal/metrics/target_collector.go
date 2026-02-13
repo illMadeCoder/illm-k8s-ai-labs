@@ -232,7 +232,18 @@ func CollectMetricsFromTarget(ctx context.Context, kubeconfig []byte, endpoints 
 	stepSec := 60
 	fmt.Sscanf(strings.TrimSuffix(stepStr, "s"), "%d", &stepSec)
 
-	queries := defaultTargetQueries()
+	// Use custom queries from spec.metrics if defined, otherwise defaults
+	queries := exp.Spec.Metrics
+	if len(queries) == 0 {
+		queries = defaultTargetQueries()
+	}
+
+	// Build substitution variables (same as CollectMetricsSnapshot)
+	vars := map[string]string{
+		"$EXPERIMENT": exp.Name,
+		"$NAMESPACE":  exp.Namespace,
+		"$DURATION":   promDuration(duration),
+	}
 
 	// Try each verified endpoint until one works
 	for i, ep := range endpoints {
@@ -253,8 +264,9 @@ func CollectMetricsFromTarget(ctx context.Context, kubeconfig []byte, endpoints 
 		anySuccess := false
 
 		for _, mq := range queries {
+			resolvedQuery := substituteVars(mq.Query, vars)
 			qr := QueryResult{
-				Query:       mq.Query,
+				Query:       resolvedQuery,
 				Type:        mq.Type,
 				Unit:        mq.Unit,
 				Description: mq.Description,
@@ -265,9 +277,9 @@ func CollectMetricsFromTarget(ctx context.Context, kubeconfig []byte, endpoints 
 
 			switch mq.Type {
 			case "range":
-				data, queryErr = queryRangeViaProxy(ctx, restClient, ep, mq.Query, start, end, stepStr)
+				data, queryErr = queryRangeViaProxy(ctx, restClient, ep, resolvedQuery, start, end, stepStr)
 			case "instant":
-				data, queryErr = queryInstantViaProxy(ctx, restClient, ep, mq.Query, end)
+				data, queryErr = queryInstantViaProxy(ctx, restClient, ep, resolvedQuery, end)
 			}
 
 			if queryErr != nil {
