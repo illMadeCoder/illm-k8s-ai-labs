@@ -98,8 +98,31 @@ const chartId = `mermaid-${Math.random().toString(36).slice(2, 10)}`;
   }
 
   .mermaid-render :global(svg) {
-    max-width: 100%;
     height: auto;
+    display: block;
+  }
+
+  @media (max-width: 640px) {
+    .mermaid-container {
+      position: relative;
+      padding: 0.75rem;
+    }
+
+    .mermaid-container::after {
+      content: '';
+      position: absolute;
+      top: 0;
+      right: 0;
+      width: 2rem;
+      height: 100%;
+      background: linear-gradient(to right, transparent, var(--bg-card));
+      pointer-events: none;
+      border-radius: 0 var(--radius) var(--radius) 0;
+    }
+
+    .mermaid-container {
+      -webkit-overflow-scrolling: touch;
+    }
   }
 
   .mermaid-caption {
