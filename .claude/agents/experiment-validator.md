@@ -137,6 +137,24 @@ if [ -z "$GEN_NAME" ] || [ "$GEN_NAME" = "null" ]; then
   add_result "WARN" "No generateName set (recommended for unique experiment names)"
 fi
 
+# 10. GKE name length check
+# GKE name = "illm-" (5) + experimentName + "-" (1) + targetName + "-" (1) + xrSuffix (5) = 12 + len(experimentName) + len(targetName)
+# experimentName = generateNamePrefix + k8sSuffix (5 chars)
+# Total = 17 + len(generateNamePrefix) + len(targetName), must be <= 40
+if [ -n "$GEN_NAME" ] && [ "$GEN_NAME" != "null" ]; then
+  PREFIX_LEN=${#GEN_NAME}
+  GKE_OK=true
+  for TN in $TARGET_NAMES; do
+    TARGET_LEN=${#TN}
+    GKE_LEN=$((17 + PREFIX_LEN + TARGET_LEN))
+    if [ "$GKE_LEN" -gt 40 ]; then
+      add_result "FAIL" "GKE name for target \"$TN\" would be ${GKE_LEN} chars (limit 40). Shorten generateName or target name (prefix=${PREFIX_LEN} + target=${TARGET_LEN} + overhead=17 = ${GKE_LEN})"
+      GKE_OK=false
+    fi
+  done
+  $GKE_OK && add_result "PASS" "GKE name lengths within 40-char limit"
+fi
+
 # Summary
 if [ $FAIL -gt 0 ]; then
   STATUS="FAIL"

@@ -109,6 +109,94 @@ else
 fi
 echo ""
 
+# 6. Orphaned Crossplane Resources
+echo "--- Orphaned Crossplane Resources ---"
+ORPHAN_COUNT=0
+
+# Check for managed GKE cluster resources without parent XRs
+if kubectl api-resources --api-group=container.gcp.upbound.io &>/dev/null 2>&1; then
+  # Get managed Cluster resources (real GKE clusters)
+  MANAGED=$(kubectl get cluster.container.gcp.upbound.io --no-headers -A 2>/dev/null || true)
+  MANAGED_COUNT=$(echo "$MANAGED" | grep -c -v "^$" || true)
+
+  if [ "$MANAGED_COUNT" -gt 0 ]; then
+    # Get all XR names (composites that should own managed resources)
+    XR_NAMES=$(kubectl get composite --no-headers -A 2>/dev/null | awk "{print \$2}" || true)
+
+    echo "$MANAGED" | while IFS= read -r line; do
+      [ -z "$line" ] && continue
+      MR_NAME=$(echo "$line" | awk "{print \$2}")
+      # Managed resources created by compositions contain the XR name
+      HAS_PARENT=false
+      for XR in $XR_NAMES; do
+        if echo "$MR_NAME" | grep -q "$XR"; then
+          HAS_PARENT=true
+          break
+        fi
+      done
+      if ! $HAS_PARENT; then
+        echo "  ORPHAN (no parent XR): $MR_NAME"
+      fi
+    done
+    # Count orphans (subshell above can't update ORPHAN_COUNT, re-check)
+    for MR_NAME in $(echo "$MANAGED" | awk "{print \$2}"); do
+      HAS_PARENT=false
+      for XR in $XR_NAMES; do
+        if echo "$MR_NAME" | grep -q "$XR"; then
+          HAS_PARENT=true
+          break
+        fi
+      done
+      if ! $HAS_PARENT; then
+        ORPHAN_COUNT=$((ORPHAN_COUNT + 1))
+      fi
+    done
+  fi
+
+  # Check for XRs without matching claims
+  XR_LIST=$(kubectl get composite --no-headers -A 2>/dev/null || true)
+  CLAIM_LIST=$(kubectl get gkecluster.illm.io -n experiments --no-headers 2>/dev/null | awk "{print \$1}" || true)
+  echo "$XR_LIST" | while IFS= read -r line; do
+    [ -z "$line" ] && continue
+    XR_NAME=$(echo "$line" | awk "{print \$2}")
+    HAS_CLAIM=false
+    for CL in $CLAIM_LIST; do
+      if echo "$XR_NAME" | grep -q "$CL"; then
+        HAS_CLAIM=true
+        break
+      fi
+    done
+    if ! $HAS_CLAIM; then
+      echo "  ORPHAN (no matching claim): XR $XR_NAME"
+    fi
+  done
+  # Count XR orphans
+  for XR_NAME in $(echo "$XR_LIST" | awk "{print \$2}"); do
+    [ -z "$XR_NAME" ] && continue
+    HAS_CLAIM=false
+    for CL in $CLAIM_LIST; do
+      if echo "$XR_NAME" | grep -q "$CL"; then
+        HAS_CLAIM=true
+        break
+      fi
+    done
+    if ! $HAS_CLAIM; then
+      ORPHAN_COUNT=$((ORPHAN_COUNT + 1))
+    fi
+  done
+
+  if [ "$ORPHAN_COUNT" -eq 0 ]; then
+    echo "  No orphaned resources (managed: $MANAGED_COUNT)"
+  else
+    echo "  Found $ORPHAN_COUNT orphaned resources — these may consume GCP quota"
+    echo "  Recommendation: Delete orphans manually or re-create their parent claims"
+    ISSUES=$((ISSUES + ORPHAN_COUNT))
+  fi
+else
+  echo "  SKIP: GCP Upbound provider CRDs not available"
+fi
+echo ""
+
 # Summary
 echo "========================================"
 if [ "$ISSUES" -eq 0 ]; then

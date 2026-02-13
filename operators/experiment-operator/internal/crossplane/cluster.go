@@ -50,6 +50,13 @@ func (m *ClusterManager) CreateCluster(ctx context.Context, experimentName strin
 		return "hub", nil
 	}
 
+	// GKE name = "illm-" (5) + clusterName + "-" (1) + xrSuffix (5) = clusterName + 11
+	// Must not exceed 40 chars
+	gkeNameLen := len(clusterName) + 11
+	if gkeNameLen > 40 {
+		return "", fmt.Errorf("GKE cluster name would be %d chars (limit 40): reduce experiment generateName or target name (clusterName=%q)", gkeNameLen, clusterName)
+	}
+
 	claim := buildGKEClusterClaim(clusterName, target.Cluster)
 
 	if err := m.Create(ctx, claim); err != nil {
