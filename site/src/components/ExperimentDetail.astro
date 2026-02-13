@@ -70,6 +70,12 @@ const verdictLabel = verdict
   <MetricCard label="Workflow" value={experiment.workflow.phase} />
 </div>
 
+{analysis?.architectureDiagram && (
+  <div class="architecture-hero">
+    <ArchitectureDiagram diagram={analysis.architectureDiagram} format={analysis.architectureDiagramFormat} />
+  </div>
+)}
+
 <details class="section">
   <summary class="section-title">Metadata</summary>
   <TargetTable targets={experiment.targets} />
@@ -160,14 +166,6 @@ const verdictLabel = verdict
             <div class="focus-tags">
               {experiment.study.focus.map((f) => <span class="focus-tag">{f}</span>)}
             </div>
-          </div>
-        </details>
-      )}
-      {analysis?.architectureDiagram && (
-        <details class="overview-item" open>
-          <summary class="overview-item-title">Architecture</summary>
-          <div class="overview-item-content">
-            <ArchitectureDiagram diagram={analysis.architectureDiagram} format={analysis.architectureDiagramFormat} />
           </div>
         </details>
       )}
@@ -277,16 +275,16 @@ const verdictLabel = verdict
   .verdict-value {
     font-size: 1.05rem;
   }
-  .verdict-supported {
+  .verdict-validated {
     background: color-mix(in srgb, #22c55e 15%, var(--bg-surface));
   }
-  .verdict-supported .verdict-value {
+  .verdict-validated .verdict-value {
     color: #22c55e;
   }
-  .verdict-unsupported {
+  .verdict-invalidated {
     background: color-mix(in srgb, #ef4444 15%, var(--bg-surface));
   }
-  .verdict-unsupported .verdict-value {
+  .verdict-invalidated .verdict-value {
     color: #ef4444;
   }
   .verdict-insufficient {
@@ -309,11 +307,11 @@ const verdictLabel = verdict
     border-radius: 2px;
     text-transform: capitalize;
   }
-  .verdict-badge-supported {
+  .verdict-badge-validated {
     background: color-mix(in srgb, #22c55e 15%, transparent);
     color: #22c55e;
   }
-  .verdict-badge-unsupported {
+  .verdict-badge-invalidated {
     background: color-mix(in srgb, #ef4444 15%, transparent);
     color: #ef4444;
   }
@@ -465,6 +463,17 @@ const verdictLabel = verdict
     font-size: 0.9rem;
     color: var(--text);
     line-height: 1.65;
+  }
+
+  .architecture-hero {
+    margin: 2rem -0.5rem;
+  }
+  .architecture-hero :global(.mermaid-container) {
+    padding: 1.5rem 2rem;
+  }
+  .architecture-hero :global(.arch-diagram) {
+    padding: 1.5rem 2rem;
+    margin: 0;
   }
 
   @media (max-width: 640px) {
