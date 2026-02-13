@@ -15,6 +15,14 @@ spec:
         value: ""
       - name: target-name
         value: ""
+      - name: app-endpoint
+        value: ""
+      - name: app-name
+        value: ""
+      - name: loadgen-endpoint
+        value: ""
+      - name: loadgen-name
+        value: ""
   entrypoint: validate-and-observe
   serviceAccountName: argo-workflow
   templates:
@@ -33,24 +41,28 @@ spec:
         command: [sh, -c]
         args:
           - |
-            ENDPOINT="{{workflow.parameters.target-endpoint}}"
+            ENDPOINT="{{workflow.parameters.app-endpoint}}"
+            # Fall back to generic target-endpoint for backward compat
+            if [ -z "${ENDPOINT}" ]; then
+              ENDPOINT="{{workflow.parameters.target-endpoint}}"
+            fi
             EXP="{{workflow.parameters.experiment-name}}"
             echo "=== Gateway Comparison v2: ${EXP} ==="
-            echo "Target endpoint: ${ENDPOINT}"
+            echo "App endpoint: ${ENDPOINT}"
 
             if [ -z "${ENDPOINT}" ]; then
               echo "No target endpoint, skipping check"
               exit 0
             fi
 
-            echo "Checking target cluster API server..."
+            echo "Checking app cluster API server..."
             HTTP_CODE=$(curl -sk -o /dev/null -w '%{http_code}' --connect-timeout 10 "https://${ENDPOINT}/livez" || true)
             echo "API server /livez returned: ${HTTP_CODE}"
 
             if [ "${HTTP_CODE}" = "401" ] || [ "${HTTP_CODE}" = "403" ] || [ "${HTTP_CODE}" = "200" ]; then
-              echo "Target cluster is reachable (HTTP ${HTTP_CODE})"
+              echo "App cluster is reachable (HTTP ${HTTP_CODE})"
             else
-              echo "WARNING: Could not reach target (HTTP ${HTTP_CODE}) — may be transient"
+              echo "WARNING: Could not reach app cluster (HTTP ${HTTP_CODE}) — may be transient"
             fi
 
             echo "Smoke test passed — ArgoCD has already deployed all components"
@@ -99,7 +111,7 @@ spec:
             echo ">>> PHASE 1: IDLE BASELINE (0-10 min)"
             echo ">>> Observing: NGINX Ingress, Traefik, Envoy Gateway"
             echo ">>> Purpose: Capture idle resource footprint before load"
-            echo ">>> k6 init container is discovering gateway endpoints..."
+            echo ">>> k6 init container is discovering gateway endpoints on loadgen cluster..."
             echo ">>> Start: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
             sleep 600
             echo ">>> PHASE 1 COMPLETE: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
@@ -107,7 +119,7 @@ spec:
 
             # Phase 2: Load test period (10-30 min)
             echo ">>> PHASE 2: LOAD TEST PERIOD (10-30 min)"
-            echo ">>> k6 Job running independently on target cluster"
+            echo ">>> k6 Job running independently on loadgen cluster"
             echo ">>> Load profile: warmup 1VU → ramp 10VU → hold → ramp 50VU → hold → cooldown"
             echo ">>> k6 duration: ~16 min (started after 10min idle baseline)"
             echo ">>> Start: $(date -u +%Y-%m-%dT%H:%M:%SZ)"

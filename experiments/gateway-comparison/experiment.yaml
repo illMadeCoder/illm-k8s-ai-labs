@@ -164,6 +164,13 @@ spec:
         - app: nginx
           params:
             replicaCount: "2"
+    - name: loadgen
+      cluster:
+        type: gke
+        machineType: e2-standard-2
+        preemptible: true
+      components:
+        - app: k6-gateway-loadtest
 
   workflow:
     template: gateway-comparison-validation

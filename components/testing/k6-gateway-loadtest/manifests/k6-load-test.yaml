@@ -1,14 +1,13 @@
-# Gateway Comparison v2 — k6 Load Test
-# Deployed by ArgoCD as part of the gateway-comparison manifests.
-# Init container discovers gateway endpoints, waits for idle baseline,
-# then k6 runs a 16-minute multi-stage load test against all 3 gateways.
+# Gateway Comparison — k6 Load Test (cross-cluster)
+# Deployed by ArgoCD to the loadgen cluster.
+# Init container discovers gateway endpoints on the app cluster via mounted kubeconfig,
+# waits for idle baseline, then k6 runs a 16-minute multi-stage load test against all 3 gateways.
 ---
 # k6 test script
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: k6-gateway-load-test
-  namespace: gateway-comparison
 data:
   gateway-load-test.js: |
     import http from 'k6/http';
@@ -119,21 +118,23 @@ data:
       return {};
     }
 ---
-# Endpoint discovery script
+# Endpoint discovery script (uses cross-cluster kubeconfig)
 apiVersion: v1
 kind: ConfigMap
 metadata:
   name: k6-discover-endpoints
-  namespace: gateway-comparison
 data:
   discover-endpoints.sh: |
     #!/bin/sh
     set -e
 
     echo "========================================="
-    echo "  GATEWAY ENDPOINT DISCOVERY"
+    echo "  GATEWAY ENDPOINT DISCOVERY (cross-cluster)"
     echo "  Start: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
     echo "========================================="
+
+    # Use app cluster kubeconfig mounted from Secret
+    export KUBECONFIG=/app-kubeconfig/kubeconfig
 
     SHARED_DIR="/shared"
     MAX_ATTEMPTS=30
@@ -219,12 +220,11 @@ data:
     echo "Idle baseline wait complete: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
     echo "Starting k6 load test..."
 ---
-# k6 load test Job
+# k6 load test Job (cross-cluster)
 apiVersion: batch/v1
 kind: Job
 metadata:
   name: k6-gateway-load-test
-  namespace: gateway-comparison
   labels:
     app: k6-gateway-load-test
     experiment: gateway-comparison
@@ -237,7 +237,6 @@ spec:
         app: k6-gateway-load-test
         experiment: gateway-comparison
     spec:
-      serviceAccountName: benchmark-runner
       restartPolicy: Never
       volumes:
         - name: k6-scripts
@@ -249,6 +248,9 @@ spec:
             defaultMode: 0755
         - name: shared
           emptyDir: {}
+        - name: app-kubeconfig
+          secret:
+            secretName: app-cluster-kubeconfig
       initContainers:
         - name: discover-endpoints
           image: bitnami/kubectl:1.29
@@ -258,6 +260,9 @@ spec:
               mountPath: /scripts
             - name: shared
               mountPath: /shared
+            - name: app-kubeconfig
+              mountPath: /app-kubeconfig
+              readOnly: true
           resources:
             requests:
               cpu: 50m

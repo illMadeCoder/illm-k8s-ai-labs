@@ -1,0 +1,12 @@
+apiVersion: experiments.illm.io/v1alpha1
+kind: Component
+metadata:
+  name: k6-gateway-loadtest
+spec:
+  type: testing
+  description: "k6 load test for gateway comparison — runs on a separate loadgen cluster, discovers gateway endpoints via cross-cluster kubeconfig"
+
+  sources:
+    - repoURL: https://github.com/illMadeCoder/k8s-ai-cloud-testbed.git
+      targetRevision: HEAD
+      path: components/testing/k6-gateway-loadtest/manifests
