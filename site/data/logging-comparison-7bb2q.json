@@ -1,0 +1,238 @@
+{
+  "name": "logging-comparison-7bb2q",
+  "namespace": "experiments",
+  "description": "Loki vs Elasticsearch logging comparison v3 — phased observation (warm-up/steady-state/cooldown) with per-stack resource profiling over 75-min window, informed by 21 prior runs",
+  "createdAt": "2026-02-13T02:52:47Z",
+  "completedAt": "2026-02-13T04:21:13.584735999Z",
+  "durationSeconds": 5306.584735999,
+  "phase": "Complete",
+  "tags": [
+    "comparison",
+    "observability",
+    "logging"
+  ],
+  "hypothesis": {
+    "claim": "Loki will consume 40-60% fewer CPU cores and 50-70% less memory than Elasticsearch at steady-state because it indexes only label metadata rather than full log content, but Elasticsearch's inverted index will enable richer ad-hoc full-text queries that LogQL's label-based filtering cannot match — prior runs consistently showed Loki's resource advantage but were too short to capture ES index stabilization",
+    "questions": [
+      "What is the steady-state CPU and memory delta between the Loki stack (loki+promtail) and ES stack (elasticsearch+fluent-bit) after ES index warm-up completes?",
+      "How does Elasticsearch resource usage change across warm-up vs steady-state phases as index segments merge?",
+      "What is the per-component resource breakdown — how much do the collectors (promtail, fluent-bit) contribute vs the backends (loki, elasticsearch)?",
+      "Which stack is more cost-effective for a small-to-medium Kubernetes cluster at 100 logs/sec sustained?"
+    ],
+    "focus": [
+      "resource efficiency after warm-up",
+      "phase-aware resource profiling",
+      "per-component resource attribution",
+      "storage architecture trade-offs",
+      "operational complexity"
+    ]
+  },
+  "analyzerConfig": {
+    "sections": [
+      "abstract",
+      "targetAnalysis",
+      "performanceAnalysis",
+      "metricInsights",
+      "finopsAnalysis",
+      "secopsAnalysis",
+      "body",
+      "capabilitiesMatrix",
+      "feedback",
+      "architectureDiagram"
+    ]
+  },
+  "targets": [
+    {
+      "name": "app",
+      "clusterName": "logging-comparison-7bb2q-app",
+      "clusterType": "gke",
+      "machineType": "e2-standard-8",
+      "nodeCount": 1
+    }
+  ],
+  "workflow": {
+    "name": "logging-comparison-7bb2q-validation",
+    "template": "logging-comparison-v3",
+    "phase": "Succeeded",
+    "startedAt": "2026-02-13T03:05:35Z",
+    "finishedAt": "2026-02-13T04:21:08Z"
+  },
+  "metrics": {
+    "collectedAt": "2026-02-13T04:21:13.792787167Z",
+    "source": "target:cadvisor",
+    "timeRange": {
+      "start": "2026-02-13T02:52:47Z",
+      "end": "2026-02-13T04:21:13.792787167Z",
+      "duration": "1h28m26.792787167s",
+      "stepSeconds": 0
+    },
+    "queries": {
+      "cpu_by_pod": {
+        "query": "container_cpu_usage_seconds_total by pod (cadvisor)",
+        "type": "instant",
+        "unit": "cores",
+        "description": "CPU usage by pod (cumulative seconds)",
+        "data": [
+          {
+            "labels": {
+              "pod": "kube-state-metrics-0"
+            },
+            "timestamp": "2026-02-13T04:21:13.792787167Z",
+            "value": 3.6948000000000003
+          },
+          {
+            "labels": {
+              "pod": "log-generator-7bdc6bdb75-mnt2k"
+            },
+            "timestamp": "2026-02-13T04:21:13.792787167Z",
+            "value": 14.464635
+          },
+          {
+            "labels": {
+              "pod": "loki-canary-t5zfz"
+            },
+            "timestamp": "2026-02-13T04:21:13.792787167Z",
+            "value": 48.385981
+          },
+          {
+            "labels": {
+              "pod": "loki-gateway-7f47fd4cd6-nnsdv"
+            },
+            "timestamp": "2026-02-13T04:21:13.792787167Z",
+            "value": 0.631471
+          },
+          {
+            "labels": {
+              "pod": "operator-64d66c8747-7lfrx"
+            },
+            "timestamp": "2026-02-13T04:21:13.792787167Z",
+            "value": 7.373411
+          },
+          {
+            "labels": {
+              "pod": "promtail-rxj26"
+            },
+            "timestamp": "2026-02-13T04:21:13.792787167Z",
+            "value": 81.906346
+          },
+          {
+            "labels": {
+              "pod": "elasticsearch-master-0"
+            },
+            "timestamp": "2026-02-13T04:21:13.792787167Z",
+            "value": 115.712541
+          },
+          {
+            "labels": {
+              "pod": "fluent-bit-n8s8c"
+            },
+            "timestamp": "2026-02-13T04:21:13.792787167Z",
+            "value": 13.058066
+          }
+        ]
+      },
+      "cpu_total": {
+        "query": "sum(container_cpu_usage_seconds_total) (cadvisor)",
+        "type": "instant",
+        "unit": "cores",
+        "description": "Total CPU usage (cumulative seconds)",
+        "data": [
+          {
+            "labels": {
+              "scope": "total"
+            },
+            "timestamp": "2026-02-13T04:21:13.792787167Z",
+            "value": 285.227251
+          }
+        ]
+      },
+      "memory_by_pod": {
+        "query": "container_memory_working_set_bytes by pod (cadvisor)",
+        "type": "instant",
+        "unit": "bytes",
+        "description": "Memory working set by pod",
+        "data": [
+          {
+            "labels": {
+              "pod": "elasticsearch-master-0"
+            },
+            "timestamp": "2026-02-13T04:21:13.792787167Z",
+            "value": 1477251072
+          },
+          {
+            "labels": {
+              "pod": "fluent-bit-n8s8c"
+            },
+            "timestamp": "2026-02-13T04:21:13.792787167Z",
+            "value": 16916480
+          },
+          {
+            "labels": {
+              "pod": "kube-state-metrics-0"
+            },
+            "timestamp": "2026-02-13T04:21:13.792787167Z",
+            "value": 31137792
+          },
+          {
+            "labels": {
+              "pod": "log-generator-7bdc6bdb75-mnt2k"
+            },
+            "timestamp": "2026-02-13T04:21:13.792787167Z",
+            "value": 4669440
+          },
+          {
+            "labels": {
+              "pod": "loki-canary-t5zfz"
+            },
+            "timestamp": "2026-02-13T04:21:13.792787167Z",
+            "value": 14598144
+          },
+          {
+            "labels": {
+              "pod": "loki-gateway-7f47fd4cd6-nnsdv"
+            },
+            "timestamp": "2026-02-13T04:21:13.792787167Z",
+            "value": 12439552
+          },
+          {
+            "labels": {
+              "pod": "operator-64d66c8747-7lfrx"
+            },
+            "timestamp": "2026-02-13T04:21:13.792787167Z",
+            "value": 31711232
+          },
+          {
+            "labels": {
+              "pod": "promtail-rxj26"
+            },
+            "timestamp": "2026-02-13T04:21:13.792787167Z",
+            "value": 50331648
+          }
+        ]
+      },
+      "memory_total": {
+        "query": "sum(container_memory_working_set_bytes) (cadvisor)",
+        "type": "instant",
+        "unit": "bytes",
+        "description": "Total memory working set",
+        "data": [
+          {
+            "labels": {
+              "scope": "total"
+            },
+            "timestamp": "2026-02-13T04:21:13.792787167Z",
+            "value": 1639055360
+          }
+        ]
+      }
+    }
+  },
+  "costEstimate": {
+    "totalUSD": 0.0790091505137629,
+    "durationHours": 1.4740513155552777,
+    "perTarget": {
+      "app": 0.0790091505137629
+    },
+    "note": "Rough estimate based on on-demand GCE pricing; actual cost may differ."
+  }
+}
