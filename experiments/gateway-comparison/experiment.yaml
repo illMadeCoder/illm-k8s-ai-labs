@@ -1,7 +1,7 @@
 apiVersion: experiments.illm.io/v1alpha1
 kind: Experiment
 metadata:
-  generateName: gateway-comparison-
+  generateName: gw-comp-
   namespace: experiments
 spec:
   description: "Gateway comparison v2 — NGINX Ingress vs Traefik vs Envoy Gateway with load testing, per-gateway resource profiling, and latency benchmarks"
