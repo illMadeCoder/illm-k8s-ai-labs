@@ -134,6 +134,7 @@ spec:
                   memory: 512Mi
 ---
 # GCP container provider (CRD-only for GKE)
+# Note: 128Mi OOM'd during active cluster+nodepool reconciliation; bumped to 256Mi
 apiVersion: pkg.crossplane.io/v1beta1
 kind: DeploymentRuntimeConfig
 metadata:
@@ -159,10 +160,10 @@ spec:
               resources:
                 requests:
                   cpu: 10m
-                  memory: 64Mi
-                limits:
-                  cpu: 100m
                   memory: 128Mi
+                limits:
+                  cpu: 200m
+                  memory: 256Mi
 ---
 # GCP compute provider (CRD-only for VPC/networking)
 # Note: Compute provider has many CRDs and needs more memory than storage/container
