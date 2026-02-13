@@ -260,6 +260,11 @@ type Target struct {
 	// Observability configuration
 	// +optional
 	Observability *ObservabilitySpec `json:"observability,omitempty"`
+
+	// Depends lists other target names that must have healthy ArgoCD apps
+	// before this target's apps are created. Used for ordered multi-target deployment.
+	// +optional
+	Depends []string `json:"depends,omitempty"`
 }
 
 // ClusterSpec defines cluster configuration
@@ -485,6 +490,11 @@ type TargetStatus struct {
 	// for this target. Values: "infra", "obs", "workload".
 	// +optional
 	DeployedLayers []string `json:"deployedLayers,omitempty"`
+
+	// AppsCreated tracks whether ArgoCD apps have been created for this target.
+	// Used for dependency gating in multi-target experiments.
+	// +optional
+	AppsCreated bool `json:"appsCreated,omitempty"`
 }
 
 // WorkflowStatus represents the status of the experiment workflow

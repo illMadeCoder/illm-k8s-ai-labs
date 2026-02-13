@@ -921,9 +921,22 @@ func (r *ExperimentReconciler) reconcileProvisioning(ctx context.Context, exp *e
 		return ctrl.Result{RequeueAfter: 10 * time.Second}, nil
 	}
 
-	// Register clusters with ArgoCD and create Applications
+	// Register clusters with ArgoCD and create Applications.
+	// Targets with depends are deferred until their dependencies have healthy apps.
 	for i, target := range exp.Spec.Targets {
 		if exp.Status.Targets[i].Phase != "Ready" {
+			continue
+		}
+
+		// Skip targets that already have apps created
+		if exp.Status.Targets[i].AppsCreated {
+			continue
+		}
+
+		// Skip targets whose dependencies aren't healthy yet
+		if len(target.Depends) > 0 && !r.areDependenciesHealthy(ctx, exp, target.Depends) {
+			log.Info("Skipping target — dependencies not healthy yet",
+				"target", target.Name, "depends", target.Depends)
 			continue
 		}
 
@@ -955,6 +968,7 @@ func (r *ExperimentReconciler) reconcileProvisioning(ctx context.Context, exp *e
 				log.Error(err, "Failed to create application for hub target", "target", target.Name)
 				continue
 			}
+			exp.Status.Targets[i].AppsCreated = true
 			log.Info("Created ArgoCD Application for hub target (no cluster registration needed)", "target", target.Name)
 			continue
 		}
@@ -981,6 +995,7 @@ func (r *ExperimentReconciler) reconcileProvisioning(ctx context.Context, exp *e
 					continue
 				}
 				exp.Status.Targets[i].DeployedLayers = deployedLayers
+				exp.Status.Targets[i].AppsCreated = true
 				log.Info("Created layered ArgoCD Applications (infra+obs), workload deferred",
 					"cluster", clusterName, "layers", deployedLayers)
 				continue
@@ -993,6 +1008,7 @@ func (r *ExperimentReconciler) reconcileProvisioning(ctx context.Context, exp *e
 			continue
 		}
 
+		exp.Status.Targets[i].AppsCreated = true
 		log.Info("Registered cluster with ArgoCD and created applications", "cluster", clusterName)
 	}
 
@@ -1023,9 +1039,9 @@ func (r *ExperimentReconciler) reconcileProvisioning(ctx context.Context, exp *e
 		}
 	}
 
-	// Copy app cluster kubeconfig to loadgen clusters for cross-cluster access
-	if err := r.copyAppKubeconfigToLoadgen(ctx, exp); err != nil {
-		log.Error(err, "Failed to copy app kubeconfig to loadgen clusters")
+	// Copy cross-cluster kubeconfigs between non-hub targets
+	if err := r.copyTargetKubeconfigs(ctx, exp); err != nil {
+		log.Error(err, "Failed to copy cross-cluster kubeconfigs")
 		// Non-fatal: continue with phase transition
 	}
 
@@ -1037,7 +1053,24 @@ func (r *ExperimentReconciler) reconcileProvisioning(ctx context.Context, exp *e
 		}
 	}
 
-	// All clusters ready, transition to Ready phase
+	// Don't transition to Ready until ALL targets have ArgoCD apps created.
+	// Targets waiting on dependencies will be created on the next reconcile.
+	allAppsCreated := true
+	for i := range exp.Status.Targets {
+		if !exp.Status.Targets[i].AppsCreated {
+			allAppsCreated = false
+			break
+		}
+	}
+	if !allAppsCreated {
+		if err := r.Status().Update(ctx, exp); err != nil {
+			log.Error(err, "Failed to update status")
+			return ctrl.Result{}, err
+		}
+		return ctrl.Result{RequeueAfter: 15 * time.Second}, nil
+	}
+
+	// All clusters ready and all apps created, transition to Ready phase
 	exp.Status.Phase = experimentsv1alpha1.PhaseReady
 	if err := r.Status().Update(ctx, exp); err != nil {
 		log.Error(err, "Failed to update status to Ready")
@@ -1442,109 +1475,158 @@ func (r *ExperimentReconciler) copyTailscaleSecret(ctx context.Context, targetKu
 	return nil
 }
 
-// copyAppKubeconfigToLoadgen copies the "app" target's kubeconfig to non-app GKE targets
-// as a Secret, so components on those targets (e.g. k6 load generators) can access the app cluster.
-func (r *ExperimentReconciler) copyAppKubeconfigToLoadgen(ctx context.Context, exp *experimentsv1alpha1.Experiment) error {
+// copyTargetKubeconfigs copies every non-hub target's kubeconfig to every other
+// non-hub target as a Secret named "{source-target-name}-cluster-kubeconfig".
+// This enables cross-cluster access (e.g., k6 on loadgen accessing app cluster).
+// Backward compatible: "app" source creates "app-cluster-kubeconfig".
+func (r *ExperimentReconciler) copyTargetKubeconfigs(ctx context.Context, exp *experimentsv1alpha1.Experiment) error {
 	log := logf.FromContext(ctx)
 
-	// Find the "app" target's kubeconfig
-	var appKubeconfig []byte
-	for i, target := range exp.Spec.Targets {
-		if target.Name != "app" {
-			continue
-		}
-		if i >= len(exp.Status.Targets) || exp.Status.Targets[i].ClusterName == "" {
-			return nil // App target not ready yet
-		}
-		var err error
-		appKubeconfig, err = r.ClusterManager.GetClusterKubeconfig(ctx, exp.Status.Targets[i].ClusterName, target.Cluster.Type)
-		if err != nil {
-			return fmt.Errorf("failed to get app cluster kubeconfig: %w", err)
-		}
-		break
+	// Collect all non-hub targets with ready kubeconfigs
+	type targetKC struct {
+		name       string
+		idx        int
+		kubeconfig []byte
 	}
-	if appKubeconfig == nil {
-		return nil // No app target found
-	}
-
-	// Copy to each non-app, non-hub GKE target
+	var targets []targetKC
 	for i, target := range exp.Spec.Targets {
-		if target.Name == "app" || target.Cluster.Type == "hub" {
+		if target.Cluster.Type == "hub" {
 			continue
 		}
 		if i >= len(exp.Status.Targets) || exp.Status.Targets[i].ClusterName == "" {
 			continue
 		}
-
-		clusterName := exp.Status.Targets[i].ClusterName
-		loadgenKubeconfig, err := r.ClusterManager.GetClusterKubeconfig(ctx, clusterName, target.Cluster.Type)
+		kc, err := r.ClusterManager.GetClusterKubeconfig(ctx, exp.Status.Targets[i].ClusterName, target.Cluster.Type)
 		if err != nil {
-			log.Error(err, "Failed to get loadgen kubeconfig", "cluster", clusterName)
+			log.Error(err, "Failed to get kubeconfig for cross-cluster copy", "target", target.Name)
 			continue
 		}
+		targets = append(targets, targetKC{name: target.Name, idx: i, kubeconfig: kc})
+	}
 
-		// Build client for loadgen cluster
-		targetCfg, err := clientcmd.RESTConfigFromKubeConfig(loadgenKubeconfig)
-		if err != nil {
-			log.Error(err, "Failed to parse loadgen kubeconfig", "cluster", clusterName)
-			continue
-		}
-		targetClient, err := kubernetes.NewForConfig(targetCfg)
-		if err != nil {
-			log.Error(err, "Failed to create loadgen clientset", "cluster", clusterName)
-			continue
-		}
+	// Need at least 2 non-hub targets for cross-cluster copies
+	if len(targets) < 2 {
+		return nil
+	}
 
-		// Ensure experiment namespace exists on loadgen
-		ns := &corev1.Namespace{
-			ObjectMeta: metav1.ObjectMeta{
-				Name: exp.Name,
-			},
-		}
-		if _, err := targetClient.CoreV1().Namespaces().Create(ctx, ns, metav1.CreateOptions{}); err != nil {
-			if !errors.IsAlreadyExists(err) {
-				log.Error(err, "Failed to create namespace on loadgen", "cluster", clusterName, "namespace", exp.Name)
+	// Copy each target's kubeconfig to every other target
+	for _, src := range targets {
+		for _, dst := range targets {
+			if src.name == dst.name {
 				continue
 			}
-		}
 
-		// Create or update the app-cluster-kubeconfig Secret
-		secretName := "app-cluster-kubeconfig"
-		secret := &corev1.Secret{
-			ObjectMeta: metav1.ObjectMeta{
-				Name:      secretName,
-				Namespace: exp.Name,
-				Labels: map[string]string{
-					"experiment": exp.Name,
+			dstCfg, err := clientcmd.RESTConfigFromKubeConfig(dst.kubeconfig)
+			if err != nil {
+				log.Error(err, "Failed to parse destination kubeconfig", "source", src.name, "destination", dst.name)
+				continue
+			}
+			dstClient, err := kubernetes.NewForConfig(dstCfg)
+			if err != nil {
+				log.Error(err, "Failed to create destination clientset", "source", src.name, "destination", dst.name)
+				continue
+			}
+
+			// Ensure experiment namespace exists on destination
+			ns := &corev1.Namespace{
+				ObjectMeta: metav1.ObjectMeta{Name: exp.Name},
+			}
+			if _, err := dstClient.CoreV1().Namespaces().Create(ctx, ns, metav1.CreateOptions{}); err != nil {
+				if !errors.IsAlreadyExists(err) {
+					log.Error(err, "Failed to create namespace on destination", "destination", dst.name, "namespace", exp.Name)
+					continue
+				}
+			}
+
+			// Secret name: {source}-cluster-kubeconfig (backward compat with "app-cluster-kubeconfig")
+			secretName := fmt.Sprintf("%s-cluster-kubeconfig", src.name)
+			secret := &corev1.Secret{
+				ObjectMeta: metav1.ObjectMeta{
+					Name:      secretName,
+					Namespace: exp.Name,
+					Labels:    map[string]string{"experiment": exp.Name},
 				},
-			},
-			Data: map[string][]byte{
-				"kubeconfig": appKubeconfig,
-			},
-		}
-		if _, err := targetClient.CoreV1().Secrets(exp.Name).Create(ctx, secret, metav1.CreateOptions{}); err != nil {
-			if errors.IsAlreadyExists(err) {
-				existing, getErr := targetClient.CoreV1().Secrets(exp.Name).Get(ctx, secretName, metav1.GetOptions{})
-				if getErr != nil {
-					log.Error(getErr, "Failed to get existing app kubeconfig secret on loadgen", "cluster", clusterName)
-					continue
-				}
-				existing.Data = secret.Data
-				if _, updateErr := targetClient.CoreV1().Secrets(exp.Name).Update(ctx, existing, metav1.UpdateOptions{}); updateErr != nil {
-					log.Error(updateErr, "Failed to update app kubeconfig secret on loadgen", "cluster", clusterName)
-					continue
-				}
-				log.Info("Updated app cluster kubeconfig on loadgen cluster", "cluster", clusterName)
-			} else {
-				log.Error(err, "Failed to create app kubeconfig secret on loadgen", "cluster", clusterName)
-				continue
+				Data: map[string][]byte{"kubeconfig": src.kubeconfig},
 			}
-		} else {
-			log.Info("Copied app cluster kubeconfig to loadgen cluster", "cluster", clusterName, "namespace", exp.Name)
+			if _, err := dstClient.CoreV1().Secrets(exp.Name).Create(ctx, secret, metav1.CreateOptions{}); err != nil {
+				if errors.IsAlreadyExists(err) {
+					existing, getErr := dstClient.CoreV1().Secrets(exp.Name).Get(ctx, secretName, metav1.GetOptions{})
+					if getErr != nil {
+						log.Error(getErr, "Failed to get existing kubeconfig secret", "source", src.name, "destination", dst.name)
+						continue
+					}
+					existing.Data = secret.Data
+					if _, updateErr := dstClient.CoreV1().Secrets(exp.Name).Update(ctx, existing, metav1.UpdateOptions{}); updateErr != nil {
+						log.Error(updateErr, "Failed to update kubeconfig secret", "source", src.name, "destination", dst.name)
+						continue
+					}
+				} else {
+					log.Error(err, "Failed to create kubeconfig secret", "source", src.name, "destination", dst.name)
+					continue
+				}
+			}
+			log.Info("Copied cross-cluster kubeconfig", "source", src.name, "destination", dst.name, "secret", secretName)
 		}
 	}
 
 	return nil
+}
+
+// areDependenciesHealthy checks whether all named dependency targets have created
+// their ArgoCD apps and those apps are healthy. Used to gate dependent target deployment.
+func (r *ExperimentReconciler) areDependenciesHealthy(
+	ctx context.Context, exp *experimentsv1alpha1.Experiment, deps []string,
+) bool {
+	log := logf.FromContext(ctx)
+
+	for _, depName := range deps {
+		// Find the dependency target
+		depIdx := -1
+		for i, t := range exp.Spec.Targets {
+			if t.Name == depName {
+				depIdx = i
+				break
+			}
+		}
+		if depIdx < 0 || depIdx >= len(exp.Status.Targets) {
+			log.Info("Dependency target not found", "depends", depName)
+			return false
+		}
+
+		depStatus := exp.Status.Targets[depIdx]
+		if !depStatus.AppsCreated {
+			return false
+		}
+
+		// Check if dependency's ArgoCD apps are healthy
+		target := exp.Spec.Targets[depIdx]
+		if target.Observability != nil && target.Observability.Enabled &&
+			len(depStatus.DeployedLayers) > 0 {
+			// Layered: check all deployed layers
+			for _, layer := range depStatus.DeployedLayers {
+				healthy, err := r.ArgoCD.AppManager.IsLayerHealthy(ctx, exp.Name, depName, layer)
+				if err != nil {
+					log.Error(err, "Failed to check dependency layer health",
+						"depends", depName, "layer", layer)
+					return false
+				}
+				if !healthy {
+					return false
+				}
+			}
+		} else {
+			// Non-layered: single app check
+			healthy, err := r.ArgoCD.AppManager.IsApplicationHealthy(ctx, exp.Name, depName)
+			if err != nil {
+				log.Error(err, "Failed to check dependency app health", "depends", depName)
+				return false
+			}
+			if !healthy {
+				return false
+			}
+		}
+	}
+	return true
 }
 
 // discoverTutorialServices queries target clusters for services listed in spec.tutorial.services

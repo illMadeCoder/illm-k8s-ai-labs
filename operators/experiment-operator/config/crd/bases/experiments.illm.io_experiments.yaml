@@ -477,6 +477,10 @@ spec:
                   description: TargetStatus represents the status of a deployment
                     target
                   properties:
+                    appsCreated:
+                      description: AppsCreated tracks whether ArgoCD apps have been
+                        created for this target.
+                      type: boolean
                     clusterName:
                       type: string
                     components:
