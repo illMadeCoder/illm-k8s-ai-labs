@@ -7,12 +7,12 @@
     },
     {
       "id": "ecosystem-comparisons",
-      "name": "Ecosystem Comparisons",
+      "name": "Ecosystem Venn Diagram",
       "description": "Head-to-head comparisons of CNCF and commercial tools across ingress, service mesh, and more"
     },
     {
       "id": "modern-database-survey",
-      "name": "Modern Database Survey",
+      "name": "Modern Database Internals",
       "description": "Benchmarking cloud-native databases — NewSQL, distributed KV, time-series, and object storage"
     },
     {
