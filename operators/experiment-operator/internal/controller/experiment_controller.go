@@ -403,6 +403,14 @@ func (r *ExperimentReconciler) collectAndStoreResults(ctx context.Context, exp *
 
 	summary.Metrics = metricsResult
 
+	// Evaluate success criteria against collected metrics
+	if verdict := metrics.EvaluateSuccessCriteria(summary); verdict != "" {
+		if summary.Hypothesis != nil {
+			summary.Hypothesis.MachineVerdict = verdict
+		}
+		exp.Status.HypothesisResult = verdict
+	}
+
 	// Estimate cost
 	summary.CostEstimate = metrics.EstimateCost(exp)
 
@@ -434,8 +442,20 @@ func (r *ExperimentReconciler) collectAndStoreResults(ctx context.Context, exp *
 			}
 		}
 
-		// Launch AI analysis Job — only if analysis sections are configured.
-		if r.AnalyzerImage != "" && exp.Spec.Analysis != nil && len(exp.Spec.Analysis.Sections) > 0 {
+		// Launch AI analysis Job.
+		// Default sections: publish=true with nil analyzerConfig uses defaults.
+		// Explicit empty sections (analyzerConfig.sections=[]) skips analysis.
+		analyzerSections := resolveAnalyzerSections(exp)
+		if r.AnalyzerImage != "" && len(analyzerSections) > 0 {
+			// Ensure summary has the resolved sections for the analyzer to read
+			if summary.AnalyzerConfig == nil {
+				summary.AnalyzerConfig = &metrics.AnalyzerConfigJSON{Sections: analyzerSections}
+				// Re-upload summary with resolved sections
+				if uploadErr := r.S3Client.PutJSON(ctx, prefix+"/summary.json", summary); uploadErr != nil {
+					log.Error(uploadErr, "Failed to re-upload summary with default sections — non-fatal")
+				}
+			}
+
 			// Pre-validate Claude credentials before creating analyzer job.
 			secret := &corev1.Secret{}
 			secretKey := types.NamespacedName{Name: "claude-auth", Namespace: "experiment-operator-system"}
@@ -456,8 +476,8 @@ func (r *ExperimentReconciler) collectAndStoreResults(ctx context.Context, exp *
 			}
 			exp.Status.AnalysisJobName = jobName
 			exp.Status.AnalysisPhase = experimentsv1alpha1.AnalysisPhasePending
-		} else if r.AnalyzerImage != "" && (exp.Spec.Analysis == nil || len(exp.Spec.Analysis.Sections) == 0) {
-			log.Info("Skipping AI analysis — spec.analysis.sections not configured", "experiment", exp.Name)
+		} else if r.AnalyzerImage != "" {
+			log.Info("Skipping AI analysis — no sections configured", "experiment", exp.Name)
 			exp.Status.AnalysisPhase = experimentsv1alpha1.AnalysisPhaseSkipped
 		} else {
 			exp.Status.AnalysisPhase = experimentsv1alpha1.AnalysisPhaseSkipped
@@ -1597,6 +1617,21 @@ func boolPtr(b bool) *bool {
 
 func int64Ptr(i int64) *int64 {
 	return &i
+}
+
+// resolveAnalyzerSections returns the analysis sections to use for the experiment.
+// - If analyzerConfig is set with sections, use those.
+// - If analyzerConfig is nil and publish is true, use defaults.
+// - If analyzerConfig has an explicit empty sections array, return nil (skip analysis).
+func resolveAnalyzerSections(exp *experimentsv1alpha1.Experiment) []string {
+	if exp.Spec.AnalyzerConfig != nil {
+		return exp.Spec.AnalyzerConfig.Sections
+	}
+	// No analyzerConfig at all — use defaults for published experiments
+	if exp.Spec.Publish {
+		return metrics.DefaultAnalyzerSections
+	}
+	return nil
 }
 
 // hasLayer checks if a layer name is present in the deployed layers list.

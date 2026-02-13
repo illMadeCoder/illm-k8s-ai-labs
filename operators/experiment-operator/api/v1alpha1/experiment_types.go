@@ -41,13 +41,6 @@ type ExperimentSpec struct {
 	// +optional
 	Tutorial *TutorialSpec `json:"tutorial,omitempty"`
 
-	// TTL in days - experiment will be auto-deleted after this many days
-	// +optional
-	// +kubebuilder:default=1
-	// +kubebuilder:validation:Minimum=0
-	// +kubebuilder:validation:Maximum=365
-	TTLDays int `json:"ttlDays,omitempty"`
-
 	// Metrics defines PromQL queries to execute at experiment completion.
 	// Results are stored in summary.json for the benchmark site.
 	// If omitted, default CPU and memory queries are collected.
@@ -64,15 +57,16 @@ type ExperimentSpec struct {
 	// +optional
 	Publish bool `json:"publish,omitempty"`
 
-	// Study provides context about what the experiment is trying to learn.
-	// This is passed to the AI analyzer to produce focused, goal-aware analysis.
+	// Hypothesis describes the claim being tested and optional success criteria.
+	// This is the central organizing principle of the experiment — the AI analyzer
+	// uses it to produce focused, goal-aware analysis.
 	// +optional
-	Study *StudySpec `json:"study,omitempty"`
+	Hypothesis *HypothesisSpec `json:"hypothesis,omitempty"`
 
-	// Analysis configures which AI analysis sections to generate on experiment
-	// completion. Each section maps to one or more analyzer passes. If omitted,
-	// no AI analysis is performed (even with publish: true). Only experiments
-	// with publish: true AND analysis.sections will trigger the analyzer Job.
+	// AnalyzerConfig configures which AI analysis sections to generate on
+	// experiment completion. When publish is true and analyzerConfig is nil,
+	// default sections are used. Set analyzerConfig with an empty sections
+	// array to explicitly skip analysis on a published experiment.
 	//
 	// Available sections (grouped by analyzer pass):
 	//
@@ -95,18 +89,19 @@ type ExperimentSpec struct {
 	//     architectureDiagram ASCII architecture topology diagram
 	//
 	// +optional
-	Analysis *AnalysisSpec `json:"analysis,omitempty"`
+	AnalyzerConfig *AnalyzerConfig `json:"analyzerConfig,omitempty"`
 }
 
-// AnalysisSpec configures AI analysis generation for the experiment.
-type AnalysisSpec struct {
+// AnalyzerConfig configures AI analysis generation for the experiment.
+type AnalyzerConfig struct {
 	// Sections is the list of analysis sections to generate. Each value
 	// must be one of the recognized section names. The analyzer will only
 	// run passes that contain at least one requested section.
+	// If nil or empty, default sections are used when publish is true.
 	//
-	// +kubebuilder:validation:MinItems=1
+	// +optional
 	// +kubebuilder:validation:items:Enum=abstract;targetAnalysis;performanceAnalysis;metricInsights;finopsAnalysis;secopsAnalysis;body;capabilitiesMatrix;feedback;architectureDiagram
-	Sections []string `json:"sections"`
+	Sections []string `json:"sections,omitempty"`
 }
 
 // Analysis section constants. Grouped by analyzer pass for documentation.
@@ -130,14 +125,14 @@ const (
 	AnalysisSectionArchitectureDiagram = "architectureDiagram"
 )
 
-// StudySpec describes the goals and hypotheses of an experiment so the AI
-// analyzer can produce focused analysis aligned with the experimenter's intent.
-type StudySpec struct {
-	// Hypothesis states the expected outcome or claim being tested.
+// HypothesisSpec describes the claim being tested and optional machine-evaluable
+// success criteria. This is the central organizing principle of the experiment.
+type HypothesisSpec struct {
+	// Claim states the expected outcome being tested.
 	// Example: "Loki will use fewer resources than Elasticsearch but offer
 	// weaker full-text search capabilities."
-	// +optional
-	Hypothesis string `json:"hypothesis,omitempty"`
+	// +required
+	Claim string `json:"claim"`
 
 	// Questions are specific things the experiment should answer.
 	// Example: "What is the CPU overhead difference at 1000 logs/sec?"
@@ -148,6 +143,33 @@ type StudySpec struct {
 	// Example: ["resource efficiency", "query capability", "operational complexity"]
 	// +optional
 	Focus []string `json:"focus,omitempty"`
+
+	// SuccessCriteria define machine-evaluable thresholds for hypothesis validation.
+	// When all criteria pass, the hypothesis is "validated"; if any fail, "invalidated".
+	// If criteria are omitted, the AI analyzer decides the verdict.
+	// +optional
+	SuccessCriteria []SuccessCriterion `json:"successCriteria,omitempty"`
+}
+
+// SuccessCriterion defines a machine-evaluable threshold for a named metric.
+type SuccessCriterion struct {
+	// Metric is the metric query name to evaluate (must match a key in spec.metrics).
+	// +required
+	// +kubebuilder:validation:Pattern=`^[a-z][a-z0-9_]*$`
+	Metric string `json:"metric"`
+
+	// Operator is the comparison operator.
+	// +required
+	// +kubebuilder:validation:Enum=lt;lte;gt;gte
+	Operator string `json:"operator"`
+
+	// Value is the threshold to compare against (string to support float parsing).
+	// +required
+	Value string `json:"value"`
+
+	// Description is a human-readable explanation of what this criterion tests.
+	// +optional
+	Description string `json:"description,omitempty"`
 }
 
 // MetricsQuery defines a PromQL query to execute at experiment completion.
@@ -177,6 +199,10 @@ type MetricsQuery struct {
 	// Description is a human-readable chart title.
 	// +optional
 	Description string `json:"description,omitempty"`
+
+	// Group is an optional grouping label for organizing metrics in the UI.
+	// +optional
+	Group string `json:"group,omitempty"`
 }
 
 // TutorialSpec defines tutorial configuration for interactive experiments
@@ -234,10 +260,6 @@ type Target struct {
 	// Observability configuration
 	// +optional
 	Observability *ObservabilitySpec `json:"observability,omitempty"`
-
-	// Dependencies (other target names)
-	// +optional
-	Depends []string `json:"depends,omitempty"`
 }
 
 // ClusterSpec defines cluster configuration
@@ -365,6 +387,12 @@ type ExperimentStatus struct {
 	// Running when the Job starts, Succeeded/Failed on completion.
 	// +optional
 	AnalysisPhase AnalysisPhase `json:"analysisPhase,omitempty"`
+
+	// HypothesisResult is the machine-evaluated verdict from success criteria.
+	// Values: "validated" (all criteria pass), "invalidated" (any fail),
+	// "insufficient" (missing/errored metrics), or empty (no criteria / AI decides).
+	// +optional
+	HypothesisResult string `json:"hypothesisResult,omitempty"`
 
 	// Conditions
 	// +listType=map

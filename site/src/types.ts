@@ -11,6 +11,8 @@ export interface ExperimentSummary {
   tags?: string[];
   study?: StudyContext;
   analysisConfig?: { sections: string[] };
+  hypothesis?: HypothesisContext;
+  analyzerConfig?: { sections: string[] };
   targets: TargetSummary[];
   workflow: WorkflowSummary;
   metrics?: MetricsResult;
@@ -22,6 +24,23 @@ export interface StudyContext {
   hypothesis?: string;
   questions?: string[];
   focus?: string[];
+}
+
+export interface HypothesisContext {
+  claim?: string;
+  questions?: string[];
+  focus?: string[];
+  successCriteria?: SuccessCriterionSummary[];
+  machineVerdict?: 'validated' | 'invalidated' | 'insufficient';
+}
+
+export interface SuccessCriterionSummary {
+  metric: string;
+  operator: string;
+  value: string;
+  description?: string;
+  passed?: boolean;
+  actualValue?: string;
 }
 
 export interface TargetSummary {

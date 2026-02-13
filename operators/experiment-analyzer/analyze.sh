@@ -57,12 +57,16 @@ echo "==> Summary fetched ($(wc -c < "${SUMMARY_FILE}") bytes)"
 
 # --- Extract requested analysis sections from summary.json ---
 REQUESTED_SECTIONS=""
-if jq -e '.analysisConfig.sections' "${SUMMARY_FILE}" > /dev/null 2>&1; then
-  REQUESTED_SECTIONS=$(jq -r '.analysisConfig.sections | join(",")' "${SUMMARY_FILE}")
+# Try new field first, fall back to old
+if jq -e '.analyzerConfig.sections' "${SUMMARY_FILE}" > /dev/null 2>&1; then
+  REQUESTED_SECTIONS=$(jq -r '.analyzerConfig.sections | join(",")' "${SUMMARY_FILE}")
   echo "==> Requested analysis sections: ${REQUESTED_SECTIONS}"
+elif jq -e '.analysisConfig.sections' "${SUMMARY_FILE}" > /dev/null 2>&1; then
+  REQUESTED_SECTIONS=$(jq -r '.analysisConfig.sections | join(",")' "${SUMMARY_FILE}")
+  echo "==> Requested analysis sections: ${REQUESTED_SECTIONS} (legacy analysisConfig field)"
 else
-  echo "==> No analysisConfig.sections in summary.json — skipping analysis"
-  echo "==> To enable analysis, add spec.analysis.sections to the Experiment CR"
+  echo "==> No analyzerConfig.sections in summary.json — skipping analysis"
+  echo "==> To enable analysis, add spec.analyzerConfig.sections to the Experiment CR"
   exit 0
 fi
 
@@ -148,13 +152,23 @@ run_pass() {
 
 SUMMARY_DATA=$(cat "${SUMMARY_FILE}")
 
-# Extract study context if present (hypothesis, questions, focus from experiment spec)
+# Extract hypothesis context if present (claim, questions, focus from experiment spec)
+# Try new 'hypothesis' field first, fall back to legacy 'study' field
 STUDY_CONTEXT=""
-if jq -e '.study' "${SUMMARY_FILE}" > /dev/null 2>&1; then
+MACHINE_VERDICT=""
+if jq -e '.hypothesis' "${SUMMARY_FILE}" > /dev/null 2>&1; then
+  STUDY_HYPOTHESIS=$(jq -r '.hypothesis.claim // empty' "${SUMMARY_FILE}")
+  STUDY_QUESTIONS=$(jq -r '.hypothesis.questions // [] | join("; ")' "${SUMMARY_FILE}")
+  STUDY_FOCUS=$(jq -r '.hypothesis.focus // [] | join(", ")' "${SUMMARY_FILE}")
+  MACHINE_VERDICT=$(jq -r '.hypothesis.machineVerdict // empty' "${SUMMARY_FILE}")
+elif jq -e '.study' "${SUMMARY_FILE}" > /dev/null 2>&1; then
   STUDY_HYPOTHESIS=$(jq -r '.study.hypothesis // empty' "${SUMMARY_FILE}")
   STUDY_QUESTIONS=$(jq -r '.study.questions // [] | join("; ")' "${SUMMARY_FILE}")
   STUDY_FOCUS=$(jq -r '.study.focus // [] | join(", ")' "${SUMMARY_FILE}")
+  MACHINE_VERDICT=""
+fi
 
+if [ -n "${STUDY_HYPOTHESIS}${STUDY_QUESTIONS}${STUDY_FOCUS}" ]; then
   STUDY_CONTEXT="
 STUDY CONTEXT (from the experimenter — use this to guide your analysis):
 "
@@ -164,9 +178,11 @@ STUDY CONTEXT (from the experimenter — use this to guide your analysis):
 "
   [ -n "${STUDY_FOCUS}" ] && STUDY_CONTEXT="${STUDY_CONTEXT}Focus areas: ${STUDY_FOCUS}
 "
-  echo "==> Study context found: hypothesis=$(echo "${STUDY_HYPOTHESIS}" | head -c 80)..."
+  [ -n "${MACHINE_VERDICT}" ] && STUDY_CONTEXT="${STUDY_CONTEXT}Machine verdict (from success criteria evaluation): ${MACHINE_VERDICT}
+"
+  echo "==> Hypothesis context found: claim=$(echo "${STUDY_HYPOTHESIS}" | head -c 80)..."
 else
-  echo "==> No study context in experiment spec — analyzer will infer intent"
+  echo "==> No hypothesis context in experiment spec — analyzer will infer intent"
 fi
 
 # ============================================================================
@@ -273,9 +289,11 @@ Rules:
 - Be technical and concise — this is for infrastructure engineers
 - "architectureDiagram": Mermaid flowchart diagram. Use ONLY 'flowchart TD' syntax.
   Use 'subgraph' for cluster boundaries. Node format: id["Label<br/>Annotation"].
-  Edge format: source -->|label| target. Show hub cluster → target cluster(s),
-  components grouped by role, data flow. Omit ConfigMaps/Secrets/RBAC.
-  Max 15-25 nodes. Single JSON string with \n for line breaks.
+  Edge format: source -->|label| target. Show ONLY the target cluster(s) and
+  experiment workloads — omit the hub cluster entirely (no operator pod,
+  no Tailscale VPN, no hub-side agents). Focus on the components under test,
+  grouped by role, with data flow between them. Omit ConfigMaps/Secrets/RBAC.
+  Max 10-20 nodes. Single JSON string with \n for line breaks.
 - "architectureDiagramFormat": "mermaid"
 - Output ONLY the JSON object, no markdown fences or extra text
 

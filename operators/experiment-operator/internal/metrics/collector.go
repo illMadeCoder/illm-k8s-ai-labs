@@ -67,36 +67,48 @@ type promResult struct {
 	Values [][2]json.RawMessage `json:"values,omitempty"`
 }
 
-// AnalysisConfig captures the requested analysis sections from the experiment spec.
+// AnalyzerConfigJSON captures the requested analysis sections in the summary JSON.
 // The analyzer reads this to decide which passes to run and which sections to keep.
-type AnalysisConfig struct {
+type AnalyzerConfigJSON struct {
 	Sections []string `json:"sections"`
 }
 
 // ExperimentSummary is the top-level results object stored in S3.
 type ExperimentSummary struct {
-	Name           string          `json:"name"`
-	Namespace      string          `json:"namespace"`
-	Description    string          `json:"description"`
-	CreatedAt      time.Time       `json:"createdAt"`
-	CompletedAt    time.Time       `json:"completedAt"`
-	DurationSec    float64         `json:"durationSeconds"`
-	Phase          string          `json:"phase"`
-	Tags           []string        `json:"tags,omitempty"`
-	Study          *StudyContext   `json:"study,omitempty"`
-	AnalysisConfig *AnalysisConfig `json:"analysisConfig,omitempty"`
-	Targets        []TargetSummary `json:"targets"`
-	Workflow       WorkflowSummary `json:"workflow"`
-	Metrics        *MetricsResult  `json:"metrics,omitempty"`
-	CostEstimate   *CostEstimate   `json:"costEstimate,omitempty"`
-	Analysis       *AnalysisResult `json:"analysis,omitempty"`
+	Name           string              `json:"name"`
+	Namespace      string              `json:"namespace"`
+	Description    string              `json:"description"`
+	CreatedAt      time.Time           `json:"createdAt"`
+	CompletedAt    time.Time           `json:"completedAt"`
+	DurationSec    float64             `json:"durationSeconds"`
+	Phase          string              `json:"phase"`
+	Tags           []string            `json:"tags,omitempty"`
+	Hypothesis     *HypothesisContext  `json:"hypothesis,omitempty"`
+	AnalyzerConfig *AnalyzerConfigJSON `json:"analyzerConfig,omitempty"`
+	Targets        []TargetSummary     `json:"targets"`
+	Workflow       WorkflowSummary     `json:"workflow"`
+	Metrics        *MetricsResult      `json:"metrics,omitempty"`
+	CostEstimate   *CostEstimate       `json:"costEstimate,omitempty"`
+	Analysis       *AnalysisResult     `json:"analysis,omitempty"`
 }
 
-// StudyContext captures the experiment's goals for AI analysis.
-type StudyContext struct {
-	Hypothesis string   `json:"hypothesis,omitempty"`
-	Questions  []string `json:"questions,omitempty"`
-	Focus      []string `json:"focus,omitempty"`
+// HypothesisContext captures the experiment's hypothesis and success criteria for AI analysis.
+type HypothesisContext struct {
+	Claim           string                    `json:"claim,omitempty"`
+	Questions       []string                  `json:"questions,omitempty"`
+	Focus           []string                  `json:"focus,omitempty"`
+	SuccessCriteria []SuccessCriterionSummary `json:"successCriteria,omitempty"`
+	MachineVerdict  string                    `json:"machineVerdict,omitempty"`
+}
+
+// SuccessCriterionSummary captures a success criterion and its evaluation result.
+type SuccessCriterionSummary struct {
+	Metric      string `json:"metric"`
+	Operator    string `json:"operator"`
+	Value       string `json:"value"`
+	Description string `json:"description,omitempty"`
+	Passed      *bool  `json:"passed,omitempty"`
+	ActualValue string `json:"actualValue,omitempty"`
 }
 
 // TargetSummary captures per-target metadata.
@@ -209,19 +221,27 @@ func CollectSummary(exp *experimentsv1alpha1.Experiment) *ExperimentSummary {
 		Tags:        exp.Spec.Tags,
 	}
 
-	// Study context — pass through to summary for AI analyzer
-	if exp.Spec.Study != nil {
-		s.Study = &StudyContext{
-			Hypothesis: exp.Spec.Study.Hypothesis,
-			Questions:  exp.Spec.Study.Questions,
-			Focus:      exp.Spec.Study.Focus,
+	// Hypothesis context — pass through to summary for AI analyzer
+	if exp.Spec.Hypothesis != nil {
+		s.Hypothesis = &HypothesisContext{
+			Claim:     exp.Spec.Hypothesis.Claim,
+			Questions: exp.Spec.Hypothesis.Questions,
+			Focus:     exp.Spec.Hypothesis.Focus,
+		}
+		for _, sc := range exp.Spec.Hypothesis.SuccessCriteria {
+			s.Hypothesis.SuccessCriteria = append(s.Hypothesis.SuccessCriteria, SuccessCriterionSummary{
+				Metric:      sc.Metric,
+				Operator:    sc.Operator,
+				Value:       sc.Value,
+				Description: sc.Description,
+			})
 		}
 	}
 
-	// Analysis config — pass requested sections through to summary for analyzer
-	if exp.Spec.Analysis != nil && len(exp.Spec.Analysis.Sections) > 0 {
-		s.AnalysisConfig = &AnalysisConfig{
-			Sections: exp.Spec.Analysis.Sections,
+	// Analyzer config — pass requested sections through to summary for analyzer
+	if exp.Spec.AnalyzerConfig != nil && len(exp.Spec.AnalyzerConfig.Sections) > 0 {
+		s.AnalyzerConfig = &AnalyzerConfigJSON{
+			Sections: exp.Spec.AnalyzerConfig.Sections,
 		}
 	}
 
@@ -571,6 +591,88 @@ func selectStep(d time.Duration) string {
 	default:
 		return "300s"
 	}
+}
+
+// DefaultAnalyzerSections is the default set of analysis sections used when
+// publish is true and analyzerConfig is nil.
+var DefaultAnalyzerSections = []string{
+	"abstract", "targetAnalysis", "performanceAnalysis", "metricInsights",
+	"body", "feedback", "architectureDiagram",
+}
+
+// EvaluateSuccessCriteria evaluates success criteria against collected metrics.
+// Returns "" if no criteria, "insufficient" if metrics are missing/errored,
+// "validated" if all pass, "invalidated" if any fail.
+func EvaluateSuccessCriteria(summary *ExperimentSummary) string {
+	if summary.Hypothesis == nil || len(summary.Hypothesis.SuccessCriteria) == 0 {
+		return ""
+	}
+	if summary.Metrics == nil || len(summary.Metrics.Queries) == 0 {
+		return "insufficient"
+	}
+
+	allPassed := true
+	anyEvaluated := false
+
+	for i, sc := range summary.Hypothesis.SuccessCriteria {
+		qr, ok := summary.Metrics.Queries[sc.Metric]
+		if !ok || qr.Error != "" || len(qr.Data) == 0 {
+			summary.Hypothesis.SuccessCriteria[i].Passed = nil
+			allPassed = false
+			continue
+		}
+
+		// Calculate the value to compare: for instant queries use the single value,
+		// for range queries use the mean.
+		var actual float64
+		if qr.Type == "instant" && len(qr.Data) == 1 {
+			actual = qr.Data[0].Value
+		} else {
+			var sum float64
+			for _, dp := range qr.Data {
+				sum += dp.Value
+			}
+			actual = sum / float64(len(qr.Data))
+		}
+
+		threshold, err := strconv.ParseFloat(sc.Value, 64)
+		if err != nil {
+			summary.Hypothesis.SuccessCriteria[i].Passed = nil
+			allPassed = false
+			continue
+		}
+
+		var passed bool
+		switch sc.Operator {
+		case "lt":
+			passed = actual < threshold
+		case "lte":
+			passed = actual <= threshold
+		case "gt":
+			passed = actual > threshold
+		case "gte":
+			passed = actual >= threshold
+		default:
+			summary.Hypothesis.SuccessCriteria[i].Passed = nil
+			allPassed = false
+			continue
+		}
+
+		anyEvaluated = true
+		summary.Hypothesis.SuccessCriteria[i].Passed = &passed
+		summary.Hypothesis.SuccessCriteria[i].ActualValue = strconv.FormatFloat(actual, 'f', -1, 64)
+		if !passed {
+			allPassed = false
+		}
+	}
+
+	if !anyEvaluated {
+		return "insufficient"
+	}
+	if allPassed {
+		return "validated"
+	}
+	return "invalidated"
 }
 
 // EstimateCost produces a rough GCP cost estimate from the experiment spec.

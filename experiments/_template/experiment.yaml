@@ -7,12 +7,11 @@ spec:
   description: "Brief description of what this experiment tests"
   tags: ["comparison", "observability"]  # Used for site categorization
   publish: true   # Set to true to publish results to benchmark site
-  ttlDays: 7
 
   # AI analysis configuration — controls which sections the analyzer generates.
   # Omit this block entirely to skip AI analysis (saves API spend).
   # Each section maps to an analyzer pass; unused passes are skipped automatically.
-  analysis:
+  analyzerConfig:
     sections:
       # Pass 2 — Core analysis (always useful):
       - abstract              # Executive summary with hypothesis verdict
@@ -33,8 +32,8 @@ spec:
       - architectureDiagram   # ASCII architecture topology diagram
 
   # Study context — guides the AI analyzer toward your specific goals.
-  study:
-    hypothesis: "State the expected outcome or claim being tested"
+  hypothesis:
+    claim: "State the expected outcome or claim being tested"
     questions:
       - "What specific question should the experiment answer?"
     focus:

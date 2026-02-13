@@ -256,3 +256,23 @@ export function getStats(experiments: ExperimentSummary[]): {
     totalRuns: experiments.length,
   };
 }
+
+/** Get hypothesis claim, reading new field with old fallback. */
+export function getHypothesisClaim(exp: ExperimentSummary): string | undefined {
+  return exp.hypothesis?.claim ?? exp.study?.hypothesis;
+}
+
+/** Get experiment questions, reading new field with old fallback. */
+export function getQuestions(exp: ExperimentSummary): string[] {
+  return exp.hypothesis?.questions ?? exp.study?.questions ?? [];
+}
+
+/** Get focus areas, reading new field with old fallback. */
+export function getFocus(exp: ExperimentSummary): string[] {
+  return exp.hypothesis?.focus ?? exp.study?.focus ?? [];
+}
+
+/** Get machine verdict from success criteria evaluation. */
+export function getMachineVerdict(exp: ExperimentSummary): string | undefined {
+  return exp.hypothesis?.machineVerdict;
+}

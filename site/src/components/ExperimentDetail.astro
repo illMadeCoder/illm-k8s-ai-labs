@@ -10,6 +10,7 @@ import AnalysisFeedback from './AnalysisFeedback.astro';
 import ArchitectureDiagram from './ArchitectureDiagram.astro';
 import { formatDuration, formatDate, formatCost, formatValue } from '../lib/format';
 import { buildSpec } from '../lib/vega-specs';
+import { getHypothesisClaim, getQuestions, getFocus, getMachineVerdict } from '../lib/experiments';
 import type { ExperimentSummary } from '../types';
 
 interface Props {
@@ -38,6 +39,11 @@ const verdict = analysis?.hypothesisVerdict;
 const verdictLabel = verdict
   ? verdict.charAt(0).toUpperCase() + verdict.slice(1)
   : null;
+
+const hypothesisClaim = getHypothesisClaim(experiment);
+const questions = getQuestions(experiment);
+const focusAreas = getFocus(experiment);
+const machineVerdict = getMachineVerdict(experiment);
 ---
 
 <div class="detail-header">
@@ -59,6 +65,12 @@ const verdictLabel = verdict
     <div class={`metric-card verdict-card verdict-${verdict!.replace(/\s+/g, '-')}`}>
       <span class="metric-label">Hypothesis</span>
       <span class="metric-value verdict-value">{verdictLabel}</span>
+    </div>
+  )}
+  {machineVerdict && !verdictLabel && (
+    <div class={`metric-card verdict-card verdict-${machineVerdict}`}>
+      <span class="metric-label">Hypothesis</span>
+      <span class="metric-value verdict-value">{machineVerdict.charAt(0).toUpperCase() + machineVerdict.slice(1)}</span>
     </div>
   )}
   <MetricCard label="Created" value={formatDate(experiment.createdAt)} />
@@ -125,15 +137,15 @@ const verdictLabel = verdict
   )}
 </details>
 
-{(experiment.study?.hypothesis || experiment.study?.questions?.length || experiment.study?.focus?.length || hasRichAnalysis || analysis?.summary) && (
+{(hypothesisClaim || questions.length > 0 || focusAreas.length > 0 || hasRichAnalysis || analysis?.summary) && (
   <details class="section overview" open>
     <summary class="section-title">Overview</summary>
     <div class="overview-inner">
-      {experiment.study?.hypothesis && (
+      {hypothesisClaim && (
         <details class="overview-item" open>
           <summary class="overview-item-title">Hypothesis</summary>
           <div class="overview-item-content">
-            <p class="study-hypothesis-text">{experiment.study.hypothesis}</p>
+            <p class="study-hypothesis-text">{hypothesisClaim}</p>
           </div>
         </details>
       )}
@@ -149,22 +161,22 @@ const verdictLabel = verdict
           </div>
         </details>
       )}
-      {experiment.study?.questions && experiment.study.questions.length > 0 && (
+      {questions.length > 0 && (
         <details class="overview-item" open>
           <summary class="overview-item-title">Questions</summary>
           <div class="overview-item-content">
             <ol class="study-questions-list">
-              {experiment.study.questions.map((q) => <li>{q}</li>)}
+              {questions.map((q) => <li>{q}</li>)}
             </ol>
           </div>
         </details>
       )}
-      {experiment.study?.focus && experiment.study.focus.length > 0 && (
+      {focusAreas.length > 0 && (
         <details class="overview-item" open>
           <summary class="overview-item-title">Focus Areas</summary>
           <div class="overview-item-content">
             <div class="focus-tags">
-              {experiment.study.focus.map((f) => <span class="focus-tag">{f}</span>)}
+              {focusAreas.map((f) => <span class="focus-tag">{f}</span>)}
             </div>
           </div>
         </details>
@@ -242,6 +254,7 @@ const verdictLabel = verdict
 <script>
   import mermaid from 'mermaid';
   (window as any).mermaidLib = mermaid;
+  window.dispatchEvent(new CustomEvent('mermaid:ready'));
 </script>
 
 <style>
