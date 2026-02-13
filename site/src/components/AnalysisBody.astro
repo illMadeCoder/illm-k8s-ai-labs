@@ -368,8 +368,8 @@ function getCalloutColor(variant: string): string {
   /* Metric blocks */
   .block-metric {
     background: var(--bg-card);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
     overflow: hidden;
   }
 
@@ -688,12 +688,6 @@ function getCalloutColor(variant: string): string {
 
     .block-metric-insight {
       padding: 0.5rem 0.75rem;
-    }
-
-    .block-metric {
-      border-left: none;
-      border-right: none;
-      border-radius: 0;
     }
 
     .block-comparison-card {
