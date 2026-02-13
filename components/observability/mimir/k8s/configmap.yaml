@@ -2,7 +2,6 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   name: mimir-config
-  namespace: mimir
 data:
   mimir.yaml: |
     target: all
@@ -13,7 +12,7 @@ data:
       storage:
         backend: s3
         s3:
-          endpoint: minio.minio.svc:9000
+          endpoint: minio:9000
           bucket_name: mimir-blocks
           access_key_id: admin
           secret_access_key: minio123
@@ -22,9 +21,9 @@ data:
     blocks_storage:
       backend: s3
       s3:
-        endpoint: minio.minio.svc:9000
+        endpoint: minio:9000
         bucket_name: mimir-blocks
-        access_key_id: minio
+        access_key_id: admin
         secret_access_key: minio123
         insecure: true
       tsdb:
@@ -34,18 +33,18 @@ data:
     ruler_storage:
       backend: s3
       s3:
-        endpoint: minio.minio.svc:9000
+        endpoint: minio:9000
         bucket_name: mimir-ruler
-        access_key_id: minio
+        access_key_id: admin
         secret_access_key: minio123
         insecure: true
 
     alertmanager_storage:
       backend: s3
       s3:
-        endpoint: minio.minio.svc:9000
+        endpoint: minio:9000
         bucket_name: mimir-alertmanager
-        access_key_id: minio
+        access_key_id: admin
         secret_access_key: minio123
         insecure: true
 

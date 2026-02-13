@@ -2,7 +2,6 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: mimir-monolithic
-  namespace: mimir
   labels:
     app.kubernetes.io/name: mimir
     app.kubernetes.io/component: monolithic

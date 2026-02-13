@@ -50,7 +50,7 @@ spec:
             prometheus.prometheusSpec.retention: "24h"
             alertmanager.enabled: "false"
             # Remote write to Mimir so it receives metrics
-            prometheus.prometheusSpec.remoteWrite[0].url: "http://mimir-gateway.mimir.svc:80/api/v1/push"
+            prometheus.prometheusSpec.remoteWrite[0].url: "http://mimir-gateway:80/api/v1/push"
             prometheus.prometheusSpec.remoteWrite[0].headers.X-Scope-OrgID: "anonymous"
             # Resources for larger node
             prometheus.prometheusSpec.resources.requests.cpu: "100m"
@@ -88,46 +88,46 @@ spec:
         - app: cardinality-generator
 
   metrics:
-    # Per-TSDB CPU (by pod within each namespace)
+    # Per-TSDB CPU (by pod name pattern — all components in same namespace)
     - name: prometheus_stack_cpu
-      query: 'sum(rate(container_cpu_usage_seconds_total{experiment="$EXPERIMENT",namespace="monitoring",container!="POD",container!=""}[5m])) by (pod)'
+      query: 'sum(rate(container_cpu_usage_seconds_total{experiment="$EXPERIMENT",pod=~"prometheus-.*|kube-prometheus-.*",container!="POD",container!=""}[5m])) by (pod)'
       type: range
       unit: cores
       description: "Prometheus stack CPU by pod"
     - name: victoria_metrics_cpu
-      query: 'sum(rate(container_cpu_usage_seconds_total{experiment="$EXPERIMENT",namespace="victoria-metrics",container!="POD",container!=""}[5m])) by (pod)'
+      query: 'sum(rate(container_cpu_usage_seconds_total{experiment="$EXPERIMENT",pod=~"victoria-metrics-.*",container!="POD",container!=""}[5m])) by (pod)'
       type: range
       unit: cores
       description: "VictoriaMetrics CPU by pod"
     - name: mimir_cpu
-      query: 'sum(rate(container_cpu_usage_seconds_total{experiment="$EXPERIMENT",namespace="mimir",container!="POD",container!=""}[5m])) by (pod)'
+      query: 'sum(rate(container_cpu_usage_seconds_total{experiment="$EXPERIMENT",pod=~"mimir-.*",container!="POD",container!=""}[5m])) by (pod)'
       type: range
       unit: cores
       description: "Mimir CPU by pod"
     # Per-TSDB Memory
     - name: prometheus_stack_memory
-      query: 'sum(container_memory_working_set_bytes{experiment="$EXPERIMENT",namespace="monitoring",container!="POD",container!=""}) by (pod)'
+      query: 'sum(container_memory_working_set_bytes{experiment="$EXPERIMENT",pod=~"prometheus-.*|kube-prometheus-.*",container!="POD",container!=""}) by (pod)'
       type: range
       unit: bytes
       description: "Prometheus stack memory by pod"
     - name: victoria_metrics_memory
-      query: 'sum(container_memory_working_set_bytes{experiment="$EXPERIMENT",namespace="victoria-metrics",container!="POD",container!=""}) by (pod)'
+      query: 'sum(container_memory_working_set_bytes{experiment="$EXPERIMENT",pod=~"victoria-metrics-.*",container!="POD",container!=""}) by (pod)'
       type: range
       unit: bytes
       description: "VictoriaMetrics memory by pod"
     - name: mimir_memory
-      query: 'sum(container_memory_working_set_bytes{experiment="$EXPERIMENT",namespace="mimir",container!="POD",container!=""}) by (pod)'
+      query: 'sum(container_memory_working_set_bytes{experiment="$EXPERIMENT",pod=~"mimir-.*",container!="POD",container!=""}) by (pod)'
       type: range
       unit: bytes
       description: "Mimir memory by pod"
     # Infrastructure
     - name: infra_cpu
-      query: 'sum(rate(container_cpu_usage_seconds_total{experiment="$EXPERIMENT",namespace=~"minio|tsdb-comparison",container!="POD",container!=""}[5m])) by (pod)'
+      query: 'sum(rate(container_cpu_usage_seconds_total{experiment="$EXPERIMENT",pod=~"minio-.*|cardinality-.*",container!="POD",container!=""}[5m])) by (pod)'
       type: range
       unit: cores
       description: "Infrastructure CPU (MinIO + cardinality-generator)"
     - name: infra_memory
-      query: 'sum(container_memory_working_set_bytes{experiment="$EXPERIMENT",namespace=~"minio|tsdb-comparison",container!="POD",container!=""}) by (pod)'
+      query: 'sum(container_memory_working_set_bytes{experiment="$EXPERIMENT",pod=~"minio-.*|cardinality-.*",container!="POD",container!=""}) by (pod)'
       type: range
       unit: bytes
       description: "Infrastructure memory (MinIO + cardinality-generator)"
