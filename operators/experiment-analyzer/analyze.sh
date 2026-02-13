@@ -36,6 +36,15 @@ if [ ! -f "${CLAUDE_CREDS}" ]; then
 fi
 echo "==> Claude Code credentials file found at ${CLAUDE_CREDS}"
 
+# Pre-flight auth check — triggers token refresh if access token is expired
+echo "==> Pre-flight auth check (triggers token refresh if needed)..."
+if ! claude -p "respond with ok" --output-format json > /dev/null 2>&1; then
+  echo "ERROR: Claude CLI auth failed — credentials may need manual refresh in OpenBao"
+  echo "Run: bao kv put secret/experiment-operator/claude-auth credentials=\"\$(cat ~/.claude/.credentials.json)\""
+  exit 1
+fi
+echo "==> Auth check passed"
+
 GITHUB_BRANCH="${GITHUB_BRANCH:-main}"
 GITHUB_RESULTS_PATH="${GITHUB_RESULTS_PATH:-site/data}"
 
@@ -138,6 +147,10 @@ run_pass() {
         echo "==> ${pass_name} complete ($(wc -c < "${out_file}") bytes)"
         return 0
       fi
+    fi
+    if grep -q "expired\|authentication_error" "${stderr_file}" 2>/dev/null || \
+       grep -q "expired\|authentication_error" "${raw_file}" 2>/dev/null; then
+      echo "ERROR: Authentication failure in ${pass_name} — token may be expired"
     fi
     if [ "${attempt}" -eq 1 ]; then
       echo "WARNING: ${pass_name} attempt 1 failed, retrying..."

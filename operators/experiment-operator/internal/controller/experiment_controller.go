@@ -574,7 +574,7 @@ func (r *ExperimentReconciler) createAnalysisJob(ctx context.Context, exp *exper
 							Image: "busybox:1.37",
 							Command: []string{
 								"sh", "-c",
-								"cp /claude-secret/.credentials.json /claude-home/.credentials.json && chmod 400 /claude-home/.credentials.json",
+								"cp /claude-secret/.credentials.json /claude-home/.credentials.json && chmod 600 /claude-home/.credentials.json",
 							},
 							VolumeMounts: []corev1.VolumeMount{
 								{
