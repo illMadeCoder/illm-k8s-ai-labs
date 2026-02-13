@@ -234,5 +234,10 @@
       "app": 0.0790091505137629
     },
     "note": "Rough estimate based on on-demand GCE pricing; actual cost may differ."
+  },
+  "analysis": {
+    "summary": "Analysis incomplete",
+    "generatedAt": "2026-02-13T04:22:20Z",
+    "model": "claude-opus-4-6"
   }
 }
