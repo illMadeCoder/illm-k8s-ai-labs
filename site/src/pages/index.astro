@@ -81,20 +81,6 @@ const recentGroups = groups.slice(0, 6);
   </Hero>
 
   <section class="mb-12">
-    <h2 class="text-xl font-semibold mb-4">Ongoing Projects</h2>
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-      {projects.map((p) => (
-        <ProjectCard
-          id={p.id}
-          name={p.name}
-          description={p.description}
-          experimentCount={(projectGroups[p.id] ?? []).length}
-        />
-      ))}
-    </div>
-  </section>
-
-  <section class="mb-12">
     <h2 class="text-xl font-semibold mb-4">Recent Experiments</h2>
     {recentGroups.length === 0 ? (
       <div class="text-center py-16 text-text-muted">
@@ -111,6 +97,20 @@ const recentGroups = groups.slice(0, 6);
         ))}
       </div>
     )}
+  </section>
+
+  <section class="mb-12">
+    <h2 class="text-xl font-semibold mb-4">Ongoing Projects</h2>
+    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      {projects.map((p) => (
+        <ProjectCard
+          id={p.id}
+          name={p.name}
+          description={p.description}
+          experimentCount={(projectGroups[p.id] ?? []).length}
+        />
+      ))}
+    </div>
   </section>
 
 </Base>
