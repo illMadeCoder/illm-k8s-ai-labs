@@ -21,10 +21,10 @@ spec:
       steps:
         - - name: smoke-test
             template: check-target
-        - - name: wait-for-app
-            template: wait-for-app
-        - - name: load-test
-            template: load-test
+        - - name: wait-for-stacks
+            template: wait-for-stacks
+        - - name: observe
+            template: observe
 
     - name: check-target
       container:
@@ -44,90 +44,30 @@ spec:
             echo "Target cluster not reachable after 5 minutes"
             exit 1
 
-    - name: wait-for-app
+    - name: wait-for-stacks
       container:
-        image: curlimages/curl:8.5.0
+        image: busybox:1.36
         command: [sh, -c]
         args:
           - |
-            echo "=== Waiting for naive-db to become ready ==="
-            # Give ArgoCD time to sync the StatefulSet + PVC
-            sleep 60
-            echo "Stack sync wait complete, proceeding to load test"
+            echo "=== Waiting for ArgoCD to sync components ==="
+            echo "naive-db StatefulSet + PVC + kube-prometheus-stack need time to start"
+            echo "Load generator Job runs on target cluster alongside naive-db"
+            for i in $(seq 1 10); do
+              echo "Wait $i/10 (30s intervals)..."
+              sleep 30
+            done
+            echo "Stack sync wait complete"
 
-    - name: load-test
+    - name: observe
       container:
-        image: curlimages/curl:8.5.0
+        image: busybox:1.36
         command: [sh, -c]
         args:
           - |
-            set -e
-            NAIVEDB="http://naive-db.{{workflow.parameters.experiment-name}}.svc.cluster.local"
-
-            echo "=== Phase 1: Warm-up (3 min) ==="
-            echo "Waiting for naive-db readiness..."
-            for i in $(seq 1 36); do
-              if curl -sf "$NAIVEDB/ready" >/dev/null 2>&1; then
-                echo "naive-db is ready"
-                break
-              fi
-              if [ "$i" = "36" ]; then
-                echo "naive-db not ready after 3 minutes"
-                exit 1
-              fi
-              sleep 5
-            done
-            # Let Prometheus scrape a few baseline samples
-            sleep 60
-            echo "Warm-up complete"
-
-            echo "=== Phase 2: Sequential writes (10 min) ==="
-            TOTAL_WRITES=6000
-            BATCH=100
-            written=0
-            start_ts=$(date +%s)
-            while [ "$written" -lt "$TOTAL_WRITES" ]; do
-              for j in $(seq 1 $BATCH); do
-                val=$((written + j))
-                curl -sf -X POST "$NAIVEDB/write" \
-                  -H "Content-Type: application/json" \
-                  -d "{\"value\": $val}" >/dev/null
-              done
-              written=$((written + BATCH))
-              elapsed=$(( $(date +%s) - start_ts ))
-              rate=0
-              if [ "$elapsed" -gt 0 ]; then
-                rate=$((written / elapsed))
-              fi
-              echo "Writes: $written / $TOTAL_WRITES ($rate writes/sec)"
-            done
-            echo "Write phase complete: $TOTAL_WRITES rows written"
-
-            echo "=== Phase 3: Random reads (5 min) ==="
-            TOTAL_READS=3000
-            read_count=0
-            start_ts=$(date +%s)
-            while [ "$read_count" -lt "$TOTAL_READS" ]; do
-              for j in $(seq 1 50); do
-                row_id=$(($(od -An -N2 -tu2 /dev/urandom | tr -d ' ') % TOTAL_WRITES))
-                curl -sf "$NAIVEDB/read/$row_id" >/dev/null
-              done
-              read_count=$((read_count + 50))
-              elapsed=$(( $(date +%s) - start_ts ))
-              rate=0
-              if [ "$elapsed" -gt 0 ]; then
-                rate=$((read_count / elapsed))
-              fi
-              echo "Reads: $read_count / $TOTAL_READS ($rate reads/sec)"
-            done
-            echo "Read phase complete: $TOTAL_READS random reads"
-
-            echo "=== Phase 4: Cooldown (2 min) ==="
-            echo "Letting metrics settle..."
-            sleep 120
-            echo "Cooldown complete"
-
-            echo "=== Load test finished ==="
-            echo "Total writes: $TOTAL_WRITES"
-            echo "Total reads: $TOTAL_READS"
-            curl -sf "$NAIVEDB/metrics" | grep -E "^naivedb_" | head -30
+            echo "=== Observation window (20 min) ==="
+            echo "Load generator Job is running on the target cluster."
+            echo "Prometheus scrapes naivedb_* metrics every 15s."
+            echo "Waiting for load test to complete and metrics to settle..."
+            sleep 1200
+            echo "Observation complete"

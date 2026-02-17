@@ -1,0 +1,92 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: naive-db-loadgen
+  labels:
+    app: naive-db-loadgen
+spec:
+  backoffLimit: 2
+  template:
+    metadata:
+      labels:
+        app: naive-db-loadgen
+    spec:
+      restartPolicy: Never
+      initContainers:
+        - name: wait-for-db
+          image: curlimages/curl:8.5.0
+          command: [sh, -c]
+          args:
+            - |
+              echo "Waiting for naive-db to be ready..."
+              for i in $(seq 1 60); do
+                if curl -sf http://naive-db/ready >/dev/null 2>&1; then
+                  echo "naive-db is ready"
+                  exit 0
+                fi
+                sleep 5
+              done
+              echo "naive-db not ready after 5 minutes"
+              exit 1
+      containers:
+        - name: loadgen
+          image: curlimages/curl:8.5.0
+          command: [sh, -c]
+          args:
+            - |
+              set -e
+              NAIVEDB="http://naive-db"
+
+              echo "=== Phase 1: Sequential writes ==="
+              TOTAL_WRITES=6000
+              BATCH=100
+              written=0
+              start_ts=$(date +%s)
+              while [ "$written" -lt "$TOTAL_WRITES" ]; do
+                for j in $(seq 1 $BATCH); do
+                  val=$((written + j))
+                  curl -sf -X POST "$NAIVEDB/write" \
+                    -H "Content-Type: application/json" \
+                    -d "{\"value\": $val}" >/dev/null
+                done
+                written=$((written + BATCH))
+                elapsed=$(( $(date +%s) - start_ts ))
+                rate=0
+                if [ "$elapsed" -gt 0 ]; then
+                  rate=$((written / elapsed))
+                fi
+                echo "Writes: $written / $TOTAL_WRITES ($rate writes/sec)"
+              done
+              echo "Write phase complete: $TOTAL_WRITES rows"
+
+              echo "=== Phase 2: Random reads ==="
+              TOTAL_READS=3000
+              read_count=0
+              start_ts=$(date +%s)
+              while [ "$read_count" -lt "$TOTAL_READS" ]; do
+                for j in $(seq 1 50); do
+                  row_id=$(($(od -An -N2 -tu2 /dev/urandom | tr -d ' ') % TOTAL_WRITES))
+                  curl -sf "$NAIVEDB/read/$row_id" >/dev/null
+                done
+                read_count=$((read_count + 50))
+                elapsed=$(( $(date +%s) - start_ts ))
+                rate=0
+                if [ "$elapsed" -gt 0 ]; then
+                  rate=$((read_count / elapsed))
+                fi
+                echo "Reads: $read_count / $TOTAL_READS ($rate reads/sec)"
+              done
+              echo "Read phase complete: $TOTAL_READS random reads"
+
+              echo "=== Cooldown (2 min) ==="
+              sleep 120
+
+              echo "=== Load test finished ==="
+              curl -sf "$NAIVEDB/metrics" | grep -E "^naivedb_" | head -30
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 200m
+              memory: 64Mi
