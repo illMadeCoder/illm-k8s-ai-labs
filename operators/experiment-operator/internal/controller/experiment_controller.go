@@ -568,7 +568,9 @@ func (r *ExperimentReconciler) createAnalysisJob(ctx context.Context, exp *exper
 						{
 							Name: "claude-home",
 							VolumeSource: corev1.VolumeSource{
-								EmptyDir: &corev1.EmptyDirVolumeSource{},
+								PersistentVolumeClaim: &corev1.PersistentVolumeClaimVolumeSource{
+									ClaimName: "claude-credentials-pvc",
+								},
 							},
 						},
 					},
@@ -578,7 +580,7 @@ func (r *ExperimentReconciler) createAnalysisJob(ctx context.Context, exp *exper
 							Image: "busybox:1.37",
 							Command: []string{
 								"sh", "-c",
-								"cp /claude-secret/.credentials.json /claude-home/.credentials.json && chmod 600 /claude-home/.credentials.json",
+								"if [ ! -f /claude-home/.credentials.json ]; then cp /claude-secret/.credentials.json /claude-home/.credentials.json && chmod 600 /claude-home/.credentials.json && echo 'Seeded credentials from secret'; else echo 'Using existing credentials from PVC'; fi",
 							},
 							VolumeMounts: []corev1.VolumeMount{
 								{
