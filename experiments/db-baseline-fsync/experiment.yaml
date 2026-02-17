@@ -42,6 +42,8 @@ spec:
       components:
         - app: naive-db
         - app: kube-prometheus-stack
+        - app: metrics-agent
+        - app: metrics-egress
 
   metrics:
     - name: write_p99_latency
