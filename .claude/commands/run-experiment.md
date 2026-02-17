@@ -23,6 +23,27 @@ Read `experiments/{name}/experiment.yaml` and extract these key fields for use t
 
 Store these in your working memory — you'll reference them in every subsequent step.
 
+## Toil Tracking
+
+Throughout this skill, log friction and failures as beads for post-mortem analysis. This captures recurring patterns across experiment runs so they can be prioritized and fixed.
+
+**When to create a bead:** any time something goes wrong or requires manual intervention — pre-flight failures, phase timeouts, experiment failures, analyzer failures, PR issues. Essentially: if the happy path didn't happen, log it.
+
+**How to create a bead:**
+```bash
+bd create --title="{short description}" --type=bug --priority={0-4} -l toil -l {experiment-name}
+```
+
+Use the experiment name (directory name, not instance name) as a label so toil can be filtered per experiment. Add additional labels from: `flaky`, `config`, `timing`, `resources`, `networking`, `crossplane`, `argocd`, `operator`, `analyzer`, `workflow`.
+
+**Priority guide for experiment toil:**
+- P1: Experiment can't run at all (operator down, CRD missing, apply fails)
+- P2: Experiment ran but failed or required manual intervention (timeout, phase stuck, workflow failure)
+- P3: Experiment completed but with friction (analyzer failed, PR issues, slow phases)
+- P4: Minor annoyance (warnings, slow but within timeout)
+
+**Do NOT prompt the user** before creating toil beads — just create them and report what was logged. The whole point is zero-friction capture.
+
 ## Step 2: Pre-flight Checks
 
 Run three checks before applying. Report results as a checklist.
@@ -32,7 +53,10 @@ Run three checks before applying. Report results as a checklist.
 Run the `experiment-validator` agent (via the Task tool with `subagent_type: "experiment-validator"`) passing the experiment name. Report the results:
 - All PASS: proceed
 - Any WARN: show warnings, proceed
-- Any FAIL: show failures, **stop** — tell the user to fix issues before running
+- Any FAIL: show failures, **stop** — tell the user to fix issues before running. Log toil:
+  ```bash
+  bd create --title="Validation failed: {name} - {first failure reason}" --type=bug --priority=2 -l toil -l {name} -l config
+  ```
 
 ### 2b. WorkflowTemplate check
 
@@ -49,7 +73,11 @@ Also check if a local template file exists: `experiments/{name}/workflow/templat
 kubectl apply -f experiments/{name}/workflow/template.yaml
 ```
 
-**If template is NOT in cluster and no local file**: warn the user that the workflow will fail without it. Use `AskUserQuestion` to ask whether to continue anyway or stop.
+**If template is NOT in cluster and no local file**: warn the user that the workflow will fail without it. Log toil:
+```bash
+bd create --title="Missing WorkflowTemplate: {template-name} for {name}" --type=bug --priority=2 -l toil -l {name} -l workflow -l config
+```
+Use `AskUserQuestion` to ask whether to continue anyway or stop.
 
 **If template IS in cluster**: report OK.
 
@@ -60,7 +88,10 @@ kubectl get deployment experiment-operator-controller-manager -n experiment-oper
 ```
 
 - If readyReplicas >= 1: OK
-- If 0 or error: **warn** (don't block) — the operator may recover, but the experiment might not progress
+- If 0 or error: **warn** (don't block) — the operator may recover, but the experiment might not progress. Log toil:
+  ```bash
+  bd create --title="Operator unhealthy at experiment start: {name}" --type=bug --priority=1 -l toil -l {name} -l operator
+  ```
 
 Report the pre-flight summary, e.g.:
 ```
@@ -148,7 +179,13 @@ Use: kubectl delete experiment {instance-name} -n experiments
 
 ### Timeout handling
 
-When a phase exceeds its timeout, use `AskUserQuestion` with these options:
+When a phase exceeds its timeout, **log toil immediately** (before asking the user):
+```bash
+bd create --title="{phase} timeout ({timeout}m) for {instance-name}" --type=bug --priority=2 -l toil -l {name} -l timing -l {phase-label}
+```
+Where `{phase-label}` is `crossplane` for Pending/Provisioning, `argocd` for Ready, `workflow` for Running.
+
+Then use `AskUserQuestion` with these options:
 1. **Continue waiting** — extend timeout by the same duration
 2. **Show diagnostics** — run phase-specific diagnostic commands (see below), then ask again
 3. **Abort** — delete the experiment: `kubectl delete experiment {instance-name} -n experiments`
@@ -192,6 +229,12 @@ kubectl get experiment {instance-name} -n experiments -o jsonpath='{.status.hypo
 Then proceed to Step 6 if `publish: true`, otherwise skip to Step 8.
 
 ### On Failed
+
+**Log toil immediately** with the failure reason from conditions:
+```bash
+bd create --title="Experiment failed: {instance-name} - {first condition message}" --type=bug --priority=2 -l toil -l {name} -l {category}
+```
+Choose `{category}` based on which phase the failure occurred in: `crossplane` (Provisioning), `argocd` (Ready), `workflow` (Running), or `operator` (unknown).
 
 Show layered diagnostics:
 
@@ -239,8 +282,9 @@ Report transitions:
   kubectl logs job/{instance-name}-analyzer -n experiment-operator-system --tail=10 2>/dev/null
   ```
 - **Succeeded**: "Analysis complete! Results enriched with AI insights."
-- **Failed**: Show analyzer job logs and ask user how to proceed:
+- **Failed**: Log toil, show analyzer job logs, and ask user how to proceed:
   ```bash
+  bd create --title="Analyzer failed for {instance-name}" --type=bug --priority=3 -l toil -l {name} -l analyzer
   kubectl logs job/{instance-name}-analyzer -n experiment-operator-system --tail=50 2>/dev/null
   kubectl describe job {instance-name}-analyzer -n experiment-operator-system 2>/dev/null | tail -20
   ```
@@ -248,6 +292,11 @@ Report transitions:
 - **Skipped**: "Analysis skipped (no analyzerConfig or empty sections)."
 
 If the analysis phase field is empty after the experiment completes, wait a few polls — the operator may not have created the job yet. If still empty after 2 minutes, treat as Skipped.
+
+If the analyzer times out (15 minutes), log toil:
+```bash
+bd create --title="Analyzer timeout (15m) for {instance-name}" --type=bug --priority=3 -l toil -l {name} -l analyzer -l timing
+```
 
 ## Step 7: PR Management (publish: true only)
 
@@ -262,7 +311,10 @@ Extract PR info from the experiment status:
 kubectl get experiment {instance-name} -n experiments -o jsonpath='{.status.publishBranch}|{.status.publishPRNumber}|{.status.publishPRURL}'
 ```
 
-If no PR URL is set yet, report this and skip PR management.
+If no PR URL is set yet, report this and skip PR management. Log toil:
+```bash
+bd create --title="No PR created for published experiment {instance-name}" --type=bug --priority=3 -l toil -l {name} -l operator
+```
 
 ### Show PR summary
 
@@ -319,3 +371,15 @@ PR:          {publishPRURL} ({Merged/Open}) or "N/A"
 ```
 
 For non-publish experiments, omit the Analysis and PR lines.
+
+### Toil sync
+
+At the very end, sync any beads created during this run:
+```bash
+bd sync
+```
+
+If any toil beads were created during this run, add a brief note listing them:
+```
+Toil logged: {count} issue(s) — run `bd list -l {name}` to review
+```
