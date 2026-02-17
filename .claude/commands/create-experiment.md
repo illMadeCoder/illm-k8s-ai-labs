@@ -1,12 +1,12 @@
 ---
-description: Scaffold a new experiment directory with validated experiment.yaml
+description: Scaffold a new experiment directory with validated experiment.yaml, workflow template, and CI checks
 allowed-tools: Bash, Read, Write, Glob, Grep, Edit, AskUserQuestion
 argument-hint: [experiment-name]
 ---
 
 # Create Experiment
 
-Scaffold a new experiment with a validated `experiment.yaml`. Guide the user through an interactive flow, then generate the file and validate it.
+Scaffold a new experiment with a validated `experiment.yaml`, generate the WorkflowTemplate, and verify component images are built. Guide the user through an interactive flow, then generate all files and validate.
 
 ## Step 1: Parse Arguments
 
@@ -58,8 +58,9 @@ Present the component catalog grouped by category. Ask the user which components
 
 **Component Catalog (28 components):**
 
-**apps/** (7):
+**apps/** (8):
 - `hello-app` — Simple hello world app for load testing
+- `naive-db` — Naive fsync-per-write database (i32 column, baseline for storage benchmarks)
 - `nginx` — NGINX web server
 - `otel-demo` — Multi-service OTel demo (user-service, order-service, payment-service)
 - `cardinality-generator` — High-cardinality Prometheus metrics for cost analysis
@@ -257,11 +258,178 @@ Run experiment-validator agent with the experiment name
 
 Report the validation results. If there are failures, fix them and re-validate.
 
-## Step 6: Summary
+## Step 6: Generate WorkflowTemplate
+
+Create `experiments/{name}/workflow/template.yaml`. This is the Argo WorkflowTemplate the operator submits when the experiment reaches the Running phase.
+
+### Template anatomy
+
+All templates follow this structure:
+
+```yaml
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: {workflow-template-name}   # Must match experiment's spec.workflow.template
+  namespace: argo-workflows
+  labels:
+    app.kubernetes.io/managed-by: experiment-operator
+spec:
+  entrypoint: {entrypoint-name}
+  serviceAccountName: argo-workflow
+  arguments:
+    parameters:
+      - name: experiment-name
+        value: ""
+      - name: target-endpoint
+        value: ""
+      - name: target-name
+        value: ""
+  templates:
+    # ... (type-specific templates below)
+```
+
+### Type-specific workflow patterns
+
+**All types** share a smoke-test step:
+
+```yaml
+- name: check-target
+  container:
+    image: curlimages/curl:8.5.0
+    command: [sh, -c]
+    args:
+      - |
+        echo "=== Smoke-testing target cluster ==="
+        for i in $(seq 1 30); do
+          if curl -sk "https://{{workflow.parameters.target-endpoint}}/livez" 2>/dev/null; then
+            echo "Target cluster reachable"
+            exit 0
+          fi
+          echo "Attempt $i/30 — retrying in 10s..."
+          sleep 10
+        done
+        echo "Target cluster not reachable after 5 minutes"
+        exit 1
+```
+
+**baseline** — smoke test → wait for app → load test + observation
+
+Generate a load-test step that exercises the app's API. Tailor the script to the specific app components:
+- If the experiment uses `naive-db`: sequential writes, then random reads against the naive-db HTTP API
+- If the experiment uses `hello-app`: simple HTTP GET load with curl loops
+- Otherwise: a generic sleep-based observation window
+
+The load-test step should use `curlimages/curl:8.5.0` or `busybox:1.36` (no special tooling). Write the load test inline as a shell script in the `args` field. Structure it in phases:
+1. **Warm-up** (2-5 min): let the stack stabilize after deployment
+2. **Load test** (10-20 min): drive traffic at a steady rate, print progress every N iterations
+3. **Cooldown** (2-5 min): let metrics settle before collection
+
+Total duration: 15-30 minutes for baselines (shorter than comparisons).
+
+**comparison** — smoke test → wait for stacks → phased observation
+
+```yaml
+- name: validate-and-observe
+  steps:
+    - - name: smoke-test
+        template: check-target
+    - - name: wait-for-stacks
+        template: wait-for-stacks
+    - - name: observe
+        template: phased-observation
+```
+
+Phases (typically 45-90 min total):
+1. Wait for stacks (5 min): let ArgoCD sync all components
+2. Idle baseline (10 min): observe resource usage with no load
+3. Load test (20-45 min): main measurement window
+4. Cooldown (10 min): post-load observation
+
+For multi-target experiments (app + loadgen), add parameters for each target endpoint:
+```yaml
+arguments:
+  parameters:
+    - name: app-endpoint
+      value: ""
+    - name: loadgen-endpoint
+      value: ""
+```
+
+**tutorial** — smoke test → suspend (manual completion)
+
+```yaml
+- name: validate-and-suspend
+  steps:
+    - - name: smoke-test
+        template: check-target
+    - - name: wait-for-user
+        template: suspend-step
+
+- name: suspend-step
+  suspend: {}
+```
+
+**demo** — smoke test → short observation (5 min)
+
+```yaml
+- name: validate-and-observe
+  steps:
+    - - name: smoke-test
+        template: check-target
+    - - name: observe
+        template: observe
+
+- name: observe
+  container:
+    image: busybox:1.36
+    command: [sh, -c]
+    args: ["echo 'Observing for 5 minutes...'; sleep 300; echo 'Done'"]
+```
+
+### Common images
+
+Only use these lightweight images in workflow templates:
+- `curlimages/curl:8.5.0` — HTTP checks, curl-based load tests
+- `busybox:1.36` — Sleep/wait phases, shell scripting
+
+### Write the file
+
+Use the `Write` tool to create `experiments/{name}/workflow/template.yaml`.
+
+## Step 7: Check Component Images
+
+For each component referenced in the experiment, determine whether it needs a custom-built image:
+
+1. **Check for Dockerfile**: Use `Glob` to check if `components/*/{component-name}/Dockerfile` exists.
+   - If no Dockerfile: it's a Helm chart component (e.g., `kube-prometheus-stack`). No image build needed.
+   - If Dockerfile exists: it's a custom image that CI must build.
+
+2. **For custom-image components**, check the latest CI build:
+   ```bash
+   gh run list -w "Build Components" -L 1 --json status,conclusion,headBranch,createdAt
+   ```
+
+   Report status per component:
+   - CI passed recently: `[OK] {component} — image built`
+   - CI running/queued: `[PENDING] {component} — CI in progress, wait before running experiment`
+   - CI failed or no recent build: `[ACTION NEEDED] {component} — push code and wait for CI`
+
+   If any component image isn't built yet, **warn the user** that the experiment will fail at the Ready phase because ArgoCD won't be able to pull the image. Suggest:
+   ```
+   Watch CI: gh run watch {run-id}
+   ```
+
+## Step 8: Summary
 
 Tell the user:
-1. What was created: `experiments/{name}/experiment.yaml`
-2. The `generateName` prefix and GKE name length status
-3. Any TODOs they need to fill in (metrics queries, hypothesis details, workflow template)
-4. How to run: `kubectl create -f experiments/{name}/experiment.yaml`
-5. Remind them the workflow template (`{name}-validation`) needs to exist as an Argo WorkflowTemplate before the experiment can run
+1. **Files created:**
+   - `experiments/{name}/experiment.yaml`
+   - `experiments/{name}/workflow/template.yaml`
+2. **GKE name length**: `generateName` prefix and validation result
+3. **Component images**: status of custom-image builds (OK / pending / action needed)
+4. **TODOs** (if any): metrics queries, hypothesis details
+5. **Next steps**:
+   - If images built: `kubectl apply -f experiments/{name}/workflow/template.yaml && kubectl create -f experiments/{name}/experiment.yaml`
+   - If images pending: wait for CI, then apply
+   - Or use `/run-experiment {name}` which handles pre-flight checks, applying the template, and monitoring

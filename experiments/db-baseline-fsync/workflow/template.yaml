@@ -1,0 +1,133 @@
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: db-baseline-fsync-validation
+  namespace: argo-workflows
+  labels:
+    app.kubernetes.io/managed-by: experiment-operator
+spec:
+  entrypoint: validate-and-observe
+  serviceAccountName: argo-workflow
+  arguments:
+    parameters:
+      - name: experiment-name
+        value: ""
+      - name: target-endpoint
+        value: ""
+      - name: target-name
+        value: ""
+  templates:
+    - name: validate-and-observe
+      steps:
+        - - name: smoke-test
+            template: check-target
+        - - name: wait-for-app
+            template: wait-for-app
+        - - name: load-test
+            template: load-test
+
+    - name: check-target
+      container:
+        image: curlimages/curl:8.5.0
+        command: [sh, -c]
+        args:
+          - |
+            echo "=== Smoke-testing target cluster ==="
+            for i in $(seq 1 30); do
+              if curl -sk "https://{{workflow.parameters.target-endpoint}}/livez" 2>/dev/null; then
+                echo "Target cluster reachable"
+                exit 0
+              fi
+              echo "Attempt $i/30 — retrying in 10s..."
+              sleep 10
+            done
+            echo "Target cluster not reachable after 5 minutes"
+            exit 1
+
+    - name: wait-for-app
+      container:
+        image: curlimages/curl:8.5.0
+        command: [sh, -c]
+        args:
+          - |
+            echo "=== Waiting for naive-db to become ready ==="
+            # Give ArgoCD time to sync the StatefulSet + PVC
+            sleep 60
+            echo "Stack sync wait complete, proceeding to load test"
+
+    - name: load-test
+      container:
+        image: curlimages/curl:8.5.0
+        command: [sh, -c]
+        args:
+          - |
+            set -e
+            NAIVEDB="http://naive-db.{{workflow.parameters.experiment-name}}.svc.cluster.local"
+
+            echo "=== Phase 1: Warm-up (3 min) ==="
+            echo "Waiting for naive-db readiness..."
+            for i in $(seq 1 36); do
+              if curl -sf "$NAIVEDB/ready" >/dev/null 2>&1; then
+                echo "naive-db is ready"
+                break
+              fi
+              if [ "$i" = "36" ]; then
+                echo "naive-db not ready after 3 minutes"
+                exit 1
+              fi
+              sleep 5
+            done
+            # Let Prometheus scrape a few baseline samples
+            sleep 60
+            echo "Warm-up complete"
+
+            echo "=== Phase 2: Sequential writes (10 min) ==="
+            TOTAL_WRITES=6000
+            BATCH=100
+            written=0
+            start_ts=$(date +%s)
+            while [ "$written" -lt "$TOTAL_WRITES" ]; do
+              for j in $(seq 1 $BATCH); do
+                val=$((written + j))
+                curl -sf -X POST "$NAIVEDB/write" \
+                  -H "Content-Type: application/json" \
+                  -d "{\"value\": $val}" >/dev/null
+              done
+              written=$((written + BATCH))
+              elapsed=$(( $(date +%s) - start_ts ))
+              rate=0
+              if [ "$elapsed" -gt 0 ]; then
+                rate=$((written / elapsed))
+              fi
+              echo "Writes: $written / $TOTAL_WRITES ($rate writes/sec)"
+            done
+            echo "Write phase complete: $TOTAL_WRITES rows written"
+
+            echo "=== Phase 3: Random reads (5 min) ==="
+            TOTAL_READS=3000
+            read_count=0
+            start_ts=$(date +%s)
+            while [ "$read_count" -lt "$TOTAL_READS" ]; do
+              for j in $(seq 1 50); do
+                row_id=$(($(od -An -N2 -tu2 /dev/urandom | tr -d ' ') % TOTAL_WRITES))
+                curl -sf "$NAIVEDB/read/$row_id" >/dev/null
+              done
+              read_count=$((read_count + 50))
+              elapsed=$(( $(date +%s) - start_ts ))
+              rate=0
+              if [ "$elapsed" -gt 0 ]; then
+                rate=$((read_count / elapsed))
+              fi
+              echo "Reads: $read_count / $TOTAL_READS ($rate reads/sec)"
+            done
+            echo "Read phase complete: $TOTAL_READS random reads"
+
+            echo "=== Phase 4: Cooldown (2 min) ==="
+            echo "Letting metrics settle..."
+            sleep 120
+            echo "Cooldown complete"
+
+            echo "=== Load test finished ==="
+            echo "Total writes: $TOTAL_WRITES"
+            echo "Total reads: $TOTAL_READS"
+            curl -sf "$NAIVEDB/metrics" | grep -E "^naivedb_" | head -30
