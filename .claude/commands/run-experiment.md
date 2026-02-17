@@ -23,6 +23,14 @@ Read `experiments/{name}/experiment.yaml` and extract these key fields for use t
 
 Store these in your working memory — you'll reference them in every subsequent step.
 
+### Iteration tracking
+
+Initialize these variables for the auto-fix loop (used in Step 6.5):
+- `iterationCount = 0`
+- `appliedFixes = []`
+
+These track how many times the experiment has been re-run after auto-fixes and which fixes have already been applied, to avoid re-applying the same fix.
+
 ## Toil Tracking
 
 Throughout this skill, log friction and failures as beads for post-mortem analysis. This captures recurring patterns across experiment runs so they can be prioritized and fixed.
@@ -456,15 +464,34 @@ Report the quality scorecard with all warnings. Proceed to Step 7 but include th
      --type=bug --priority=2 -l toil -l {name} -l quality
    ```
 
-4. **Present remediation options** via `AskUserQuestion`:
+4. **Auto-fix and re-run** (up to 3 iterations):
 
-   **Option 1: "Fix and re-run" (Recommended)**
-   - Explain what needs to change based on the root cause diagnosis, with specific fixes:
-     - Missing `kube-prometheus-stack`: add `- app: kube-prometheus-stack` to target components
-     - Missing `metrics-agent`/`metrics-egress`: add `- app: metrics-agent` and `- app: metrics-egress` to target components
-     - `$NAMESPACE` in queries: replace all `namespace=~"$NAMESPACE"` with `namespace=~"$EXPERIMENT"` in experiment.yaml
-     - Missing load generation: add load-test step to workflow template
-   - If user picks this: make the fix to the experiment YAML, delete the current experiment (`kubectl delete experiment {instance-name} -n experiments`), close the PR (`gh pr close {pr-number} --delete-branch`), then loop back to Step 3 (Apply Experiment) with the fixed YAML
+   If a fixable root cause was identified AND `iterationCount < 3` AND the fix is not already in `appliedFixes`:
+   - Apply the fix to `experiments/{name}/experiment.yaml` (or workflow template) using the Edit tool
+   - Append the fix name to `appliedFixes`
+   - Delete the current experiment: `kubectl delete experiment {instance-name} -n experiments`
+   - If a PR exists: `gh pr close {pr-number} --delete-branch`
+   - Increment `iterationCount`
+   - Report: `"Auto-fix attempt {iterationCount}/3: {description of fix}. Re-running..."`
+   - **Loop back to Step 3** (Apply Experiment) — the full lifecycle runs again from apply through quality gate
+
+   **Fixable root causes and their auto-fixes:**
+
+   | Root Cause | Fix Name | Auto-Fix |
+   |-----------|----------|----------|
+   | Missing `kube-prometheus-stack` | `add-kube-prometheus-stack` | Add `- app: kube-prometheus-stack` to target components in experiment YAML |
+   | Missing `metrics-agent`/`metrics-egress` | `add-metrics-pipeline` | Add `- app: metrics-agent` and `- app: metrics-egress` to target components |
+   | `$NAMESPACE` in queries | `fix-namespace-var` | Replace all `$NAMESPACE` with `$EXPERIMENT` in experiment.yaml |
+   | Missing load generation | `add-load-test` | Add load-test step to workflow template (if no `k8s/loadgen.yaml` exists) |
+
+   **Not auto-fixable** (escalate to user):
+   - AI verdict `insufficient` but custom metrics are present — may be a data timing issue
+   - Root cause not identified by the diagnostics above
+
+   If `iterationCount >= 3` OR no new fixable root cause was identified (all applicable fixes already in `appliedFixes`), **fall back to user interaction** via `AskUserQuestion`. Include the iteration history in the report (e.g., "3 auto-fix attempts exhausted: {list of applied fixes}"):
+
+   **Option 1: "Fix and re-run"**
+   - User describes the fix; apply it, delete experiment, close PR, loop back to Step 3
 
    **Option 2: "Merge anyway"**
    - Warn: "Results will be published with insufficient data quality"
@@ -522,11 +549,25 @@ PR #{number}: "{title}" (+{additions}, -{deletions})
 Quality: FAIL ({X}/{Y} custom metrics, AI verdict: {verdict})
 ```
 
-### Ask user what to do
+### Auto-merge (quality gate passed)
 
-Use `AskUserQuestion` with these options:
+If `qualityGate` is `"pass"` or `"warn"`, auto-merge the PR without asking:
+```bash
+gh pr merge {pr-number} --squash --delete-branch
+```
+After merge, check for the deploy-site workflow:
+```bash
+gh run list -w "Deploy Benchmark Site" -L 1
+```
+Report the merge and site deploy status. Proceed to Step 8.
 
-1. **Merge PR (squash)** — merge and clean up:
+### Confirm merge (quality gate failed)
+
+If `qualityGate` is `"fail"` (user chose "Merge anyway" in Step 6.5), use `AskUserQuestion`
+to confirm before merging — this is the one case where user confirmation is still required
+since they're explicitly merging bad-quality results:
+
+1. **Merge PR (squash)** — merge with quality warning:
    ```bash
    gh pr merge {pr-number} --squash --delete-branch
    ```
@@ -542,16 +583,7 @@ Use `AskUserQuestion` with these options:
    ```
    Then ask again (loop back to the options).
 
-3. **Local preview instructions** — print these commands for the user:
-   ```
-   To preview locally:
-     git fetch origin
-     git checkout {branch}
-     cd site && npm run dev
-   ```
-   Then ask again (loop back to the options).
-
-4. **Skip** — leave PR open for later review. Report the PR URL for reference.
+3. **Skip** — leave PR open for later review. Report the PR URL for reference.
 
 ## Step 8: Final Summary
 
