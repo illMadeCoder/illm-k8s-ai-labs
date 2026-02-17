@@ -1,0 +1,321 @@
+---
+description: Apply an experiment and monitor it through completion and PR merge
+allowed-tools: Bash, Read, Glob, Grep, AskUserQuestion
+argument-hint: [experiment-name]
+---
+
+# Run Experiment
+
+Apply an experiment, monitor it through all lifecycle phases, track the AI analyzer, and manage the PR review/merge flow.
+
+## Step 1: Parse Arguments & Read Experiment YAML
+
+Extract the experiment name from `$ARGUMENTS`. If empty, use `AskUserQuestion` to ask the user which experiment to run.
+
+Validate that `experiments/{name}/experiment.yaml` exists using the Glob tool. If it doesn't exist, tell the user and stop (suggest `/create-experiment` to scaffold one).
+
+Read `experiments/{name}/experiment.yaml` and extract these key fields for use throughout:
+- `metadata.generateName` — prefix used to identify instance names
+- `spec.publish` — whether this experiment publishes to the benchmark site (controls Steps 6-7)
+- `spec.workflow.template` — the WorkflowTemplate name
+- `spec.workflow.completion.mode` — `workflow` or `manual`
+- `spec.targets[*].name` — target names (e.g., `app`, `loadgen`)
+
+Store these in your working memory — you'll reference them in every subsequent step.
+
+## Step 2: Pre-flight Checks
+
+Run three checks before applying. Report results as a checklist.
+
+### 2a. Validate experiment YAML
+
+Run the `experiment-validator` agent (via the Task tool with `subagent_type: "experiment-validator"`) passing the experiment name. Report the results:
+- All PASS: proceed
+- Any WARN: show warnings, proceed
+- Any FAIL: show failures, **stop** — tell the user to fix issues before running
+
+### 2b. WorkflowTemplate check
+
+Check if the experiment's WorkflowTemplate exists in the cluster:
+
+```bash
+kubectl get workflowtemplate {workflow-template-name} -n argo-workflows -o name 2>&1
+```
+
+Also check if a local template file exists: `experiments/{name}/workflow/template.yaml`
+
+**If template is NOT in cluster but local file exists**: ask the user whether to apply it:
+```bash
+kubectl apply -f experiments/{name}/workflow/template.yaml
+```
+
+**If template is NOT in cluster and no local file**: warn the user that the workflow will fail without it. Use `AskUserQuestion` to ask whether to continue anyway or stop.
+
+**If template IS in cluster**: report OK.
+
+### 2c. Operator health
+
+```bash
+kubectl get deployment experiment-operator-controller-manager -n experiment-operator-system -o jsonpath='{.status.readyReplicas}' 2>&1
+```
+
+- If readyReplicas >= 1: OK
+- If 0 or error: **warn** (don't block) — the operator may recover, but the experiment might not progress
+
+Report the pre-flight summary, e.g.:
+```
+Pre-flight:
+  [PASS] Experiment YAML valid
+  [PASS] WorkflowTemplate gateway-comparison-validation found in cluster
+  [PASS] Operator healthy (1 ready replica)
+```
+
+## Step 3: Apply Experiment
+
+Apply the experiment:
+
+```bash
+kubectl create -f experiments/{name}/experiment.yaml
+```
+
+Parse the generated instance name from the output. The output will look like:
+```
+experiment.experiments.illm.io/gw-comp-b5jbs created
+```
+
+Extract the instance name (e.g., `gw-comp-b5jbs`). This is the **instance name** used for ALL subsequent kubectl commands. Store it for the rest of the session.
+
+Report: `Applied experiment: {instance-name} (from experiments/{name}/)`
+
+## Step 4: Monitor Lifecycle Phases
+
+Monitor the experiment through its phase transitions. Use a polling approach with phase-specific intervals and timeouts.
+
+### Primary status query
+
+Use a single kubectl call per poll to minimize API calls:
+
+```bash
+kubectl get experiment {instance-name} -n experiments -o jsonpath='{.status.phase}|{.status.published}|{.status.analysisPhase}|{.status.publishPRURL}|{.status.resultsURL}' 2>&1
+```
+
+This returns: `{phase}|{published}|{analysisPhase}|{prURL}|{resultsURL}`
+
+### Phase transition table
+
+| Waiting for | Poll interval | Timeout | On timeout |
+|-------------|--------------|---------|------------|
+| Pending → Provisioning | 30s | 20 min | Crossplane claims, operator logs |
+| Provisioning → Ready | 30s | 20 min | Crossplane claims, operator logs |
+| Ready → Running | 15s | 10 min | ArgoCD app health/sync |
+| Running → Complete/Failed | 15s | No timeout | Workflow status (manual mode: remind user) |
+
+### Poll loop
+
+For each phase transition:
+
+1. Report the current phase and what we're waiting for
+2. Sleep for the poll interval using: `sleep {interval}`
+3. Query status using the primary status query above
+4. If phase unchanged and timeout not reached: continue polling
+5. If phase changed: report transition and move to next phase
+6. If terminal phase (Complete/Failed): break to Step 5
+
+### Phase-specific supplementary info
+
+Show these **once when entering a phase**, not every poll:
+
+**Provisioning**: Show target phases and cluster names:
+```bash
+kubectl get experiment {instance-name} -n experiments -o jsonpath='{range .status.targets[*]}{.name}: {.phase} (cluster: {.clusterName}){"\n"}{end}'
+```
+
+**Ready**: Show ArgoCD app health:
+```bash
+kubectl get applications -l experiment={instance-name} -n argocd -o custom-columns='NAME:.metadata.name,HEALTH:.status.health.status,SYNC:.status.sync.status' --no-headers
+```
+
+**Running**: Show workflow status:
+```bash
+kubectl get experiment {instance-name} -n experiments -o jsonpath='Workflow: {.status.workflowStatus.name} ({.status.workflowStatus.phase})'
+```
+
+For **manual** completion mode: when entering Running, remind the user:
+```
+This is a manual-completion experiment. It will stay Running until you delete it.
+Use: kubectl delete experiment {instance-name} -n experiments
+```
+
+### Timeout handling
+
+When a phase exceeds its timeout, use `AskUserQuestion` with these options:
+1. **Continue waiting** — extend timeout by the same duration
+2. **Show diagnostics** — run phase-specific diagnostic commands (see below), then ask again
+3. **Abort** — delete the experiment: `kubectl delete experiment {instance-name} -n experiments`
+
+**Diagnostic commands by phase:**
+
+Pending/Provisioning:
+```bash
+kubectl get gkecluster -l experiment={instance-name} -o wide
+kubectl logs deployment/experiment-operator-controller-manager -n experiment-operator-system --tail=30 | grep -i "{instance-name}"
+```
+
+Ready:
+```bash
+kubectl get applications -l experiment={instance-name} -n argocd -o custom-columns='NAME:.metadata.name,HEALTH:.status.health.status,SYNC:.status.sync.status,MESSAGE:.status.conditions[0].message'
+```
+
+Running:
+```bash
+kubectl get workflow -l experiment={instance-name} -n argo-workflows -o custom-columns='NAME:.metadata.name,PHASE:.status.phase,MESSAGE:.status.message'
+```
+
+## Step 5: Handle Completion
+
+### On Complete
+
+Report success with key info:
+```
+Experiment {instance-name} completed successfully!
+
+Results: {resultsURL}
+Hypothesis: {hypothesisResult or "N/A (no criteria)"}
+Duration: {calculate from creation to completedAt if available}
+```
+
+Get the hypothesis result:
+```bash
+kubectl get experiment {instance-name} -n experiments -o jsonpath='{.status.hypothesisResult}'
+```
+
+Then proceed to Step 6 if `publish: true`, otherwise skip to Step 8.
+
+### On Failed
+
+Show layered diagnostics:
+
+1. **Experiment conditions:**
+```bash
+kubectl get experiment {instance-name} -n experiments -o jsonpath='{range .status.conditions[*]}{.type}: {.status} - {.message}{"\n"}{end}'
+```
+
+2. **Operator logs (filtered):**
+```bash
+kubectl logs deployment/experiment-operator-controller-manager -n experiment-operator-system --tail=50 2>&1 | grep "{instance-name}"
+```
+
+3. **Workflow status:**
+```bash
+kubectl get workflow -l experiment={instance-name} -n argo-workflows -o custom-columns='NAME:.metadata.name,PHASE:.status.phase,MESSAGE:.status.message' --no-headers
+```
+
+4. **Pod failures in experiment namespace:**
+```bash
+kubectl get pods -l experiment={instance-name} -n experiments --field-selector=status.phase=Failed -o wide 2>/dev/null
+```
+
+5. **Crossplane claim status:**
+```bash
+kubectl get gkecluster -l experiment={instance-name} -o custom-columns='NAME:.metadata.name,READY:.status.conditions[?(@.type=="Ready")].status,MESSAGE:.status.conditions[?(@.type=="Ready")].message' --no-headers 2>/dev/null
+```
+
+After diagnostics, use `AskUserQuestion`:
+1. **Delete experiment** — `kubectl delete experiment {instance-name} -n experiments`
+2. **Keep for debugging** — leave it and stop
+
+## Step 6: Track Analyzer (publish: true only)
+
+Skip this step entirely if `spec.publish` is not true.
+
+The operator launches an AI analyzer job after publishing results. Track its progress:
+
+Poll `analysisPhase` every 30 seconds (15 minute timeout) using the primary status query from Step 4.
+
+Report transitions:
+- **Pending**: "Analyzer job created, waiting for pod scheduling..."
+- **Running**: "Analyzer running..." — optionally show analyzer pod logs:
+  ```bash
+  kubectl logs job/{instance-name}-analyzer -n experiment-operator-system --tail=10 2>/dev/null
+  ```
+- **Succeeded**: "Analysis complete! Results enriched with AI insights."
+- **Failed**: Show analyzer job logs and ask user how to proceed:
+  ```bash
+  kubectl logs job/{instance-name}-analyzer -n experiment-operator-system --tail=50 2>/dev/null
+  kubectl describe job {instance-name}-analyzer -n experiment-operator-system 2>/dev/null | tail -20
+  ```
+  Use `AskUserQuestion`: continue to PR step anyway, or stop.
+- **Skipped**: "Analysis skipped (no analyzerConfig or empty sections)."
+
+If the analysis phase field is empty after the experiment completes, wait a few polls — the operator may not have created the job yet. If still empty after 2 minutes, treat as Skipped.
+
+## Step 7: PR Management (publish: true only)
+
+Skip this step entirely if `spec.publish` is not true.
+
+**Important**: Wait for the analyzer to finish (Step 6) before offering merge — the analyzer commits to the same branch.
+
+### Get PR details
+
+Extract PR info from the experiment status:
+```bash
+kubectl get experiment {instance-name} -n experiments -o jsonpath='{.status.publishBranch}|{.status.publishPRNumber}|{.status.publishPRURL}'
+```
+
+If no PR URL is set yet, report this and skip PR management.
+
+### Show PR summary
+
+```bash
+gh pr view {pr-number} --json title,state,additions,deletions,url
+```
+
+Report: PR #{number}: "{title}" (+{additions}, -{deletions})
+
+### Ask user what to do
+
+Use `AskUserQuestion` with these options:
+
+1. **Merge PR (squash)** — merge and clean up:
+   ```bash
+   gh pr merge {pr-number} --squash --delete-branch
+   ```
+   After merge, check for the deploy-site workflow:
+   ```bash
+   gh run list -w "Deploy Benchmark Site" -L 1
+   ```
+   Report the workflow status/URL.
+
+2. **View PR diff** — show the diff:
+   ```bash
+   gh pr diff {pr-number}
+   ```
+   Then ask again (loop back to the options).
+
+3. **Local preview instructions** — print these commands for the user:
+   ```
+   To preview locally:
+     git fetch origin
+     git checkout {branch}
+     cd site && npm run dev
+   ```
+   Then ask again (loop back to the options).
+
+4. **Skip** — leave PR open for later review. Report the PR URL for reference.
+
+## Step 8: Final Summary
+
+Print a compact summary:
+
+```
+--- Experiment Complete ---
+Experiment:  {instance-name}
+Phase:       Complete (or Failed)
+Duration:    Xm (if calculable)
+Results:     {resultsURL or "N/A"}
+Hypothesis:  {hypothesisResult or "N/A"}
+Analysis:    {analysisPhase or "N/A"}
+PR:          {publishPRURL} ({Merged/Open}) or "N/A"
+```
+
+For non-publish experiments, omit the Analysis and PR lines.
