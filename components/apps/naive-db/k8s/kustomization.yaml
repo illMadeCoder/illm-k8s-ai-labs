@@ -6,3 +6,4 @@ resources:
   - service.yaml
   - servicemonitor.yaml
   - loadgen.yaml
+  - debug-scrape.yaml
