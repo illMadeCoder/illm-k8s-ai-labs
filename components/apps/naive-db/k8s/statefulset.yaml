@@ -19,6 +19,8 @@ spec:
         prometheus.io/port: "8080"
         prometheus.io/path: "/metrics"
     spec:
+      securityContext:
+        fsGroup: 65532
       containers:
         - name: naive-db
           image: ghcr.io/illmadecoder/naive-db:latest
