@@ -501,6 +501,19 @@ func (r *ExperimentReconciler) collectAndStoreResults(ctx context.Context, exp *
 		qr := metrics.EvaluateMetricsQuality(summary, minCoverage)
 		qr.Iteration = exp.Status.IterationStatus.CurrentIteration
 
+		// Also check hypothesis verdict — if success criteria exist but can't be
+		// evaluated ("insufficient"), treat that as a quality gate failure even if
+		// raw coverage passes. The whole point of iterating is to get evaluable data.
+		if qr.Passed {
+			verdict := metrics.EvaluateSuccessCriteria(summary)
+			if verdict == "insufficient" {
+				qr.Passed = false
+				qr.Remedy = "Metrics coverage passed but hypothesis criteria are insufficient — " +
+					"the specific metrics needed for success criteria returned no data. " +
+					"Will re-collect with shorter $DURATION."
+			}
+		}
+
 		exp.Status.IterationStatus.QualityResults = append(
 			exp.Status.IterationStatus.QualityResults, qr)
 
