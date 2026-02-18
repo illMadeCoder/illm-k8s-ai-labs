@@ -94,6 +94,10 @@ spec:
               description:
                 description: Description of the experiment
                 type: string
+              title:
+                description: Human-readable display name for the experiment, shown
+                  on the benchmark site and in PR titles.
+                type: string
               metrics:
                 description: Custom PromQL queries to execute at experiment completion.
                   Results are stored in summary.json for the benchmark site.
@@ -215,6 +219,28 @@ spec:
                   benchmark site and whether AI analysis is generated. When false
                   (default), results are only stored in S3.
                 type: boolean
+              qualityGate:
+                description: Configures auto-iteration for metrics quality on published
+                  experiments.
+                properties:
+                  enabled:
+                    default: true
+                    description: Whether the quality gate is active.
+                    type: boolean
+                  maxIterations:
+                    default: 3
+                    description: Maximum re-collection attempts (1-5).
+                    maximum: 5
+                    minimum: 1
+                    type: integer
+                  minDataCoverage:
+                    description: Fraction of metrics that must return data (0.0-1.0).
+                    type: number
+                  recollectDelaySeconds:
+                    default: 120
+                    description: Wait time in seconds between re-collection attempts.
+                    type: integer
+                type: object
               hypothesis:
                 description: Describes the claim being tested and optional success
                   criteria. This is the central organizing principle — the AI
@@ -471,6 +497,53 @@ spec:
                 description: ResultsURL is the S3 path where experiment results are
                   stored
                 type: string
+              publishBranch:
+                description: PublishBranch is the Git branch created for the experiment
+                  results PR.
+                type: string
+              publishPRNumber:
+                description: PublishPRNumber is the pull request number on GitHub.
+                type: integer
+              publishPRURL:
+                description: PublishPRURL is the HTML URL of the pull request.
+                type: string
+              iterationStatus:
+                description: Tracks quality gate iteration progress.
+                properties:
+                  currentIteration:
+                    type: integer
+                  maxIterations:
+                    type: integer
+                  phase:
+                    description: Quality gate phase.
+                    enum:
+                    - Evaluating
+                    - Recollecting
+                    - Passed
+                    - Exhausted
+                    type: string
+                  qualityResults:
+                    items:
+                      properties:
+                        iteration:
+                          type: integer
+                        totalMetrics:
+                          type: integer
+                        metricsWithData:
+                          type: integer
+                        coverage:
+                          type: number
+                        missingMetrics:
+                          items:
+                            type: string
+                          type: array
+                        passed:
+                          type: boolean
+                        remedy:
+                          type: string
+                      type: object
+                    type: array
+                type: object
               targets:
                 description: Target statuses
                 items:
