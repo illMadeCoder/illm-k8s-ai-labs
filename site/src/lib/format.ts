@@ -37,6 +37,8 @@ export function formatValue(value: number, unit?: string): string {
     case 'ms':
       return `${value.toFixed(1)} ms`;
     case 'seconds':
+      if (value < 0.01) return `${(value * 1000).toFixed(2)}ms`;
+      if (value < 1) return `${(value * 1000).toFixed(1)}ms`;
       return `${value.toFixed(2)}s`;
     case '%':
       return `${value.toFixed(1)}%`;
