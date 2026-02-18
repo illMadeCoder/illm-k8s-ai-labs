@@ -122,11 +122,23 @@ extract_json() {
     sed -i '$d' "${out_file}"
   fi
 
-  # Validate JSON
+  # Validate JSON — if invalid, try stripping preamble text before first {
   if ! jq empty "${out_file}" 2>/dev/null; then
-    echo "ERROR: Output is not valid JSON"
-    cat "${out_file}" >&2
-    return 1
+    if grep -qn '^{' "${out_file}"; then
+      echo "WARNING: Stripping preamble text before JSON object"
+      sed -i '1,/^{/{/^{/!d}' "${out_file}"
+      # Also strip any trailing text after the JSON (after last })
+      local last_brace
+      last_brace=$(grep -n '^}' "${out_file}" | tail -1 | cut -d: -f1)
+      if [ -n "${last_brace}" ]; then
+        sed -i "$((last_brace + 1)),\$d" "${out_file}"
+      fi
+    fi
+    if ! jq empty "${out_file}" 2>/dev/null; then
+      echo "ERROR: Output is not valid JSON"
+      cat "${out_file}" >&2
+      return 1
+    fi
   fi
 }
 
