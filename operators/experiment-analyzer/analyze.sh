@@ -131,9 +131,10 @@ extract_json() {
 }
 
 # --- Helper: run a single analysis pass with retry ---
+# Args: pass_name, prompt_file (path to file containing the prompt), out_file
 run_pass() {
   local pass_name="$1"
-  local prompt="$2"
+  local prompt_file="$2"
   local out_file="$3"
   local raw_file="${WORK_DIR}/${pass_name}_raw.json"
   local stderr_file="${WORK_DIR}/${pass_name}_stderr.log"
@@ -142,7 +143,7 @@ run_pass() {
 
   local attempt
   for attempt in 1 2; do
-    if claude -p "${prompt}" --output-format json > "${raw_file}" 2>"${stderr_file}"; then
+    if claude -p --output-format json < "${prompt_file}" > "${raw_file}" 2>"${stderr_file}"; then
       if extract_json "${raw_file}" "${out_file}"; then
         echo "==> ${pass_name} complete ($(wc -c < "${out_file}") bytes)"
         return 0
@@ -234,7 +235,20 @@ check_diagram_width() {
   return 0
 }
 
-SUMMARY_DATA=$(cat "${SUMMARY_FILE}")
+# --- Helper: build a prompt file from strings and files (avoids ARG_MAX limits) ---
+# Args: output_path, then pairs of (type, content) where type is "str" or "file"
+build_prompt_file() {
+  local output="$1"; shift
+  > "${output}"
+  while [ $# -ge 2 ]; do
+    local type="$1" content="$2"; shift 2
+    if [ "${type}" = "file" ]; then
+      cat "${content}" >> "${output}"
+    else
+      printf '%s\n' "${content}" >> "${output}"
+    fi
+  done
+}
 
 # Extract hypothesis context if present (claim, questions, focus from experiment spec)
 # Try new 'hypothesis' field first, fall back to legacy 'study' field
@@ -307,11 +321,13 @@ EOF
 )
 
 PASS1_FILE="${WORK_DIR}/pass_1.json"
-run_pass "pass_1_plan" "${PASS1_PROMPT}
-${SUMMARY_DATA}
-${STUDY_CONTEXT}" "${PASS1_FILE}" || true
+PASS1_PROMPT_FILE="${WORK_DIR}/pass_1_prompt.txt"
+build_prompt_file "${PASS1_PROMPT_FILE}" \
+  "str" "${PASS1_PROMPT}" \
+  "file" "${SUMMARY_FILE}" \
+  "str" "${STUDY_CONTEXT}"
+run_pass "pass_1_plan" "${PASS1_PROMPT_FILE}" "${PASS1_FILE}" || true
 
-PLAN_DATA=$(cat "${PASS1_FILE}")
 echo "==> Analysis plan: $(jq -c '{technologies, isComparison, focusAreas}' "${PASS1_FILE}" 2>/dev/null || echo '{}')"
 
 # ============================================================================
@@ -390,11 +406,14 @@ ANALYSIS PLAN:
 EOF
 )
 
-run_pass "pass_2_core" "${PASS2_PROMPT}
-${PLAN_DATA}
-${STUDY_CONTEXT}
-EXPERIMENT DATA:
-${SUMMARY_DATA}" "${PASS2_FILE}" || true
+PASS2_PROMPT_FILE="${WORK_DIR}/pass_2_prompt.txt"
+build_prompt_file "${PASS2_PROMPT_FILE}" \
+  "str" "${PASS2_PROMPT}" \
+  "file" "${PASS1_FILE}" \
+  "str" "${STUDY_CONTEXT}" \
+  "str" "EXPERIMENT DATA:" \
+  "file" "${SUMMARY_FILE}"
+run_pass "pass_2_core" "${PASS2_PROMPT_FILE}" "${PASS2_FILE}" || true
 
 # --- Diagram validation + retry ---
 if section_requested "architectureDiagram"; then
@@ -420,7 +439,9 @@ if section_requested "architectureDiagram"; then
       echo "==> Retrying diagram generation with tighter constraints..."
 
       RETRY_FILE="${WORK_DIR}/diagram_retry.json"
-      RETRY_PROMPT="You previously generated a Mermaid architecture diagram that has issues:
+      RETRY_PROMPT_FILE="${WORK_DIR}/diagram_retry_prompt.txt"
+      build_prompt_file "${RETRY_PROMPT_FILE}" \
+        "str" "You previously generated a Mermaid architecture diagram that has issues:
 ${ALL_ISSUES}
 
 Fix the diagram. Output ONLY a JSON object with a single key:
@@ -437,7 +458,7 @@ Rules:
 Original diagram:
 ${DIAGRAM_TEXT}"
 
-      if run_pass "diagram_retry" "${RETRY_PROMPT}" "${RETRY_FILE}"; then
+      if run_pass "diagram_retry" "${RETRY_PROMPT_FILE}" "${RETRY_FILE}"; then
         # Merge retry diagram back into pass 2 output
         jq -s '.[0] * .[1]' "${PASS2_FILE}" "${RETRY_FILE}" > "${PASS2_FILE}.tmp" \
           && mv "${PASS2_FILE}.tmp" "${PASS2_FILE}"
@@ -504,11 +525,14 @@ ANALYSIS PLAN:
 EOF
 )
 
-run_pass "pass_3_finops_secops" "${PASS3_PROMPT}
-${PLAN_DATA}
-
-EXPERIMENT DATA:
-${SUMMARY_DATA}" "${PASS3_FILE}" || true
+PASS3_PROMPT_FILE="${WORK_DIR}/pass_3_prompt.txt"
+build_prompt_file "${PASS3_PROMPT_FILE}" \
+  "str" "${PASS3_PROMPT}" \
+  "file" "${PASS1_FILE}" \
+  "str" "" \
+  "str" "EXPERIMENT DATA:" \
+  "file" "${SUMMARY_FILE}"
+run_pass "pass_3_finops_secops" "${PASS3_PROMPT_FILE}" "${PASS3_FILE}" || true
 
 else
   echo "==> Skipping pass 3 (finops/secops) — no relevant sections requested"
@@ -577,11 +601,14 @@ ANALYSIS PLAN:
 EOF
 )
 
-run_pass "pass_4_capabilities" "${PASS4_PROMPT}
-${PLAN_DATA}
-
-EXPERIMENT DATA:
-${SUMMARY_DATA}" "${PASS4_FILE}" || true
+PASS4_PROMPT_FILE="${WORK_DIR}/pass_4_prompt.txt"
+build_prompt_file "${PASS4_PROMPT_FILE}" \
+  "str" "${PASS4_PROMPT}" \
+  "file" "${PASS1_FILE}" \
+  "str" "" \
+  "str" "EXPERIMENT DATA:" \
+  "file" "${SUMMARY_FILE}"
+run_pass "pass_4_capabilities" "${PASS4_PROMPT_FILE}" "${PASS4_FILE}" || true
 
 else
   echo "==> Skipping pass 4 (capabilities) — no relevant sections requested"
@@ -594,12 +621,13 @@ fi
 PASS5_FILE="${WORK_DIR}/pass_5.json"
 if section_requested "body"; then
 
-# Build prior-sections context from passes 2-4
-PRIOR_SECTIONS=""
+# Build prior-sections context file from passes 2-4
+PRIOR_SECTIONS_FILE="${WORK_DIR}/prior_sections.txt"
+> "${PRIOR_SECTIONS_FILE}"
 for prior_file in "${PASS2_FILE}" "${PASS3_FILE}" "${PASS4_FILE}"; do
   if [ -f "${prior_file}" ] && [ "$(cat "${prior_file}")" != "{}" ]; then
-    PRIOR_SECTIONS="${PRIOR_SECTIONS}
-$(cat "${prior_file}")"
+    cat "${prior_file}" >> "${PRIOR_SECTIONS_FILE}"
+    printf '\n' >> "${PRIOR_SECTIONS_FILE}"
   fi
 done
 
@@ -609,7 +637,7 @@ if jq -e '.metrics.queries' "${SUMMARY_FILE}" > /dev/null 2>&1; then
   METRIC_KEYS=$(jq -r '.metrics.queries | keys | join(", ")' "${SUMMARY_FILE}")
 fi
 
-PASS5_PROMPT=$(cat <<EOF
+PASS5_PROMPT_STATIC=$(cat <<EOF
 You are writing the main analysis for a Kubernetes experiment benchmark page.
 
 OUTPUT FORMAT: A JSON object with a single "body" key containing a "blocks" array.
@@ -665,17 +693,18 @@ AVAILABLE METRIC KEYS:
 ${METRIC_KEYS}
 
 PRIOR ANALYSIS (use as source material — DO NOT repeat verbatim):
-${PRIOR_SECTIONS}
-
-EXPERIMENT DATA:
-${SUMMARY_DATA}
-${STUDY_CONTEXT}
-
-Output ONLY the JSON object with the "body" key, no markdown fences or extra text.
 EOF
 )
 
-run_pass "pass_5_body_synthesis" "${PASS5_PROMPT}" "${PASS5_FILE}" || true
+PASS5_PROMPT_FILE="${WORK_DIR}/pass_5_prompt.txt"
+build_prompt_file "${PASS5_PROMPT_FILE}" \
+  "str" "${PASS5_PROMPT_STATIC}" \
+  "file" "${PRIOR_SECTIONS_FILE}" \
+  "str" "EXPERIMENT DATA:" \
+  "file" "${SUMMARY_FILE}" \
+  "str" "${STUDY_CONTEXT}" \
+  "str" "Output ONLY the JSON object with the \"body\" key, no markdown fences or extra text."
+run_pass "pass_5_body_synthesis" "${PASS5_PROMPT_FILE}" "${PASS5_FILE}" || true
 
 else
   echo "==> Skipping pass 5 (body synthesis) — body not requested"
@@ -826,8 +855,8 @@ if [ -n "${GITHUB_TOKEN:-}" ] && [ -n "${GITHUB_REPO:-}" ]; then
   FILE_PATH="${GITHUB_RESULTS_PATH}/${EXPERIMENT_NAME}.json"
   API_URL="https://api.github.com/repos/${OWNER}/${REPO}/contents/${FILE_PATH}"
 
-  # Base64-encode the enriched JSON
-  CONTENT_B64=$(base64 -w0 "${ENRICHED_FILE}")
+  # Base64-encode the enriched JSON to a file (avoids ARG_MAX for large payloads)
+  base64 -w0 "${ENRICHED_FILE}" > "${WORK_DIR}/content_b64.txt"
 
   # Check if file exists (get SHA for update)
   EXISTING_SHA=""
@@ -839,26 +868,27 @@ if [ -n "${GITHUB_TOKEN:-}" ] && [ -n "${GITHUB_REPO:-}" ]; then
     EXISTING_SHA=$(echo "${EXISTING}" | jq -r '.sha')
   fi
 
-  # Build the commit payload
+  # Build the commit payload using file-based jq (--rawfile avoids ARG_MAX)
+  PAYLOAD_FILE="${WORK_DIR}/payload.json"
   if [ -n "${EXISTING_SHA}" ]; then
-    PAYLOAD=$(jq -n \
+    jq -n \
       --arg msg "data: Update ${EXPERIMENT_NAME} with AI analysis" \
-      --arg content "${CONTENT_B64}" \
+      --rawfile content "${WORK_DIR}/content_b64.txt" \
       --arg branch "${GITHUB_BRANCH}" \
       --arg sha "${EXISTING_SHA}" \
-      '{message: $msg, content: $content, branch: $branch, sha: $sha}')
+      '{message: $msg, content: $content, branch: $branch, sha: $sha}' > "${PAYLOAD_FILE}"
   else
-    PAYLOAD=$(jq -n \
+    jq -n \
       --arg msg "data: Add ${EXPERIMENT_NAME} with AI analysis" \
-      --arg content "${CONTENT_B64}" \
+      --rawfile content "${WORK_DIR}/content_b64.txt" \
       --arg branch "${GITHUB_BRANCH}" \
-      '{message: $msg, content: $content, branch: $branch}')
+      '{message: $msg, content: $content, branch: $branch}' > "${PAYLOAD_FILE}"
   fi
 
   if curl -sf -X PUT "${API_URL}" \
     -H "Authorization: token ${GITHUB_TOKEN}" \
     -H "Accept: application/vnd.github.v3+json" \
-    -d "${PAYLOAD}" > /dev/null; then
+    -d @"${PAYLOAD_FILE}" > /dev/null; then
     echo "==> Results committed to GitHub: ${FILE_PATH}"
   else
     echo "WARNING: Failed to commit results to GitHub"
