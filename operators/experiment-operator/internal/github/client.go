@@ -164,6 +164,44 @@ func WithTitle(title string) PublishOption {
 	}
 }
 
+// MergePR squash-merges a pull request and deletes the source branch.
+func (c *Client) MergePR(ctx context.Context, prNumber int, branchName string) error {
+	_, _, err := c.client.PullRequests.Merge(ctx, c.owner, c.repo, prNumber, "", &gh.PullRequestOptions{
+		MergeMethod: "squash",
+	})
+	if err != nil {
+		return fmt.Errorf("merge PR #%d: %w", prNumber, err)
+	}
+
+	// Delete the source branch
+	_, err = c.client.Git.DeleteRef(ctx, c.owner, c.repo, "refs/heads/"+branchName)
+	if err != nil {
+		// Non-fatal: PR is merged, branch cleanup is best-effort
+		return fmt.Errorf("delete branch %s after merge: %w", branchName, err)
+	}
+
+	return nil
+}
+
+// ClosePR closes a pull request without merging and deletes the source branch.
+func (c *Client) ClosePR(ctx context.Context, prNumber int, branchName string) error {
+	closed := "closed"
+	_, _, err := c.client.PullRequests.Edit(ctx, c.owner, c.repo, prNumber, &gh.PullRequest{
+		State: &closed,
+	})
+	if err != nil {
+		return fmt.Errorf("close PR #%d: %w", prNumber, err)
+	}
+
+	// Delete the source branch
+	_, err = c.client.Git.DeleteRef(ctx, c.owner, c.repo, "refs/heads/"+branchName)
+	if err != nil {
+		return fmt.Errorf("delete branch %s after close: %w", branchName, err)
+	}
+
+	return nil
+}
+
 // CommitResult commits an experiment summary JSON to the configured repo path.
 // It creates or updates site/data/{expName}.json with indented JSON.
 func (c *Client) CommitResult(ctx context.Context, expName string, summary any) error {

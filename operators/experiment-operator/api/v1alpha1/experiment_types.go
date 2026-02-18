@@ -453,6 +453,12 @@ type ExperimentStatus struct {
 	// +optional
 	HypothesisResult string `json:"hypothesisResult,omitempty"`
 
+	// ReviewPhase tracks the human review gate for published experiments.
+	// Set to Pending after analysis resolves, Approved/Rejected by annotation,
+	// or Skipped for non-published experiments.
+	// +optional
+	ReviewPhase ReviewPhase `json:"reviewPhase,omitempty"`
+
 	// IterationStatus tracks quality gate iteration progress.
 	// +optional
 	IterationStatus *IterationStatus `json:"iterationStatus,omitempty"`
@@ -545,6 +551,21 @@ const (
 	AnalysisPhaseSkipped   AnalysisPhase = "Skipped"
 )
 
+// ReviewPhase tracks the human review gate for published experiments.
+// +kubebuilder:validation:Enum=Pending;Approved;Rejected;Skipped
+type ReviewPhase string
+
+const (
+	ReviewPhasePending  ReviewPhase = "Pending"
+	ReviewPhaseApproved ReviewPhase = "Approved"
+	ReviewPhaseRejected ReviewPhase = "Rejected"
+	ReviewPhaseSkipped  ReviewPhase = "Skipped"
+)
+
+// AnnotationReview is the annotation key used to signal human review decisions.
+// Values: "approved" or "rejected".
+const AnnotationReview = "experiments.illm.io/review"
+
 // TargetStatus represents the status of a deployment target
 type TargetStatus struct {
 	// +required
@@ -608,6 +629,7 @@ type WorkflowStatus struct {
 // +kubebuilder:printcolumn:name="Published",type=boolean,JSONPath=`.status.published`
 // +kubebuilder:printcolumn:name="Cleaned",type=boolean,JSONPath=`.status.resourcesCleaned`
 // +kubebuilder:printcolumn:name="Analysis",type=string,JSONPath=`.status.analysisPhase`
+// +kubebuilder:printcolumn:name="Review",type=string,JSONPath=`.status.reviewPhase`
 // +kubebuilder:printcolumn:name="Results",type=string,JSONPath=`.status.resultsURL`,priority=1
 // +kubebuilder:printcolumn:name="Age",type=date,JSONPath=`.metadata.creationTimestamp`
 

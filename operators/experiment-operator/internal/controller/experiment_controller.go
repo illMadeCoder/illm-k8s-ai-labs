@@ -138,6 +138,16 @@ func (r *ExperimentReconciler) handleDeletion(ctx context.Context, exp *experime
 	if controllerutil.ContainsFinalizer(exp, experimentFinalizer) {
 		log.Info("Cleaning up experiment resources")
 
+		// Close orphaned PR if review is still pending
+		if exp.Status.ReviewPhase == experimentsv1alpha1.ReviewPhasePending &&
+			r.GitClient != nil && exp.Status.PublishPRNumber > 0 {
+			if err := r.GitClient.ClosePR(ctx, exp.Status.PublishPRNumber, exp.Status.PublishBranch); err != nil {
+				log.Error(err, "Failed to close orphaned PR during deletion", "pr", exp.Status.PublishPRNumber)
+			} else {
+				log.Info("Closed orphaned PR during deletion", "pr", exp.Status.PublishPRNumber)
+			}
+		}
+
 		if err := r.cleanupResources(ctx, exp); err != nil {
 			log.Error(err, "Cleanup failed during deletion, retrying")
 			return ctrl.Result{RequeueAfter: 30 * time.Second}, nil
@@ -167,8 +177,8 @@ func (r *ExperimentReconciler) handleDeletion(ctx context.Context, exp *experime
 func (r *ExperimentReconciler) reconcileComplete(ctx context.Context, exp *experimentsv1alpha1.Experiment) (ctrl.Result, error) {
 	log := logf.FromContext(ctx)
 
-	// Terminal: analysis resolved (or never requested) — nothing more to do
-	if isAnalysisTerminal(exp) {
+	// Terminal: review resolved (or never requested) — nothing more to do
+	if isReviewTerminal(exp) {
 		return ctrl.Result{}, nil
 	}
 
@@ -220,6 +230,7 @@ func (r *ExperimentReconciler) reconcileComplete(ctx context.Context, exp *exper
 				"iterations", exp.Status.IterationStatus.CurrentIteration)
 			exp.Status.Phase = experimentsv1alpha1.PhaseFailed
 			exp.Status.AnalysisPhase = experimentsv1alpha1.AnalysisPhaseSkipped
+			exp.Status.ReviewPhase = experimentsv1alpha1.ReviewPhaseSkipped
 			apimeta.SetStatusCondition(&exp.Status.Conditions, metav1.Condition{
 				Type:               "QualityGate",
 				Status:             metav1.ConditionFalse,
@@ -251,9 +262,9 @@ func (r *ExperimentReconciler) reconcileComplete(ctx context.Context, exp *exper
 
 		log.Info("Experiment resources cleaned, CR preserved as history", "completedAt", exp.Status.CompletedAt.Time)
 
-		// If analysis was already set to a terminal phase during collectAndStoreResults
-		// (e.g., Skipped), remove finalizer immediately
-		if isAnalysisTerminal(exp) {
+		// If review was already set to a terminal phase during collectAndStoreResults
+		// (e.g., Skipped for non-publish), remove finalizer immediately
+		if isReviewTerminal(exp) {
 			if controllerutil.ContainsFinalizer(exp, experimentFinalizer) {
 				controllerutil.RemoveFinalizer(exp, experimentFinalizer)
 				if err := r.Update(ctx, exp); err != nil {
@@ -281,14 +292,56 @@ func (r *ExperimentReconciler) reconcileComplete(ctx context.Context, exp *exper
 		}
 	}
 
-	// Analysis resolved — remove finalizer
-	if isAnalysisTerminal(exp) && controllerutil.ContainsFinalizer(exp, experimentFinalizer) {
-		controllerutil.RemoveFinalizer(exp, experimentFinalizer)
-		if err := r.Update(ctx, exp); err != nil {
-			log.Error(err, "Failed to remove finalizer after analysis complete")
+	// ── Stage 3: Review Gate (polls every 60s) ──────────────────────────
+	// Initialize review gate when analysis resolves
+	if isAnalysisTerminal(exp) && exp.Status.ReviewPhase == "" {
+		if exp.Spec.Publish && exp.Status.PublishPRNumber > 0 {
+			exp.Status.ReviewPhase = experimentsv1alpha1.ReviewPhasePending
+			apimeta.SetStatusCondition(&exp.Status.Conditions, metav1.Condition{
+				Type:               "ReviewGate",
+				Status:             metav1.ConditionFalse,
+				Reason:             "AwaitingReview",
+				ObservedGeneration: exp.Generation,
+				Message: fmt.Sprintf(
+					"Human review required. Approve: kubectl annotate experiment %s -n %s %s=approved",
+					exp.Name, exp.Namespace, experimentsv1alpha1.AnnotationReview),
+			})
+			log.Info("Review gate active — awaiting human approval",
+				"pr", exp.Status.PublishPRURL,
+				"annotate", fmt.Sprintf("kubectl annotate experiment %s -n %s %s=approved",
+					exp.Name, exp.Namespace, experimentsv1alpha1.AnnotationReview))
+			if err := r.Status().Update(ctx, exp); err != nil {
+				return ctrl.Result{}, err
+			}
+			return ctrl.Result{RequeueAfter: 60 * time.Second}, nil
+		}
+		// No PR to review — skip review gate
+		exp.Status.ReviewPhase = experimentsv1alpha1.ReviewPhaseSkipped
+		if err := r.Status().Update(ctx, exp); err != nil {
 			return ctrl.Result{}, err
 		}
-		log.Info("Analysis tracking complete, finalizer removed", "analysisPhase", exp.Status.AnalysisPhase)
+	}
+
+	// Poll for review annotation
+	if exp.Status.ReviewPhase == experimentsv1alpha1.ReviewPhasePending {
+		result, err := r.reconcileReviewGate(ctx, exp)
+		if err != nil {
+			return ctrl.Result{}, err
+		}
+		if result.RequeueAfter > 0 || result.Requeue {
+			return result, nil
+		}
+	}
+
+	// Review resolved — remove finalizer
+	if isReviewTerminal(exp) && controllerutil.ContainsFinalizer(exp, experimentFinalizer) {
+		controllerutil.RemoveFinalizer(exp, experimentFinalizer)
+		if err := r.Update(ctx, exp); err != nil {
+			log.Error(err, "Failed to remove finalizer after review complete")
+			return ctrl.Result{}, err
+		}
+		log.Info("Review gate complete, finalizer removed",
+			"reviewPhase", exp.Status.ReviewPhase, "analysisPhase", exp.Status.AnalysisPhase)
 	}
 
 	return ctrl.Result{}, nil
@@ -577,6 +630,7 @@ func (r *ExperimentReconciler) collectAndStoreResults(ctx context.Context, exp *
 		exp.Status.IterationStatus.Phase == experimentsv1alpha1.IterationPhaseExhausted {
 		log.Info("Skipping publish — quality gate exhausted")
 		exp.Status.AnalysisPhase = experimentsv1alpha1.AnalysisPhaseSkipped
+		exp.Status.ReviewPhase = experimentsv1alpha1.ReviewPhaseSkipped
 		return nil
 	}
 
@@ -644,9 +698,11 @@ func (r *ExperimentReconciler) collectAndStoreResults(ctx context.Context, exp *
 	} else if !exp.Spec.Publish {
 		log.Info("Skipping site publish and AI analysis — spec.publish is false", "experiment", exp.Name)
 		exp.Status.AnalysisPhase = experimentsv1alpha1.AnalysisPhaseSkipped
+		exp.Status.ReviewPhase = experimentsv1alpha1.ReviewPhaseSkipped
 	} else {
 		// Phase is Failed — don't analyze failed experiments
 		exp.Status.AnalysisPhase = experimentsv1alpha1.AnalysisPhaseSkipped
+		exp.Status.ReviewPhase = experimentsv1alpha1.ReviewPhaseSkipped
 	}
 
 	return nil
@@ -836,6 +892,93 @@ func isAnalysisTerminal(exp *experimentsv1alpha1.Experiment) bool {
 		return true
 	}
 	return false
+}
+
+// isReviewTerminal returns true if the review phase is in a terminal state.
+func isReviewTerminal(exp *experimentsv1alpha1.Experiment) bool {
+	switch exp.Status.ReviewPhase {
+	case experimentsv1alpha1.ReviewPhaseApproved,
+		experimentsv1alpha1.ReviewPhaseRejected,
+		experimentsv1alpha1.ReviewPhaseSkipped:
+		return true
+	}
+	return false
+}
+
+// reconcileReviewGate reads the review annotation and takes action.
+// Returns a requeue result if still waiting, or zero result when resolved.
+func (r *ExperimentReconciler) reconcileReviewGate(ctx context.Context, exp *experimentsv1alpha1.Experiment) (ctrl.Result, error) {
+	log := logf.FromContext(ctx)
+
+	annotation := exp.Annotations[experimentsv1alpha1.AnnotationReview]
+
+	switch annotation {
+	case "approved":
+		log.Info("Review approved — merging PR", "pr", exp.Status.PublishPRNumber)
+		if r.GitClient != nil && exp.Status.PublishPRNumber > 0 {
+			if err := r.GitClient.MergePR(ctx, exp.Status.PublishPRNumber, exp.Status.PublishBranch); err != nil {
+				log.Error(err, "Failed to merge PR — will retry", "pr", exp.Status.PublishPRNumber)
+				apimeta.SetStatusCondition(&exp.Status.Conditions, metav1.Condition{
+					Type:               "ReviewGate",
+					Status:             metav1.ConditionFalse,
+					Reason:             "MergeFailed",
+					ObservedGeneration: exp.Generation,
+					Message:            fmt.Sprintf("Failed to merge PR #%d: %v", exp.Status.PublishPRNumber, err),
+				})
+				if err := r.Status().Update(ctx, exp); err != nil {
+					return ctrl.Result{}, err
+				}
+				return ctrl.Result{RequeueAfter: 60 * time.Second}, nil
+			}
+		}
+		exp.Status.ReviewPhase = experimentsv1alpha1.ReviewPhaseApproved
+		apimeta.SetStatusCondition(&exp.Status.Conditions, metav1.Condition{
+			Type:               "ReviewGate",
+			Status:             metav1.ConditionTrue,
+			Reason:             "Approved",
+			ObservedGeneration: exp.Generation,
+			Message:            fmt.Sprintf("PR #%d merged after human approval", exp.Status.PublishPRNumber),
+		})
+		if err := r.Status().Update(ctx, exp); err != nil {
+			return ctrl.Result{}, err
+		}
+		return ctrl.Result{}, nil
+
+	case "rejected":
+		log.Info("Review rejected — closing PR", "pr", exp.Status.PublishPRNumber)
+		if r.GitClient != nil && exp.Status.PublishPRNumber > 0 {
+			if err := r.GitClient.ClosePR(ctx, exp.Status.PublishPRNumber, exp.Status.PublishBranch); err != nil {
+				log.Error(err, "Failed to close PR — will retry", "pr", exp.Status.PublishPRNumber)
+				apimeta.SetStatusCondition(&exp.Status.Conditions, metav1.Condition{
+					Type:               "ReviewGate",
+					Status:             metav1.ConditionFalse,
+					Reason:             "CloseFailed",
+					ObservedGeneration: exp.Generation,
+					Message:            fmt.Sprintf("Failed to close PR #%d: %v", exp.Status.PublishPRNumber, err),
+				})
+				if err := r.Status().Update(ctx, exp); err != nil {
+					return ctrl.Result{}, err
+				}
+				return ctrl.Result{RequeueAfter: 60 * time.Second}, nil
+			}
+		}
+		exp.Status.ReviewPhase = experimentsv1alpha1.ReviewPhaseRejected
+		apimeta.SetStatusCondition(&exp.Status.Conditions, metav1.Condition{
+			Type:               "ReviewGate",
+			Status:             metav1.ConditionTrue,
+			Reason:             "Rejected",
+			ObservedGeneration: exp.Generation,
+			Message:            fmt.Sprintf("PR #%d closed after human rejection", exp.Status.PublishPRNumber),
+		})
+		if err := r.Status().Update(ctx, exp); err != nil {
+			return ctrl.Result{}, err
+		}
+		return ctrl.Result{}, nil
+
+	default:
+		// No annotation or unrecognized value — keep waiting
+		return ctrl.Result{RequeueAfter: 60 * time.Second}, nil
+	}
 }
 
 // checkAnalysisJob looks up the analyzer Job and maps its status to AnalysisPhase.

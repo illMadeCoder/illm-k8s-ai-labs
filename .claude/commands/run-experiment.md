@@ -135,10 +135,10 @@ Monitor the experiment through its phase transitions. Use a polling approach wit
 Use a single kubectl call per poll to minimize API calls:
 
 ```bash
-kubectl get experiment {instance-name} -n experiments -o jsonpath='{.status.phase}|{.status.published}|{.status.analysisPhase}|{.status.publishPRURL}|{.status.resultsURL}' 2>&1
+kubectl get experiment {instance-name} -n experiments -o jsonpath='{.status.phase}|{.status.published}|{.status.analysisPhase}|{.status.reviewPhase}|{.status.publishPRURL}|{.status.resultsURL}' 2>&1
 ```
 
-This returns: `{phase}|{published}|{analysisPhase}|{prURL}|{resultsURL}`
+This returns: `{phase}|{published}|{analysisPhase}|{reviewPhase}|{prURL}|{resultsURL}`
 
 ### Phase transition table
 
@@ -519,11 +519,15 @@ Report the quality scorecard with all warnings. Proceed to Step 7 but include th
    - Clean up: `kubectl delete experiment {instance-name} -n experiments` and `gh pr close {pr-number} --delete-branch`
    - Proceed to Step 8 summary with abort status
 
-## Step 7: PR Management (publish: true only)
+## Step 7: Review Gate (publish: true only)
 
 Skip this step entirely if `spec.publish` is not true.
 
-**Important**: Wait for the analyzer to finish (Step 6) before offering merge — the analyzer commits to the same branch.
+**Important**: Wait for the analyzer to finish (Step 6) before entering the review gate — the analyzer commits to the same branch. The operator holds the CR finalizer until review resolves.
+
+### Wait for reviewPhase: Pending
+
+Poll using the primary status query until `reviewPhase` shows `Pending`. This happens automatically after the analyzer resolves. If `reviewPhase` is already `Skipped`, skip this step.
 
 ### Get PR details
 
@@ -532,12 +536,12 @@ Extract PR info from the experiment status:
 kubectl get experiment {instance-name} -n experiments -o jsonpath='{.status.publishBranch}|{.status.publishPRNumber}|{.status.publishPRURL}'
 ```
 
-If no PR URL is set yet, report this and skip PR management. Log toil:
+If no PR URL is set yet, report this and skip review gate. Log toil:
 ```bash
 bd create --title="No PR created for published experiment {instance-name}" --type=bug --priority=3 -l toil -l {name} -l operator
 ```
 
-### Show PR summary
+### Present quality scorecard and PR to user
 
 ```bash
 gh pr view {pr-number} --json title,state,additions,deletions,url
@@ -563,41 +567,44 @@ PR #{number}: "{title}" (+{additions}, -{deletions})
 Quality: FAIL ({X}/{Y} custom metrics, AI verdict: {verdict})
 ```
 
-### Auto-merge (quality gate passed)
+### User decision
 
-If `qualityGate` is `"pass"` or `"warn"`, auto-merge the PR without asking:
-```bash
-gh pr merge {pr-number} --squash --delete-branch
-```
-After merge, check for the deploy-site workflow:
-```bash
-gh run list -w "Deploy Benchmark Site" -L 1
-```
-Report the merge and site deploy status. Proceed to Step 8.
+Use `AskUserQuestion` with these options:
 
-### Confirm merge (quality gate failed)
-
-If `qualityGate` is `"fail"` (user chose "Merge anyway" in Step 6.5), use `AskUserQuestion`
-to confirm before merging — this is the one case where user confirmation is still required
-since they're explicitly merging bad-quality results:
-
-1. **Merge PR (squash)** — merge with quality warning:
+1. **Approve** — annotate the experiment to trigger operator-side merge:
    ```bash
-   gh pr merge {pr-number} --squash --delete-branch
+   kubectl annotate experiment {instance-name} -n experiments experiments.illm.io/review=approved
    ```
-   After merge, check for the deploy-site workflow:
+   The operator will squash-merge the PR and delete the branch. Poll `reviewPhase` until it reaches `Approved`:
+   ```bash
+   kubectl get experiment {instance-name} -n experiments -o jsonpath='{.status.reviewPhase}'
+   ```
+   Poll every 15s (up to 2 minutes). Once `Approved`, check for the deploy-site workflow:
    ```bash
    gh run list -w "Deploy Benchmark Site" -L 1
    ```
-   Report the workflow status/URL.
+   Report the merge and site deploy status. Proceed to Step 8.
 
-2. **View PR diff** — show the diff:
+2. **View PR diff** — show the diff first:
    ```bash
    gh pr diff {pr-number}
    ```
    Then ask again (loop back to the options).
 
-3. **Skip** — leave PR open for later review. Report the PR URL for reference.
+3. **Reject** — annotate the experiment to trigger operator-side close:
+   ```bash
+   kubectl annotate experiment {instance-name} -n experiments experiments.illm.io/review=rejected
+   ```
+   The operator will close the PR and delete the branch. Poll `reviewPhase` until `Rejected`.
+   Report that the PR was closed. Proceed to Step 8.
+
+4. **Skip (keep PR open)** — leave the PR open for manual review later. The experiment CR
+   retains its finalizer and continues polling. Report the PR URL and annotation commands:
+   ```
+   To approve later: kubectl annotate experiment {instance-name} -n experiments experiments.illm.io/review=approved
+   To reject later:  kubectl annotate experiment {instance-name} -n experiments experiments.illm.io/review=rejected
+   ```
+   Proceed to Step 8.
 
 ## Step 8: Final Summary
 
@@ -612,7 +619,8 @@ Results:     {resultsURL or "N/A"}
 Hypothesis:  {hypothesisResult or "N/A"}
 Analysis:    {analysisPhase or "N/A"}
 Quality:     {PASS|WARN|FAIL} ({summary, e.g. "10/10 metrics, hypothesis validated" or "0/10 metrics, verdict: insufficient"})
-PR:          {publishPRURL} ({Merged/Open/Blocked by quality gate/Closed}) or "N/A"
+Review:      {reviewPhase or "N/A"}
+PR:          {publishPRURL} ({Merged/Open/Rejected/Skipped}) or "N/A"
 ```
 
 For non-publish experiments, omit the Analysis, Quality, and PR lines.
