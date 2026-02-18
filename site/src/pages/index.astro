@@ -34,12 +34,17 @@ const recentGroups = groups.slice(0, 6);
         <div class="arch-name">On-Prem Talos Hub</div>
         <div class="arch-detail">Experiment CRs · ArgoCD · Crossplane</div>
       </div>
-      <div class="conn-fan">
-        <div class="conn-cell"><div class="conn-v"></div><div class="conn-arrow"></div></div>
-        <div class="conn-cell"><div class="conn-v"></div><div class="conn-arrow"></div></div>
-        <div class="conn-cell"><div class="conn-v"></div><div class="conn-arrow"></div></div>
+      <div class="conn-fan-out">
+        <div class="conn-v-center"></div>
+        <div class="conn-arrow"></div>
+        <div class="conn-label">experiment</div>
+        <div class="conn-h"></div>
+        <div class="conn-fan-out-stems">
+          <div class="conn-cell"><div class="conn-v-short"></div><div class="conn-arrow"></div></div>
+          <div class="conn-cell"><div class="conn-v-short"></div><div class="conn-arrow"></div></div>
+          <div class="conn-cell"><div class="conn-v-short"></div><div class="conn-arrow"></div></div>
+        </div>
       </div>
-      <div class="conn-label">experiment</div>
       <div class="arch-row">
         <div class="arch-node">
           <div class="arch-name">GKE</div>
@@ -167,7 +172,8 @@ const recentGroups = groups.slice(0, 6);
   }
 
   /* --- fan-out: hub → 3 clouds --- */
-  .conn-fan { display: flex; gap: 0.5rem; width: 90%; }
+  .conn-fan-out { width: 90%; }
+  .conn-fan-out-stems { display: flex; gap: 0.5rem; }
 
   /* --- merge: 3 clouds → 1 --- */
   .conn-merge { width: 90%; }

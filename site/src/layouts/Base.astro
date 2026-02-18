@@ -128,48 +128,8 @@ const currentPath = Astro.url.pathname;
         </p>
       </div>
     </footer>
-    <!-- Early visitor welcome modal -->
-    <div id="welcome-modal" class="hidden" style="position:fixed;inset:0;z-index:9999;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,0.6);backdrop-filter:blur(4px);padding:1rem;">
-      <div style="max-width:28rem;width:100%;border-radius:10px;padding:2rem;font-family:var(--font-mono);position:relative;background:var(--bg-surface);border:1px solid var(--border);">
-        <p style="font-size:1.1rem;margin:0 0 1rem;line-height:1.6;color:var(--text);">
-          Hi friend! You're one of the early ones to this page. Bear with me while I generate this frontend and pull my history of experiments in.
-        </p>
-        <p style="font-size:0.9rem;margin:0 0 1.5rem;line-height:1.5;color:var(--text-muted);">
-          Come back in a month to see the real thing :)
-        </p>
-        <p style="font-size:0.8rem;margin:0 0 1.5rem;color:var(--text-muted);">
-          &mdash; Jesse Bergerstock, 2/14/2026
-        </p>
-        <button id="welcome-close" style="width:100%;padding:0.6rem;border:1px solid var(--accent);border-radius:6px;background:transparent;color:var(--accent);font-family:var(--font-mono);font-size:0.85rem;cursor:pointer;transition:background 0.15s,color 0.15s;">
-          Got it!
-        </button>
-      </div>
-    </div>
-
     <script is:inline>
       (function () {
-        // Welcome modal — show once per visitor
-        var modal = document.getElementById('welcome-modal');
-        var closeBtn = document.getElementById('welcome-close');
-        if (modal && !localStorage.getItem('welcome-dismissed')) {
-          modal.classList.remove('hidden');
-          modal.style.display = 'flex';
-        }
-        if (closeBtn && modal) {
-          closeBtn.addEventListener('mouseenter', function () {
-            closeBtn.style.background = 'var(--accent)';
-            closeBtn.style.color = 'var(--bg)';
-          });
-          closeBtn.addEventListener('mouseleave', function () {
-            closeBtn.style.background = 'transparent';
-            closeBtn.style.color = 'var(--accent)';
-          });
-          closeBtn.addEventListener('click', function () {
-            modal.style.display = 'none';
-            localStorage.setItem('welcome-dismissed', '1');
-          });
-        }
-
         var btn = document.getElementById('mobile-menu-btn');
         var menu = document.getElementById('mobile-menu');
         if (btn && menu) {
