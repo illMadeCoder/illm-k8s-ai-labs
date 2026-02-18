@@ -4,6 +4,7 @@ metadata:
   generateName: db-fvm-
   namespace: experiments
 spec:
+  title: "Fsync vs Memory-Only Writes on GKE PD-SSD"
   description: "Comparison: fsync-per-write (durable) vs no-fsync (volatile page cache) on GKE PD-SSD — measures the true cost of durability across sequential writes, burst writes, batch writes, reads, scans, and mixed OLTP workloads"
   tags: ["comparison", "storage", "database", "baseline"]
   publish: true

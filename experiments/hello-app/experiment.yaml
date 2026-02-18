@@ -4,6 +4,7 @@ metadata:
   generateName: hello-app-
   namespace: experiments
 spec:
+  title: "Hello World: GKE Cluster Smoke Test"
   description: "Simple hello world app with k6 load generation"
   tags: ["demo"]
 

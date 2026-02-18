@@ -4,6 +4,7 @@ metadata:
   generateName: tracing-comparison-
   namespace: experiments
 spec:
+  title: "Distributed Tracing: Tempo vs Jaeger"
   description: "Tempo vs Jaeger tracing comparison - architecture, query languages, features"
   tags: ["comparison", "observability", "tracing"]
   publish: true

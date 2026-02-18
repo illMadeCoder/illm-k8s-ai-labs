@@ -4,6 +4,7 @@ metadata:
   generateName: loki-tutorial-
   namespace: experiments
 spec:
+  title: "Tutorial: Loki Log Aggregation on Kubernetes"
   description: "Loki log aggregation tutorial with LogQL learning"
   tags: ["tutorial", "observability", "logging"]
 

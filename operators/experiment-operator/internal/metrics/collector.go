@@ -76,6 +76,7 @@ type AnalyzerConfigJSON struct {
 // ExperimentSummary is the top-level results object stored in S3.
 type ExperimentSummary struct {
 	Name           string              `json:"name"`
+	Title          string              `json:"title,omitempty"`
 	Namespace      string              `json:"namespace"`
 	Description    string              `json:"description"`
 	CreatedAt      time.Time           `json:"createdAt"`
@@ -88,8 +89,9 @@ type ExperimentSummary struct {
 	Targets        []TargetSummary     `json:"targets"`
 	Workflow       WorkflowSummary     `json:"workflow"`
 	Metrics        *MetricsResult      `json:"metrics,omitempty"`
-	CostEstimate   *CostEstimate       `json:"costEstimate,omitempty"`
-	Analysis       *AnalysisResult     `json:"analysis,omitempty"`
+	CostEstimate    *CostEstimate                          `json:"costEstimate,omitempty"`
+	IterationStatus *experimentsv1alpha1.IterationStatus   `json:"iterationStatus,omitempty"`
+	Analysis        *AnalysisResult                        `json:"analysis,omitempty"`
 }
 
 // HypothesisContext captures the experiment's hypothesis and success criteria for AI analysis.
@@ -214,6 +216,7 @@ const preemptibleDiscount = 0.20
 func CollectSummary(exp *experimentsv1alpha1.Experiment) *ExperimentSummary {
 	s := &ExperimentSummary{
 		Name:        exp.Name,
+		Title:       exp.Spec.Title,
 		Namespace:   exp.Namespace,
 		Description: exp.Spec.Description,
 		CreatedAt:   exp.CreationTimestamp.Time,
@@ -336,7 +339,9 @@ func promDuration(d time.Duration) string {
 
 // CollectMetricsSnapshot queries VictoriaMetrics for metrics defined in the experiment
 // spec (or defaults) and returns structured, chart-ready results.
-func CollectMetricsSnapshot(ctx context.Context, metricsURL string, exp *experimentsv1alpha1.Experiment) (*MetricsResult, error) {
+// The iteration parameter controls $DURATION substitution: iteration 0 uses the full
+// experiment duration, later iterations use progressively shorter windows.
+func CollectMetricsSnapshot(ctx context.Context, metricsURL string, exp *experimentsv1alpha1.Experiment, iteration ...int) (*MetricsResult, error) {
 	if metricsURL == "" {
 		return nil, nil
 	}
@@ -363,11 +368,17 @@ func CollectMetricsSnapshot(ctx context.Context, metricsURL string, exp *experim
 		queries = defaultQueries()
 	}
 
-	// Build substitution variables
+	// Build substitution variables — use iteration-aware $DURATION
+	iter := 0
+	if len(iteration) > 0 {
+		iter = iteration[0]
+	}
+	durationForQuery := IterationDuration(iter, duration)
+
 	vars := map[string]string{
 		"$EXPERIMENT": exp.Name,
 		"$NAMESPACE":  exp.Namespace,
-		"$DURATION":   promDuration(duration),
+		"$DURATION":   promDuration(durationForQuery),
 	}
 
 	result := &MetricsResult{
@@ -673,6 +684,58 @@ func EvaluateSuccessCriteria(summary *ExperimentSummary) string {
 		return "validated"
 	}
 	return "invalidated"
+}
+
+// EvaluateMetricsQuality checks how many defined metrics returned non-empty data.
+// Returns a QualityResult with coverage fraction and list of missing metrics.
+func EvaluateMetricsQuality(summary *ExperimentSummary, minCoverage float64) experimentsv1alpha1.QualityResult {
+	result := experimentsv1alpha1.QualityResult{}
+
+	if summary.Metrics == nil || len(summary.Metrics.Queries) == 0 {
+		return result
+	}
+
+	result.TotalMetrics = len(summary.Metrics.Queries)
+	for name, qr := range summary.Metrics.Queries {
+		if qr.Error != "" || len(qr.Data) == 0 {
+			result.MissingMetrics = append(result.MissingMetrics, name)
+		} else {
+			result.MetricsWithData++
+		}
+	}
+
+	if result.TotalMetrics > 0 {
+		result.Coverage = float64(result.MetricsWithData) / float64(result.TotalMetrics)
+	}
+	result.Passed = result.Coverage >= minCoverage
+
+	if !result.Passed {
+		result.Remedy = fmt.Sprintf(
+			"Coverage %.0f%% < %.0f%% threshold (%d/%d metrics with data). "+
+				"Will re-collect with shorter $DURATION to avoid rate() dilution.",
+			result.Coverage*100, minCoverage*100,
+			result.MetricsWithData, result.TotalMetrics,
+		)
+	}
+
+	return result
+}
+
+// IterationDuration returns the $DURATION value to use for a given iteration.
+// Iteration 0 uses the full experiment duration (current behavior).
+// Later iterations use progressively shorter windows to avoid rate() dilution
+// from the pre-benchmark idle period.
+func IterationDuration(iteration int, fullDuration time.Duration) time.Duration {
+	switch iteration {
+	case 0:
+		return fullDuration
+	case 1:
+		return 10 * time.Minute
+	case 2:
+		return 5 * time.Minute
+	default:
+		return 2 * time.Minute
+	}
 }
 
 // EstimateCost produces a rough GCP cost estimate from the experiment spec.

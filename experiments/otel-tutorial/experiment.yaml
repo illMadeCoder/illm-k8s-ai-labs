@@ -4,6 +4,7 @@ metadata:
   generateName: otel-tutorial-
   namespace: experiments
 spec:
+  title: "Tutorial: OpenTelemetry Observability Pipeline"
   description: "OpenTelemetry distributed tracing tutorial - OTel Collector, Tempo, TraceQL"
   tags: ["tutorial", "observability", "tracing"]
 

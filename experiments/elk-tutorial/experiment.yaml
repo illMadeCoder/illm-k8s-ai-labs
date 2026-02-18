@@ -4,6 +4,7 @@ metadata:
   generateName: elk-tutorial-
   namespace: experiments
 spec:
+  title: "Tutorial: ELK Stack on Kubernetes"
   description: "ELK stack tutorial - Elasticsearch, Kibana, Fluent Bit log analytics"
   tags: ["tutorial", "observability", "logging"]
 

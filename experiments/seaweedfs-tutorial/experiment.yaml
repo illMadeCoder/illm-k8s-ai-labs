@@ -4,6 +4,7 @@ metadata:
   generateName: seaweedfs-tutorial-
   namespace: experiments
 spec:
+  title: "Tutorial: SeaweedFS Object Storage on Kubernetes"
   description: "SeaweedFS object storage tutorial - S3 API, volume packing, LOSF problem"
   tags: ["tutorial", "storage"]
 

@@ -4,6 +4,7 @@ metadata:
   generateName: logging-comparison-
   namespace: experiments
 spec:
+  title: "Logging Stack Comparison: Loki vs Elasticsearch"
   description: "Loki vs Elasticsearch logging comparison v3 — phased observation (warm-up/steady-state/cooldown) with per-stack resource profiling over 75-min window, informed by 21 prior runs"
   tags: ["comparison", "observability", "logging"]
   publish: true

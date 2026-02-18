@@ -4,6 +4,7 @@ metadata:
   generateName: my-experiment-
   namespace: experiments
 spec:
+  title: "My Experiment Title"
   description: "Brief description of what this experiment tests"
   tags: ["comparison", "observability"]  # Used for site categorization
   publish: true   # Set to true to publish results to benchmark site

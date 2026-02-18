@@ -4,6 +4,7 @@ metadata:
   generateName: observability-cost-tutorial-
   namespace: experiments
 spec:
+  title: "Tutorial: Observability Cost Optimization"
   description: "Observability cost management - cardinality explosion, log volume, retention strategies"
   tags: ["tutorial", "observability", "cost"]
 

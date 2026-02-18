@@ -4,6 +4,7 @@ metadata:
   generateName: tsdb-comparison-
   namespace: experiments
 spec:
+  title: "Time-Series DB Comparison: Prometheus vs VictoriaMetrics vs Mimir"
   description: "TSDB comparison v2 - Prometheus vs VictoriaMetrics vs Mimir resource efficiency under identical workload"
   tags: ["comparison", "observability", "metrics"]
   publish: true

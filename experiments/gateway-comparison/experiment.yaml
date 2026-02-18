@@ -4,6 +4,7 @@ metadata:
   generateName: gw-comp-
   namespace: experiments
 spec:
+  title: "API Gateway Shootout: NGINX vs Traefik vs Envoy"
   description: "Gateway comparison v2 — NGINX Ingress vs Traefik vs Envoy Gateway with load testing, per-gateway resource profiling, and latency benchmarks"
   tags: ["comparison", "networking", "gateway"]
   publish: true

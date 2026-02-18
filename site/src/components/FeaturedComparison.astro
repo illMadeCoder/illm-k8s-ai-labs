@@ -1,6 +1,6 @@
 ---
 import type { ExperimentGroup } from '../lib/experiments';
-import { formatDisplayName } from '../lib/experiments';
+import { getDisplayTitle } from '../lib/experiments';
 import { formatDate } from '../lib/format';
 
 interface Props {
@@ -20,7 +20,7 @@ const tags = (group.tags || []).filter((t) => t !== 'comparison');
     <span class="text-xs text-text-muted">{formatDate(latest.createdAt)}</span>
   </div>
   <h3 class="text-base font-semibold font-mono text-text group-hover:text-accent transition-colors mb-2">
-    {formatDisplayName(group.baseName)}
+    {getDisplayTitle(group)}
   </h3>
   <p class="text-sm text-text-muted mb-3 line-clamp-2">{latest.description}</p>
   {tags.length > 0 && (

@@ -4,6 +4,7 @@ metadata:
   generateName: prometheus-tutorial-
   namespace: experiments
 spec:
+  title: "Tutorial: Prometheus Monitoring on Kubernetes"
   description: "Prometheus metrics collection tutorial with Grafana dashboards"
   tags: ["tutorial", "observability", "metrics"]
 

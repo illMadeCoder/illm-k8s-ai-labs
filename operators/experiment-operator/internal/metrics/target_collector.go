@@ -201,7 +201,8 @@ func probeEndpoint(ctx context.Context, restClient rest.Interface, ep Monitoring
 
 // CollectMetricsFromTarget tries each discovered monitoring endpoint and collects metrics
 // using default target queries that work on any Kubernetes cluster (no experiment label needed).
-func CollectMetricsFromTarget(ctx context.Context, kubeconfig []byte, endpoints []MonitoringEndpoint, exp *experimentsv1alpha1.Experiment) (*MetricsResult, error) {
+// The iteration parameter controls $DURATION substitution for quality gate re-collection.
+func CollectMetricsFromTarget(ctx context.Context, kubeconfig []byte, endpoints []MonitoringEndpoint, exp *experimentsv1alpha1.Experiment, iteration ...int) (*MetricsResult, error) {
 	if len(endpoints) == 0 {
 		return nil, fmt.Errorf("no monitoring endpoints provided")
 	}
@@ -241,10 +242,16 @@ func CollectMetricsFromTarget(ctx context.Context, kubeconfig []byte, endpoints 
 	// Build substitution variables (same as CollectMetricsSnapshot)
 	// On target clusters, pods deploy to the experiment-named namespace
 	// (e.g., "db-baseline-fsync-b8twf"), not the Experiment CR's namespace ("experiments").
+	iter := 0
+	if len(iteration) > 0 {
+		iter = iteration[0]
+	}
+	durationForQuery := IterationDuration(iter, duration)
+
 	vars := map[string]string{
 		"$EXPERIMENT": exp.Name,
 		"$NAMESPACE":  exp.Name,
-		"$DURATION":   promDuration(duration),
+		"$DURATION":   promDuration(durationForQuery),
 	}
 
 	// Try each verified endpoint until one works

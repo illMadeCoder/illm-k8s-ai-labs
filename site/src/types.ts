@@ -2,6 +2,7 @@
 
 export interface ExperimentSummary {
   name: string;
+  title?: string;
   namespace: string;
   description: string;
   createdAt: string;

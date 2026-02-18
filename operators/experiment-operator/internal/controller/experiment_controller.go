@@ -157,9 +157,11 @@ func (r *ExperimentReconciler) handleDeletion(ctx context.Context, exp *experime
 // reconcileComplete handles the Complete/Failed phase — cleans up expensive resources
 // while preserving the Experiment CR as a historical record.
 //
-// Two-stage completion:
-//   Stage 1: Collect results, create analyzer Job, clean up cloud resources.
-//            Runs once, gated by ResourcesCleaned.
+// Three-stage completion:
+//   Stage 0: Quality gate — collect metrics, evaluate coverage, re-collect if insufficient.
+//            Cluster stays alive until quality gate resolves. Gated by ResourcesCleaned=false.
+//   Stage 1: Quality gate resolved — publish results, create analyzer Job, clean up cloud resources.
+//            Runs once, sets ResourcesCleaned=true.
 //   Stage 2: Poll analyzer Job status every 30s until terminal.
 //            Once resolved, remove finalizer and stop requeuing.
 func (r *ExperimentReconciler) reconcileComplete(ctx context.Context, exp *experimentsv1alpha1.Experiment) (ctrl.Result, error) {
@@ -170,7 +172,7 @@ func (r *ExperimentReconciler) reconcileComplete(ctx context.Context, exp *exper
 		return ctrl.Result{}, nil
 	}
 
-	// ── Stage 1: Results + Cleanup (runs once) ──────────────────────────
+	// ── Stage 0+1: Results + Quality Gate + Cleanup (runs until ResourcesCleaned) ──
 	if !exp.Status.ResourcesCleaned {
 		// Record completion timestamp before results collection so that
 		// summary.json gets a real CompletedAt, durationSeconds, and costEstimate.
@@ -179,7 +181,7 @@ func (r *ExperimentReconciler) reconcileComplete(ctx context.Context, exp *exper
 			exp.Status.CompletedAt = &now
 		}
 
-		// Collect and store experiment results before cleanup
+		// Collect and store experiment results (with quality gate iteration)
 		if exp.Status.ResultsURL == "" {
 			if err := r.collectAndStoreResults(ctx, exp); err != nil {
 				log.Error(err, "Failed to collect experiment results — will retry")
@@ -191,6 +193,41 @@ func (r *ExperimentReconciler) reconcileComplete(ctx context.Context, exp *exper
 			if err := r.Status().Update(ctx, exp); err != nil {
 				return ctrl.Result{}, err
 			}
+		}
+
+		// Check if quality gate requires re-collection (cluster stays alive)
+		if exp.Status.IterationStatus != nil &&
+			exp.Status.IterationStatus.Phase == experimentsv1alpha1.IterationPhaseRecollecting {
+			delay := 120 * time.Second
+			if exp.Spec.QualityGate != nil && exp.Spec.QualityGate.RecollectDelaySeconds > 0 {
+				delay = time.Duration(exp.Spec.QualityGate.RecollectDelaySeconds) * time.Second
+			}
+			log.Info("Quality gate: re-collecting metrics",
+				"iteration", exp.Status.IterationStatus.CurrentIteration,
+				"delay", delay)
+			// Clear ResultsURL so next reconcile re-collects
+			exp.Status.ResultsURL = ""
+			if err := r.Status().Update(ctx, exp); err != nil {
+				return ctrl.Result{}, err
+			}
+			return ctrl.Result{RequeueAfter: delay}, nil
+		}
+
+		// Quality gate exhausted without passing — fail the experiment, skip publish
+		if exp.Status.IterationStatus != nil &&
+			exp.Status.IterationStatus.Phase == experimentsv1alpha1.IterationPhaseExhausted {
+			log.Info("Quality gate exhausted — skipping publish and analysis",
+				"iterations", exp.Status.IterationStatus.CurrentIteration)
+			exp.Status.Phase = experimentsv1alpha1.PhaseFailed
+			exp.Status.AnalysisPhase = experimentsv1alpha1.AnalysisPhaseSkipped
+			apimeta.SetStatusCondition(&exp.Status.Conditions, metav1.Condition{
+				Type:               "QualityGate",
+				Status:             metav1.ConditionFalse,
+				Reason:             "Exhausted",
+				ObservedGeneration: exp.Generation,
+				Message:            "Metrics quality gate exhausted — insufficient data coverage after all iterations",
+			})
+			// Fall through to cleanup
 		}
 
 		log.Info("Cleaning up resources for completed experiment", "phase", exp.Status.Phase)
@@ -269,6 +306,12 @@ func (r *ExperimentReconciler) collectAndStoreResults(ctx context.Context, exp *
 
 	prefix := exp.Name
 
+	// Determine current quality gate iteration for $DURATION adjustment
+	currentIteration := 0
+	if exp.Status.IterationStatus != nil {
+		currentIteration = exp.Status.IterationStatus.CurrentIteration
+	}
+
 	// Build summary
 	summary := metrics.CollectSummary(exp)
 
@@ -323,7 +366,7 @@ func (r *ExperimentReconciler) collectAndStoreResults(ctx context.Context, exp *
 				if discErr == nil && len(endpoints) > 0 {
 					log.Info("Discovered local Prometheus on tailscale target, querying custom metrics",
 						"cluster", clusterName, "endpoints", len(endpoints))
-					localResult, collectErr := metrics.CollectMetricsFromTarget(ctx, kubeconfig, endpoints, exp)
+					localResult, collectErr := metrics.CollectMetricsFromTarget(ctx, kubeconfig, endpoints, exp, currentIteration)
 					if collectErr == nil && localResult != nil && !metrics.AllQueriesEmpty(localResult) {
 						if metricsResult != nil {
 							for k, v := range localResult.Queries {
@@ -349,7 +392,7 @@ func (r *ExperimentReconciler) collectAndStoreResults(ctx context.Context, exp *
 				if !customMerged && r.MetricsURL != "" {
 					log.Info("Falling back to hub VM for custom metrics",
 						"cluster", clusterName, "queryCount", len(exp.Spec.Metrics))
-					hubResult, hubErr := metrics.CollectMetricsSnapshot(ctx, r.MetricsURL, exp)
+					hubResult, hubErr := metrics.CollectMetricsSnapshot(ctx, r.MetricsURL, exp, currentIteration)
 					if hubErr != nil {
 						log.Error(hubErr, "Hub VM custom metrics query failed", "cluster", clusterName)
 					} else if hubResult != nil && !metrics.AllQueriesEmpty(hubResult) {
@@ -394,7 +437,7 @@ func (r *ExperimentReconciler) collectAndStoreResults(ctx context.Context, exp *
 
 			log.Info("Discovered monitoring endpoints on target", "cluster", clusterName, "count", len(endpoints), "attempt", attempt)
 
-			result, collectErr := metrics.CollectMetricsFromTarget(ctx, kubeconfig, endpoints, exp)
+			result, collectErr := metrics.CollectMetricsFromTarget(ctx, kubeconfig, endpoints, exp, currentIteration)
 			if collectErr != nil {
 				log.Error(collectErr, "Target metrics collection failed", "cluster", clusterName, "attempt", attempt)
 				if attempt < maxMetricsAttempts {
@@ -422,7 +465,7 @@ func (r *ExperimentReconciler) collectAndStoreResults(ctx context.Context, exp *
 
 	// Phase 2: Fall back to hub VictoriaMetrics if target/cadvisor collection returned empty.
 	if metricsResult == nil || metrics.AllQueriesEmpty(metricsResult) {
-		hubResult, err := metrics.CollectMetricsSnapshot(ctx, r.MetricsURL, exp)
+		hubResult, err := metrics.CollectMetricsSnapshot(ctx, r.MetricsURL, exp, currentIteration)
 		if err != nil {
 			log.Error(err, "Hub metrics snapshot failed — continuing without metrics")
 		} else if hubResult != nil && !metrics.AllQueriesEmpty(hubResult) {
@@ -433,6 +476,62 @@ func (r *ExperimentReconciler) collectAndStoreResults(ctx context.Context, exp *
 	}
 
 	summary.Metrics = metricsResult
+
+	// ── Quality gate evaluation ──────────────────────────────────────────
+	// For published experiments with a quality gate, evaluate metrics coverage
+	// before proceeding to publish. If coverage is insufficient and iterations
+	// remain, signal re-collection (cluster stays alive).
+	if r.shouldRunQualityGate(exp) && metricsResult != nil {
+		minCoverage := experimentsv1alpha1.DefaultMinDataCoverage
+		if exp.Spec.QualityGate != nil && exp.Spec.QualityGate.MinDataCoverage != nil {
+			minCoverage = *exp.Spec.QualityGate.MinDataCoverage
+		}
+		maxIter := 3
+		if exp.Spec.QualityGate != nil && exp.Spec.QualityGate.MaxIterations > 0 {
+			maxIter = exp.Spec.QualityGate.MaxIterations
+		}
+
+		// Initialize iteration status on first evaluation
+		if exp.Status.IterationStatus == nil {
+			exp.Status.IterationStatus = &experimentsv1alpha1.IterationStatus{
+				MaxIterations: maxIter,
+			}
+		}
+
+		qr := metrics.EvaluateMetricsQuality(summary, minCoverage)
+		qr.Iteration = exp.Status.IterationStatus.CurrentIteration
+
+		exp.Status.IterationStatus.QualityResults = append(
+			exp.Status.IterationStatus.QualityResults, qr)
+
+		if qr.Passed {
+			exp.Status.IterationStatus.Phase = experimentsv1alpha1.IterationPhasePassed
+			log.Info("Quality gate passed",
+				"iteration", qr.Iteration,
+				"coverage", fmt.Sprintf("%.0f%%", qr.Coverage*100),
+				"metricsWithData", qr.MetricsWithData,
+				"total", qr.TotalMetrics)
+		} else if exp.Status.IterationStatus.CurrentIteration < maxIter {
+			// Re-collect with shorter $DURATION
+			exp.Status.IterationStatus.CurrentIteration++
+			exp.Status.IterationStatus.Phase = experimentsv1alpha1.IterationPhaseRecollecting
+			log.Info("Quality gate failed — scheduling re-collection",
+				"iteration", exp.Status.IterationStatus.CurrentIteration,
+				"coverage", fmt.Sprintf("%.0f%%", qr.Coverage*100),
+				"missing", qr.MissingMetrics,
+				"remedy", qr.Remedy)
+			// Don't upload or publish yet — return so reconcileComplete can requeue
+			return nil
+		} else {
+			exp.Status.IterationStatus.Phase = experimentsv1alpha1.IterationPhaseExhausted
+			log.Info("Quality gate exhausted",
+				"iterations", exp.Status.IterationStatus.CurrentIteration,
+				"finalCoverage", fmt.Sprintf("%.0f%%", qr.Coverage*100))
+			// Fall through — upload results to S3 but don't publish
+		}
+
+		summary.IterationStatus = exp.Status.IterationStatus
+	}
 
 	// Evaluate success criteria against collected metrics
 	if verdict := metrics.EvaluateSuccessCriteria(summary); verdict != "" {
@@ -460,12 +559,24 @@ func (r *ExperimentReconciler) collectAndStoreResults(ctx context.Context, exp *
 	exp.Status.ResultsURL = fmt.Sprintf("s3://experiment-results/%s/", prefix)
 	log.Info("Experiment results stored", "url", exp.Status.ResultsURL)
 
+	// If quality gate exhausted, skip publish — results are in S3 only
+	if exp.Status.IterationStatus != nil &&
+		exp.Status.IterationStatus.Phase == experimentsv1alpha1.IterationPhaseExhausted {
+		log.Info("Skipping publish — quality gate exhausted")
+		exp.Status.AnalysisPhase = experimentsv1alpha1.AnalysisPhaseSkipped
+		return nil
+	}
+
 	// Commit results to GitHub and run AI analysis only for publishable experiments.
 	// Non-publish experiments are stored in S3 only (no site publish, no AI analysis cost).
 	if exp.Spec.Publish && exp.Status.Phase == experimentsv1alpha1.PhaseComplete {
 		// Publish results via PR for review before going live on the benchmark site.
 		if r.GitClient != nil {
-			branch, prNum, prURL, err := r.GitClient.PublishExperimentResult(ctx, exp.Name, summary)
+			var publishOpts []ghclient.PublishOption
+			if exp.Spec.Title != "" {
+				publishOpts = append(publishOpts, ghclient.WithTitle(exp.Spec.Title))
+			}
+			branch, prNum, prURL, err := r.GitClient.PublishExperimentResult(ctx, exp.Name, summary, publishOpts...)
 			if err != nil {
 				log.Error(err, "Failed to publish results PR — non-fatal", "repo", r.GitClient.RepoPath())
 			} else {
@@ -662,6 +773,9 @@ func (r *ExperimentReconciler) createAnalysisJob(ctx context.Context, exp *exper
 									Value: r.GitHubRepo,
 								},
 								{
+									// Safety invariant: always set GITHUB_BRANCH to the experiment
+									// branch. The analyzer refuses to commit if unset, preventing
+									// accidental commits to main.
 									Name:  "GITHUB_BRANCH",
 									Value: fmt.Sprintf("experiment/%s", exp.Name),
 								},
@@ -1882,6 +1996,21 @@ func resolveAnalyzerSections(exp *experimentsv1alpha1.Experiment) []string {
 		return metrics.DefaultAnalyzerSections
 	}
 	return nil
+}
+
+// shouldRunQualityGate returns true if the quality gate should be evaluated for this experiment.
+// Quality gate runs for published experiments that either have an explicit QualityGate config
+// or have custom metrics defined (which are most likely to suffer from $DURATION dilution).
+func (r *ExperimentReconciler) shouldRunQualityGate(exp *experimentsv1alpha1.Experiment) bool {
+	if !exp.Spec.Publish || exp.Status.Phase != experimentsv1alpha1.PhaseComplete {
+		return false
+	}
+	// Explicit quality gate config
+	if exp.Spec.QualityGate != nil {
+		return exp.Spec.QualityGate.Enabled
+	}
+	// Default: enable for published experiments with custom metrics
+	return len(exp.Spec.Metrics) > 0
 }
 
 // hasLayer checks if a layer name is present in the deployed layers list.

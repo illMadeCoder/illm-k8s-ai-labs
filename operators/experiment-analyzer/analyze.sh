@@ -21,7 +21,7 @@ set -euo pipefail
 #     mounted from the claude-auth K8s Secret. Enables auto-refresh of expired access tokens.
 #
 # Optional:
-#   GITHUB_BRANCH    - branch to commit to (default: main)
+#   GITHUB_BRANCH    - branch to commit to (REQUIRED — no default, refuses to commit to main)
 #   GITHUB_RESULTS_PATH - path in repo for result JSONs (default: site/data)
 
 : "${EXPERIMENT_NAME:?EXPERIMENT_NAME is required}"
@@ -45,7 +45,15 @@ if ! claude -p "respond with ok" --output-format json > /dev/null 2>&1; then
 fi
 echo "==> Auth check passed"
 
-GITHUB_BRANCH="${GITHUB_BRANCH:-main}"
+# Safety: GITHUB_BRANCH must be explicitly set by the operator (to experiment/{name}).
+# Refusing to default to main prevents accidental commits to the production branch.
+SKIP_GITHUB_COMMIT=""
+if [ -z "${GITHUB_BRANCH:-}" ]; then
+  echo "WARNING: GITHUB_BRANCH not set — refusing to default to main"
+  echo "The operator must set GITHUB_BRANCH to the experiment branch"
+  echo "Analysis will still run; results go to S3 only (no GitHub commit)"
+  SKIP_GITHUB_COMMIT=true
+fi
 GITHUB_RESULTS_PATH="${GITHUB_RESULTS_PATH:-site/data}"
 
 S3_URL="http://${S3_ENDPOINT}/experiment-results/${EXPERIMENT_NAME}/summary.json"
@@ -278,6 +286,23 @@ elif jq -e '.study' "${SUMMARY_FILE}" > /dev/null 2>&1; then
   MACHINE_VERDICT=""
 fi
 
+# Extract iteration metadata if present (quality gate re-collection)
+ITERATION_CONTEXT=""
+if jq -e '.iterationStatus' "${SUMMARY_FILE}" > /dev/null 2>&1; then
+  ITER_CURRENT=$(jq -r '.iterationStatus.currentIteration // 0' "${SUMMARY_FILE}")
+  ITER_MAX=$(jq -r '.iterationStatus.maxIterations // 0' "${SUMMARY_FILE}")
+  ITER_PHASE=$(jq -r '.iterationStatus.phase // "unknown"' "${SUMMARY_FILE}")
+  if [ "${ITER_CURRENT}" -gt 0 ]; then
+    ITERATION_CONTEXT="
+NOTE: This experiment used the metrics quality gate. Metrics were re-collected ${ITER_CURRENT} time(s)
+(max ${ITER_MAX}) with progressively shorter query windows to improve data coverage.
+Quality gate phase: ${ITER_PHASE}. Earlier iterations may have had empty metrics due to
+rate() dilution from the full experiment duration covering pre-benchmark idle time.
+"
+    echo "==> Quality gate iteration context: iteration=${ITER_CURRENT}, phase=${ITER_PHASE}"
+  fi
+fi
+
 if [ -n "${STUDY_HYPOTHESIS}${STUDY_QUESTIONS}${STUDY_FOCUS}" ]; then
   STUDY_CONTEXT="
 STUDY CONTEXT (from the experimenter — use this to guide your analysis):
@@ -290,6 +315,7 @@ STUDY CONTEXT (from the experimenter — use this to guide your analysis):
 "
   [ -n "${MACHINE_VERDICT}" ] && STUDY_CONTEXT="${STUDY_CONTEXT}Machine verdict (from success criteria evaluation): ${MACHINE_VERDICT}
 "
+  [ -n "${ITERATION_CONTEXT}" ] && STUDY_CONTEXT="${STUDY_CONTEXT}${ITERATION_CONTEXT}"
   echo "==> Hypothesis context found: claim=$(echo "${STUDY_HYPOTHESIS}" | head -c 80)..."
 else
   echo "==> No hypothesis context in experiment spec — analyzer will infer intent"
@@ -858,8 +884,10 @@ if ! aws --endpoint-url "http://${S3_ENDPOINT}" s3 cp "${ENRICHED_FILE}" "${S3_D
   fi
 fi
 
-# Commit to GitHub if token is available
-if [ -n "${GITHUB_TOKEN:-}" ] && [ -n "${GITHUB_REPO:-}" ]; then
+# Commit to GitHub if token is available and branch was explicitly set
+if [ -n "${SKIP_GITHUB_COMMIT}" ]; then
+  echo "==> Skipping GitHub commit — GITHUB_BRANCH was not set"
+elif [ -n "${GITHUB_TOKEN:-}" ] && [ -n "${GITHUB_REPO:-}" ]; then
   echo "==> Committing enriched results to GitHub"
 
   OWNER=$(echo "${GITHUB_REPO}" | cut -d/ -f1)

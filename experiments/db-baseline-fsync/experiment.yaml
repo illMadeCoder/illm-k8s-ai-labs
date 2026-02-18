@@ -4,6 +4,7 @@ metadata:
   generateName: db-baseline-fsync-
   namespace: experiments
 spec:
+  title: "Database Baseline: Fsync Write Performance on GKE PD-SSD"
   description: "Baseline: naive fsync-per-write store on GKE PD-SSD — measures the floor cost of durable 4-byte sequential writes with no WAL, no batching, no optimization"
   tags: ["baseline", "storage", "database"]
   publish: true

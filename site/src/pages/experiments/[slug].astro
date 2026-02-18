@@ -2,7 +2,7 @@
 import Base from '../../layouts/Base.astro';
 import Breadcrumb from '../../components/Breadcrumb.astro';
 import ExperimentDetail from '../../components/ExperimentDetail.astro';
-import { loadAllExperiments, groupExperiments, formatDisplayName } from '../../lib/experiments';
+import { loadAllExperiments, groupExperiments, getDisplayTitle } from '../../lib/experiments';
 import type { ExperimentGroup } from '../../lib/experiments';
 
 export function getStaticPaths() {
@@ -20,7 +20,7 @@ interface Props {
 
 const { group } = Astro.props;
 const base = import.meta.env.BASE_URL;
-const displayName = formatDisplayName(group.baseName);
+const displayName = getDisplayTitle(group);
 ---
 
 <Base title={`${displayName} — K8s AI Lab Benchmarks`} description={group.latest.description}>

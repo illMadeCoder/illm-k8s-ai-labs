@@ -25,6 +25,12 @@ import (
 
 // ExperimentSpec defines the desired state of Experiment
 type ExperimentSpec struct {
+	// Title is a human-readable display name for the experiment, shown on the
+	// benchmark site and in PR titles. E.g. "Fsync vs Memory-Only Writes on GKE PD-SSD".
+	// When omitted, the site falls back to formatting the generateName prefix.
+	// +optional
+	Title string `json:"title,omitempty"`
+
 	// Description of the experiment
 	// +optional
 	Description string `json:"description,omitempty"`
@@ -62,6 +68,12 @@ type ExperimentSpec struct {
 	// uses it to produce focused, goal-aware analysis.
 	// +optional
 	Hypothesis *HypothesisSpec `json:"hypothesis,omitempty"`
+
+	// QualityGate configures auto-iteration for metrics quality on published experiments.
+	// When enabled, the operator evaluates metrics data coverage after collection and
+	// re-collects with adjusted parameters if insufficient data is returned.
+	// +optional
+	QualityGate *QualityGateSpec `json:"qualityGate,omitempty"`
 
 	// AnalyzerConfig configures which AI analysis sections to generate on
 	// experiment completion. When publish is true and analyzerConfig is nil,
@@ -103,6 +115,36 @@ type AnalyzerConfig struct {
 	// +kubebuilder:validation:items:Enum=abstract;targetAnalysis;performanceAnalysis;metricInsights;finopsAnalysis;secopsAnalysis;body;capabilitiesMatrix;feedback;architectureDiagram
 	Sections []string `json:"sections,omitempty"`
 }
+
+// QualityGateSpec configures auto-iteration for metrics quality.
+type QualityGateSpec struct {
+	// Enabled controls whether the quality gate is active.
+	// Default true for published experiments when QualityGate is set.
+	// +optional
+	// +kubebuilder:default=true
+	Enabled bool `json:"enabled"`
+
+	// MaxIterations is the maximum number of re-collection attempts (1-5, default 3).
+	// +optional
+	// +kubebuilder:default=3
+	// +kubebuilder:validation:Minimum=1
+	// +kubebuilder:validation:Maximum=5
+	MaxIterations int `json:"maxIterations,omitempty"`
+
+	// MinDataCoverage is the fraction of metrics that must return non-empty data
+	// (0.0-1.0, default 0.5). Metrics with errors or empty data count as missing.
+	// +optional
+	MinDataCoverage *float64 `json:"minDataCoverage,omitempty"`
+
+	// RecollectDelaySeconds is the wait time between re-collection attempts (default 120).
+	// +optional
+	// +kubebuilder:default=120
+	RecollectDelaySeconds int `json:"recollectDelaySeconds,omitempty"`
+}
+
+// DefaultMinDataCoverage is the default minimum fraction of metrics that must
+// return data for the quality gate to pass.
+const DefaultMinDataCoverage = 0.5
 
 // Analysis section constants. Grouped by analyzer pass for documentation.
 const (
@@ -411,6 +453,10 @@ type ExperimentStatus struct {
 	// +optional
 	HypothesisResult string `json:"hypothesisResult,omitempty"`
 
+	// IterationStatus tracks quality gate iteration progress.
+	// +optional
+	IterationStatus *IterationStatus `json:"iterationStatus,omitempty"`
+
 	// Conditions
 	// +listType=map
 	// +listMapKey=type
@@ -443,6 +489,36 @@ type DiscoveredService struct {
 	// +optional
 	Ready bool `json:"ready,omitempty"`
 }
+
+// IterationStatus tracks quality gate iteration progress for metrics re-collection.
+type IterationStatus struct {
+	CurrentIteration int              `json:"currentIteration"`
+	MaxIterations    int              `json:"maxIterations"`
+	Phase            IterationPhase   `json:"phase,omitempty"`
+	QualityResults   []QualityResult  `json:"qualityResults,omitempty"`
+}
+
+// QualityResult records the outcome of a single metrics quality evaluation.
+type QualityResult struct {
+	Iteration       int      `json:"iteration"`
+	TotalMetrics    int      `json:"totalMetrics"`
+	MetricsWithData int      `json:"metricsWithData"`
+	Coverage        float64  `json:"coverage"`
+	MissingMetrics  []string `json:"missingMetrics,omitempty"`
+	Passed          bool     `json:"passed"`
+	Remedy          string   `json:"remedy,omitempty"`
+}
+
+// IterationPhase represents the current phase of quality gate iteration.
+// +kubebuilder:validation:Enum=Evaluating;Recollecting;Passed;Exhausted
+type IterationPhase string
+
+const (
+	IterationPhaseEvaluating   IterationPhase = "Evaluating"
+	IterationPhaseRecollecting IterationPhase = "Recollecting"
+	IterationPhasePassed       IterationPhase = "Passed"
+	IterationPhaseExhausted    IterationPhase = "Exhausted"
+)
 
 // ExperimentPhase represents the current phase of an experiment
 // +kubebuilder:validation:Enum=Pending;Provisioning;Ready;Running;Complete;Failed

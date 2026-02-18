@@ -4,6 +4,7 @@ metadata:
   generateName: slo-tutorial-
   namespace: experiments
 spec:
+  title: "Tutorial: SLO-Based Alerting with Prometheus"
   description: "SLO tutorial - Pyrra SLO management, error budgets, multi-burn-rate alerting"
   tags: ["tutorial", "observability", "slo"]
 

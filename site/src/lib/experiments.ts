@@ -58,6 +58,27 @@ export function formatDisplayName(baseName: string): string {
 }
 
 /**
+ * Get a human-readable display title for an experiment group.
+ * Prefers the explicit `title` field from any run (latest first),
+ * falling back to formatting the base name.
+ */
+export function getDisplayTitle(group: ExperimentGroup): string {
+  for (const run of group.runs) {
+    if (run.title) return run.title;
+  }
+  return formatDisplayName(group.baseName);
+}
+
+/**
+ * Get a display title for a single experiment run.
+ * Prefers the explicit `title` field, falling back to formatting the base name.
+ */
+export function getRunDisplayTitle(exp: ExperimentSummary): string {
+  if (exp.title) return exp.title;
+  return formatDisplayName(getBaseName(exp.name));
+}
+
+/**
  * Group experiments by base name, sorted by most recent run.
  */
 export function groupExperiments(experiments: ExperimentSummary[]): ExperimentGroup[] {

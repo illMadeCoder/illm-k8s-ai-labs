@@ -77,7 +77,8 @@ func (c *Client) CreatePR(ctx context.Context, title, body, branchName string) (
 
 // PublishExperimentResult creates a branch, commits results to it, and opens a PR.
 // Returns the branch name, PR number, and PR URL.
-func (c *Client) PublishExperimentResult(ctx context.Context, expName string, summary any) (string, int, string, error) {
+// If expTitle is non-empty, it is used in the PR title for human readability.
+func (c *Client) PublishExperimentResult(ctx context.Context, expName string, summary any, opts ...PublishOption) (string, int, string, error) {
 	branchName := "experiment/" + expName
 
 	// Create the experiment branch from the base branch
@@ -90,8 +91,15 @@ func (c *Client) PublishExperimentResult(ctx context.Context, expName string, su
 		return "", 0, "", fmt.Errorf("commit results to branch: %w", err)
 	}
 
-	// Open a PR
+	// Open a PR — use title if provided for human-readable PR names
+	var po publishOptions
+	for _, opt := range opts {
+		opt(&po)
+	}
 	title := fmt.Sprintf("data: Add %s experiment results", expName)
+	if po.title != "" {
+		title = fmt.Sprintf("data: %s", po.title)
+	}
 	body := fmt.Sprintf("Experiment `%s` completed. Results committed to `%s` for review.\n\nPreview locally:\n```\ngit fetch && git checkout %s\ncd site && npm run dev\n```", expName, c.path+"/"+expName+".json", branchName)
 	prNum, prURL, err := c.CreatePR(ctx, title, body, branchName)
 	if err != nil {
@@ -139,6 +147,21 @@ func (c *Client) commitToBranch(ctx context.Context, branch, expName string, sum
 	}
 
 	return nil
+}
+
+// publishOptions holds optional parameters for PublishExperimentResult.
+type publishOptions struct {
+	title string
+}
+
+// PublishOption configures PublishExperimentResult behavior.
+type PublishOption func(*publishOptions)
+
+// WithTitle sets a human-readable title for the PR.
+func WithTitle(title string) PublishOption {
+	return func(o *publishOptions) {
+		o.title = title
+	}
 }
 
 // CommitResult commits an experiment summary JSON to the configured repo path.
