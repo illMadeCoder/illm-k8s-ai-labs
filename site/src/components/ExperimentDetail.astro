@@ -146,67 +146,55 @@ const machineVerdict = getMachineVerdict(experiment);
 </details>
 
 {(hypothesisClaim || questions.length > 0 || focusAreas.length > 0 || hasRichAnalysis || analysis?.summary) && (
-  <details class="section section-overview overview" open>
+  <details class="section section-overview">
     <summary class="section-title">Overview</summary>
-    <div class="overview-inner">
-      {hypothesisClaim && (
-        <details class="overview-item" open>
-          <summary class="overview-item-title">Hypothesis</summary>
-          <div class="overview-item-content">
-            <p class="study-hypothesis-text">{hypothesisClaim}</p>
-          </div>
-        </details>
-      )}
-      {hasRichAnalysis && analysis && (
-        <details class="overview-item" open>
-          <summary class="overview-item-title">Abstract</summary>
-          <div class="overview-item-content">
-            <AnalysisAbstract
-              abstract={analysis.abstract!}
-              model={analysis.model}
-              generatedAt={analysis.generatedAt}
-            />
-          </div>
-        </details>
-      )}
-      {questions.length > 0 && (
-        <details class="overview-item" open>
-          <summary class="overview-item-title">Questions</summary>
-          <div class="overview-item-content">
-            <div class="study-questions-list">
-              {questions.map((q, i) => (
-                <div class="study-question-card">
-                  <div class="study-question-header">
-                    <span class="study-question-number">{i + 1}</span>
-                  </div>
-                  <p class="study-question-text">{q}</p>
-                </div>
-              ))}
+    {hypothesisClaim && (
+      <details class="section" open>
+        <summary class="section-title">Hypothesis</summary>
+        <p class="study-hypothesis-text">{hypothesisClaim}</p>
+      </details>
+    )}
+    {hasRichAnalysis && analysis && (
+      <details class="section" open>
+        <summary class="section-title">Abstract</summary>
+        <AnalysisAbstract
+          abstract={analysis.abstract!}
+          model={analysis.model}
+          generatedAt={analysis.generatedAt}
+        />
+      </details>
+    )}
+    {questions.length > 0 && (
+      <details class="section" open>
+        <summary class="section-title">Questions</summary>
+        <div class="study-questions-list">
+          {questions.map((q, i) => (
+            <div class="study-question-card">
+              <div class="study-question-header">
+                <span class="study-question-number">{i + 1}</span>
+              </div>
+              <p class="study-question-text">{q}</p>
             </div>
-          </div>
-        </details>
-      )}
-      {focusAreas.length > 0 && (
-        <details class="overview-item" open>
-          <summary class="overview-item-title">Focus Areas</summary>
-          <div class="overview-item-content">
-            <div class="focus-tags">
-              {focusAreas.map((f) => <span class="focus-tag">{f}</span>)}
-            </div>
-          </div>
-        </details>
-      )}
-      {!hasRichAnalysis && analysis?.summary && (
-        <details class="overview-item">
-          <summary class="overview-item-title">Summary</summary>
-          <div class="overview-item-content">
-            <div class="analysis-box">
-              <p>{analysis.summary}</p>
-            </div>
-          </div>
-        </details>
-      )}
-    </div>
+          ))}
+        </div>
+      </details>
+    )}
+    {focusAreas.length > 0 && (
+      <details class="section" open>
+        <summary class="section-title">Focus Areas</summary>
+        <div class="focus-tags">
+          {focusAreas.map((f) => <span class="focus-tag">{f}</span>)}
+        </div>
+      </details>
+    )}
+    {!hasRichAnalysis && analysis?.summary && (
+      <details class="section">
+        <summary class="section-title">Summary</summary>
+        <div class="analysis-box">
+          <p>{analysis.summary}</p>
+        </div>
+      </details>
+    )}
   </details>
 )}
 
@@ -377,45 +365,6 @@ const machineVerdict = getMachineVerdict(experiment);
     font-size: 0.85rem;
     max-width: 600px;
     margin: 0.5rem auto 0;
-  }
-  .overview-inner {
-    display: flex;
-    flex-direction: column;
-    gap: 0.75rem;
-  }
-  .overview-item {
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    overflow: hidden;
-  }
-  .overview-item-title {
-    display: block;
-    font-size: 0.7rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    color: var(--text-muted);
-    padding: 0.5rem 1rem;
-    cursor: pointer;
-    user-select: none;
-    list-style: none;
-  }
-  .overview-item-title::-webkit-details-marker {
-    display: none;
-  }
-  .overview-item-title::before {
-    content: '▶';
-    display: inline-block;
-    font-size: 0.55rem;
-    margin-right: 0.5rem;
-    transition: transform 0.15s ease;
-    vertical-align: middle;
-  }
-  .overview-item[open] > .overview-item-title::before {
-    transform: rotate(90deg);
-  }
-  .overview-item-content {
-    padding: 0 1rem 0.75rem;
   }
   .study-hypothesis-text {
     margin: 0;
@@ -599,14 +548,6 @@ const machineVerdict = getMachineVerdict(experiment);
     }
 
     .metric-panel-insight {
-      padding: 0.5rem 0.75rem;
-    }
-
-    .overview-item-content {
-      padding: 0 0.75rem 0.5rem;
-    }
-
-    .overview-item-title {
       padding: 0.5rem 0.75rem;
     }
 
