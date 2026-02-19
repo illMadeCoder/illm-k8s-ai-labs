@@ -270,11 +270,18 @@ const markdown = experimentToMarkdown({ experiment, displayName, tags });
       <summary class="section-title">
         {nextGroups.length > 0 ? 'Next' : 'Part of'} <a href={`${base}series/${seriesSiblings.seriesId}/`} class="series-link">{seriesSiblings.seriesName}</a>
       </summary>
-      {nextGroups.length > 0 && (
+      {nextGroups.length > 0 ? (
         <div class="series-cards">
           {nextGroups.map((g) => (
             <ExperimentGroupCard group={g} />
           ))}
+        </div>
+      ) : (
+        <div class="series-end">
+          <p>You've reached the end of this series.</p>
+          <a href={`${base}series/${seriesSiblings.seriesId}/`} class="series-end-link">
+            View all in {seriesSiblings.seriesName} &rarr;
+          </a>
         </div>
       )}
     </details>
@@ -549,6 +556,25 @@ const markdown = experimentToMarkdown({ experiment, displayName, tags });
     grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
     gap: 1rem;
     padding: 1rem;
+  }
+
+  .series-end {
+    padding: 1.5rem;
+    text-align: center;
+    color: var(--text-muted);
+  }
+  .series-end p {
+    margin: 0 0 0.75rem;
+    font-size: 0.9rem;
+  }
+  .series-end-link {
+    color: var(--accent);
+    font-weight: 600;
+    font-size: 0.9rem;
+    text-decoration: none;
+  }
+  .series-end-link:hover {
+    text-decoration: underline;
   }
 
   .copy-btn {
