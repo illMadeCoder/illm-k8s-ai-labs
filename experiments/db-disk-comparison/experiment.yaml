@@ -1,0 +1,271 @@
+apiVersion: experiments.illm.io/v1alpha1
+kind: Experiment
+metadata:
+  generateName: db-dsc-
+  namespace: experiments
+spec:
+  title: "Fsync vs No-Fsync Across Disk Types: HDD, Balanced SSD, SSD"
+  description: "Comparison: fsync-per-write vs no-fsync across three GKE persistent disk types (pd-standard HDD, pd-balanced, pd-ssd) — measures how disk hardware interacts with durability guarantees under sustained 60-second maximum-rate write bursts, with disk-level IOPS correlation"
+  tags: ["comparison", "storage", "database"]
+  publish: true
+
+  analyzerConfig:
+    sections:
+      - abstract
+      - capabilitiesMatrix
+      - targetAnalysis
+      - performanceAnalysis
+      - metricInsights
+      - finopsAnalysis
+      - body
+      - feedback
+      - architectureDiagram
+
+  hypothesis:
+    claim: "Fsync latency is dominated by disk hardware — pd-ssd fsync should be 5-10x faster than pd-standard HDD, while no-fsync writes are uniformly fast regardless of disk type since they only hit the page cache"
+    questions:
+      - "How does fsync write latency vary across pd-standard, pd-balanced, and pd-ssd?"
+      - "Is no-fsync latency truly independent of underlying disk type?"
+      - "What is the sustained write throughput ceiling for each disk type under fsync?"
+      - "Do node-level disk IOPS correlate with application-level fsync latency?"
+      - "How does the fsync cost multiplier change across disk tiers?"
+    focus:
+      - "fsync latency distribution across disk types"
+      - "sustained throughput ceiling per disk type"
+      - "disk IOPS correlation with application latency"
+      - "page-cache independence from disk type"
+      - "cost-performance tradeoff across disk tiers"
+
+  targets:
+    - name: app
+      cluster:
+        type: gke
+        machineType: e2-standard-4
+        preemptible: true
+      components:
+        - app: naive-db-disk-bench
+        - app: db-disk-bench-loadgen
+        - app: kube-prometheus-stack
+          params:
+            prometheus.prometheusSpec.serviceMonitorSelectorNilUsesHelmValues: "false"
+        - app: metrics-agent
+        - app: metrics-egress
+
+  metrics:
+    # --- HDD variant: fsync ---
+    - name: hdd_fsync_write_p99
+      query: "histogram_quantile(0.99, sum(rate(naivedb_write_duration_seconds_bucket{app=\"naive-db-fsync-hdd\", namespace=~\"$EXPERIMENT\"}[$DURATION])) by (le))"
+      type: instant
+      unit: seconds
+      description: "HDD fsync: P99 write latency"
+      group: hdd
+
+    - name: hdd_fsync_throughput
+      query: "sum(rate(naivedb_operations_total{op=\"write\", app=\"naive-db-fsync-hdd\", namespace=~\"$EXPERIMENT\"}[$DURATION]))"
+      type: instant
+      unit: ops/s
+      description: "HDD fsync: sustained write ops/sec"
+      group: hdd
+
+    - name: hdd_fsync_p99
+      query: "histogram_quantile(0.99, sum(rate(naivedb_fsync_duration_seconds_bucket{app=\"naive-db-fsync-hdd\", namespace=~\"$EXPERIMENT\"}[$DURATION])) by (le))"
+      type: instant
+      unit: seconds
+      description: "HDD fsync: P99 fsync-only latency"
+      group: hdd
+
+    # --- HDD variant: nosync ---
+    - name: hdd_nosync_write_p99
+      query: "histogram_quantile(0.99, sum(rate(naivedb_write_duration_seconds_bucket{app=\"naive-db-nosync-hdd\", namespace=~\"$EXPERIMENT\"}[$DURATION])) by (le))"
+      type: instant
+      unit: seconds
+      description: "HDD nosync: P99 write latency"
+      group: hdd
+
+    - name: hdd_nosync_throughput
+      query: "sum(rate(naivedb_operations_total{op=\"write\", app=\"naive-db-nosync-hdd\", namespace=~\"$EXPERIMENT\"}[$DURATION]))"
+      type: instant
+      unit: ops/s
+      description: "HDD nosync: sustained write ops/sec"
+      group: hdd
+
+    # --- Balanced variant: fsync ---
+    - name: balanced_fsync_write_p99
+      query: "histogram_quantile(0.99, sum(rate(naivedb_write_duration_seconds_bucket{app=\"naive-db-fsync-balanced\", namespace=~\"$EXPERIMENT\"}[$DURATION])) by (le))"
+      type: instant
+      unit: seconds
+      description: "Balanced fsync: P99 write latency"
+      group: balanced
+
+    - name: balanced_fsync_throughput
+      query: "sum(rate(naivedb_operations_total{op=\"write\", app=\"naive-db-fsync-balanced\", namespace=~\"$EXPERIMENT\"}[$DURATION]))"
+      type: instant
+      unit: ops/s
+      description: "Balanced fsync: sustained write ops/sec"
+      group: balanced
+
+    - name: balanced_fsync_p99
+      query: "histogram_quantile(0.99, sum(rate(naivedb_fsync_duration_seconds_bucket{app=\"naive-db-fsync-balanced\", namespace=~\"$EXPERIMENT\"}[$DURATION])) by (le))"
+      type: instant
+      unit: seconds
+      description: "Balanced fsync: P99 fsync-only latency"
+      group: balanced
+
+    # --- Balanced variant: nosync ---
+    - name: balanced_nosync_write_p99
+      query: "histogram_quantile(0.99, sum(rate(naivedb_write_duration_seconds_bucket{app=\"naive-db-nosync-balanced\", namespace=~\"$EXPERIMENT\"}[$DURATION])) by (le))"
+      type: instant
+      unit: seconds
+      description: "Balanced nosync: P99 write latency"
+      group: balanced
+
+    - name: balanced_nosync_throughput
+      query: "sum(rate(naivedb_operations_total{op=\"write\", app=\"naive-db-nosync-balanced\", namespace=~\"$EXPERIMENT\"}[$DURATION]))"
+      type: instant
+      unit: ops/s
+      description: "Balanced nosync: sustained write ops/sec"
+      group: balanced
+
+    # --- SSD variant: fsync ---
+    - name: ssd_fsync_write_p99
+      query: "histogram_quantile(0.99, sum(rate(naivedb_write_duration_seconds_bucket{app=\"naive-db-fsync-ssd\", namespace=~\"$EXPERIMENT\"}[$DURATION])) by (le))"
+      type: instant
+      unit: seconds
+      description: "SSD fsync: P99 write latency"
+      group: ssd
+
+    - name: ssd_fsync_throughput
+      query: "sum(rate(naivedb_operations_total{op=\"write\", app=\"naive-db-fsync-ssd\", namespace=~\"$EXPERIMENT\"}[$DURATION]))"
+      type: instant
+      unit: ops/s
+      description: "SSD fsync: sustained write ops/sec"
+      group: ssd
+
+    - name: ssd_fsync_p99
+      query: "histogram_quantile(0.99, sum(rate(naivedb_fsync_duration_seconds_bucket{app=\"naive-db-fsync-ssd\", namespace=~\"$EXPERIMENT\"}[$DURATION])) by (le))"
+      type: instant
+      unit: seconds
+      description: "SSD fsync: P99 fsync-only latency"
+      group: ssd
+
+    # --- SSD variant: nosync ---
+    - name: ssd_nosync_write_p99
+      query: "histogram_quantile(0.99, sum(rate(naivedb_write_duration_seconds_bucket{app=\"naive-db-nosync-ssd\", namespace=~\"$EXPERIMENT\"}[$DURATION])) by (le))"
+      type: instant
+      unit: seconds
+      description: "SSD nosync: P99 write latency"
+      group: ssd
+
+    - name: ssd_nosync_throughput
+      query: "sum(rate(naivedb_operations_total{op=\"write\", app=\"naive-db-nosync-ssd\", namespace=~\"$EXPERIMENT\"}[$DURATION]))"
+      type: instant
+      unit: ops/s
+      description: "SSD nosync: sustained write ops/sec"
+      group: ssd
+
+    # --- Time-series (range) across all variants ---
+    - name: write_latency_over_time
+      query: "histogram_quantile(0.99, sum(rate(naivedb_write_duration_seconds_bucket{namespace=~\"$EXPERIMENT\"}[1m])) by (le, app))"
+      type: range
+      unit: seconds
+      description: "P99 write latency over time by variant (6 series)"
+      group: timeseries
+
+    - name: fsync_latency_over_time
+      query: "histogram_quantile(0.99, sum(rate(naivedb_fsync_duration_seconds_bucket{namespace=~\"$EXPERIMENT\"}[1m])) by (le, app))"
+      type: range
+      unit: seconds
+      description: "P99 fsync-only latency over time by variant"
+      group: timeseries
+
+    - name: write_throughput_over_time
+      query: "sum(rate(naivedb_operations_total{op=\"write\", namespace=~\"$EXPERIMENT\"}[1m])) by (app)"
+      type: range
+      unit: ops/s
+      description: "Write throughput over time by variant (6 series)"
+      group: timeseries
+
+    - name: read_throughput_over_time
+      query: "sum(rate(naivedb_operations_total{op=\"read\", namespace=~\"$EXPERIMENT\"}[1m])) by (app)"
+      type: range
+      unit: ops/s
+      description: "Read throughput over time by variant"
+      group: timeseries
+
+    # --- Disk I/O metrics (node_exporter) ---
+    - name: disk_write_iops
+      query: "sum(rate(node_disk_writes_completed_total{namespace=~\"$EXPERIMENT\", device=~\"sd.*\"}[1m]))"
+      type: range
+      unit: ops/s
+      description: "Node-level disk write IOPS (all data disks)"
+      group: disk_io
+
+    - name: disk_io_utilization
+      query: "rate(node_disk_io_time_seconds_total{namespace=~\"$EXPERIMENT\", device=~\"sd.*\"}[1m])"
+      type: range
+      unit: "%"
+      description: "Disk I/O utilization (time spent doing I/O per second)"
+      group: disk_io
+
+    # --- Totals ---
+    - name: hdd_fsync_total_rows
+      query: "naivedb_rows_total{app=\"naive-db-fsync-hdd\", namespace=~\"$EXPERIMENT\"}"
+      type: instant
+      unit: rows
+      description: "HDD fsync: total rows written"
+      group: totals
+
+    - name: hdd_nosync_total_rows
+      query: "naivedb_rows_total{app=\"naive-db-nosync-hdd\", namespace=~\"$EXPERIMENT\"}"
+      type: instant
+      unit: rows
+      description: "HDD nosync: total rows written"
+      group: totals
+
+    - name: balanced_fsync_total_rows
+      query: "naivedb_rows_total{app=\"naive-db-fsync-balanced\", namespace=~\"$EXPERIMENT\"}"
+      type: instant
+      unit: rows
+      description: "Balanced fsync: total rows written"
+      group: totals
+
+    - name: balanced_nosync_total_rows
+      query: "naivedb_rows_total{app=\"naive-db-nosync-balanced\", namespace=~\"$EXPERIMENT\"}"
+      type: instant
+      unit: rows
+      description: "Balanced nosync: total rows written"
+      group: totals
+
+    - name: ssd_fsync_total_rows
+      query: "naivedb_rows_total{app=\"naive-db-fsync-ssd\", namespace=~\"$EXPERIMENT\"}"
+      type: instant
+      unit: rows
+      description: "SSD fsync: total rows written"
+      group: totals
+
+    - name: ssd_nosync_total_rows
+      query: "naivedb_rows_total{app=\"naive-db-nosync-ssd\", namespace=~\"$EXPERIMENT\"}"
+      type: instant
+      unit: rows
+      description: "SSD nosync: total rows written"
+      group: totals
+
+    # --- Cluster resources ---
+    - name: cluster_cpu
+      query: "sum(rate(container_cpu_usage_seconds_total{namespace=~\"$EXPERIMENT\", container!=\"\"}[1m]))"
+      type: range
+      unit: cores
+      description: "Total workload CPU usage"
+      group: cluster
+
+    - name: cluster_memory
+      query: "sum(container_memory_working_set_bytes{namespace=~\"$EXPERIMENT\", container!=\"\"})"
+      type: range
+      unit: bytes
+      description: "Total workload memory usage"
+      group: cluster
+
+  workflow:
+    template: db-disk-comparison-validation
+    completion:
+      mode: workflow

@@ -1,0 +1,11 @@
+apiVersion: experiments.illm.io/v1alpha1
+kind: Component
+metadata:
+  name: db-disk-bench-loadgen
+spec:
+  type: app
+  description: "Sustained-throughput load generator for disk-type comparison benchmark (6 naive-db variants)"
+  sources:
+    - repoURL: https://github.com/illMadeCoder/k8s-ai-cloud-testbed.git
+      targetRevision: HEAD
+      path: components/apps/db-disk-bench-loadgen/k8s

@@ -1,0 +1,11 @@
+apiVersion: experiments.illm.io/v1alpha1
+kind: Component
+metadata:
+  name: naive-db-disk-bench
+spec:
+  type: app
+  description: "Six naive-db variants (fsync/nosync × hdd/balanced/ssd) for disk-type comparison benchmark"
+  sources:
+    - repoURL: https://github.com/illMadeCoder/k8s-ai-cloud-testbed.git
+      targetRevision: HEAD
+      path: components/apps/naive-db-disk-bench/k8s
