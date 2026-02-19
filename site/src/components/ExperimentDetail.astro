@@ -12,6 +12,7 @@ import ExperimentGroupCard from './ExperimentGroupCard.astro';
 import { formatDuration, formatDate, formatCost, formatValue } from '../lib/format';
 import { buildSpec } from '../lib/vega-specs';
 import { getHypothesisClaim, getQuestions, getFocus, getMachineVerdict, getBaseName } from '../lib/experiments';
+import { experimentToMarkdown } from '../lib/markdown';
 import type { ExperimentSummary } from '../types';
 import type { ExperimentGroup } from '../lib/experiments';
 
@@ -52,6 +53,7 @@ const hypothesisClaim = getHypothesisClaim(experiment);
 const questions = getQuestions(experiment);
 const focusAreas = getFocus(experiment);
 const machineVerdict = getMachineVerdict(experiment);
+const markdown = experimentToMarkdown({ experiment, displayName, tags });
 ---
 
 <div class="detail-header">
@@ -286,46 +288,17 @@ const machineVerdict = getMachineVerdict(experiment);
   (window as any).mermaidLib = mermaid;
   window.dispatchEvent(new CustomEvent('mermaid:ready'));
 </script>
+<div id="page-markdown" style="display:none" set:text={markdown}></div>
 <script is:inline>
   (function() {
     var btn = document.getElementById('copy-page-btn');
     if (!btn) return;
 
     btn.addEventListener('click', function() {
-      var main = document.querySelector('main');
-      if (!main) return;
+      var md = document.getElementById('page-markdown');
+      if (!md) return;
 
-      // Clone so we never touch the live DOM
-      var clone = main.cloneNode(true);
-
-      // Expand all collapsed sections
-      clone.querySelectorAll('details:not([open])').forEach(function(d) { d.open = true; });
-
-      // Replace rendered mermaid SVGs with raw source text
-      clone.querySelectorAll('.mermaid-wrapper').forEach(function(wrapper) {
-        var src = wrapper.getAttribute('data-mermaid-source');
-        if (src) {
-          var pre = document.createElement('pre');
-          pre.textContent = src;
-          wrapper.replaceWith(pre);
-        }
-      });
-
-      // Remove elements with no useful text representation
-      clone.querySelectorAll('script, style, .mermaid-toolbar, #copy-page-btn, .vega-embed').forEach(function(el) {
-        el.remove();
-      });
-
-      // Attach clone off-screen so innerText computes layout
-      // (detached clones fall back to textContent behavior — no newlines between blocks)
-      clone.style.position = 'fixed';
-      clone.style.left = '-9999px';
-      clone.style.opacity = '0';
-      document.body.appendChild(clone);
-      var text = clone.innerText;
-      document.body.removeChild(clone);
-
-      navigator.clipboard.writeText(text).then(function() {
+      navigator.clipboard.writeText(md.textContent).then(function() {
         var label = btn.querySelector('.copy-btn-label');
         if (!label) return;
         var original = label.innerHTML;
