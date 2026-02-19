@@ -18,9 +18,9 @@ const seriesName = seriesMeta?.name;
 const seriesColor = seriesMeta?.color;
 
 const verdict = latest.analysis?.hypothesisVerdict;
-const verdictLabel = verdict === 'validated' ? 'Validated'
-  : verdict === 'invalidated' ? 'Invalidated'
-  : verdict === 'insufficient' ? 'Insufficient'
+const verdictLabel = verdict === 'validated' ? 'Hypothesis Validated'
+  : verdict === 'invalidated' ? 'Hypothesis Invalidated'
+  : verdict === 'insufficient' ? 'Insufficient Data'
   : null;
 const verdictClass = verdict === 'validated' ? 'badge-complete'
   : verdict === 'invalidated' ? 'badge-failed'
@@ -58,7 +58,6 @@ const verdictClass = verdict === 'validated' ? 'badge-complete'
   )}
   <div class="card-meta">
     <span>Duration: {formatDuration(latest.durationSeconds)}</span>
-    <span>Targets: {latest.targets.length}</span>
     {latest.costEstimate && <span>Cost: {formatCost(latest.costEstimate.totalUSD)}</span>}
   </div>
 </a>

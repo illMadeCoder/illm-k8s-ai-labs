@@ -9,9 +9,11 @@ import AnalysisBody from './AnalysisBody.astro';
 import AnalysisFeedback from './AnalysisFeedback.astro';
 import ArchitectureDiagram from './ArchitectureDiagram.astro';
 import ExperimentGroupCard from './ExperimentGroupCard.astro';
+import VoiceChat from './VoiceChat.astro';
 import { formatDuration, formatDate, formatCost, formatValue } from '../lib/format';
 import { buildSpec } from '../lib/vega-specs';
 import { getHypothesisClaim, getQuestions, getFocus, getMachineVerdict, getBaseName } from '../lib/experiments';
+import { getSeriesMeta } from '../lib/series';
 import { experimentToMarkdown } from '../lib/markdown';
 import type { ExperimentSummary } from '../types';
 import type { ExperimentGroup } from '../lib/experiments';
@@ -35,6 +37,7 @@ interface Props {
 const { experiment, displayName, tags, runHistory, seriesSiblings } = Astro.props;
 const currentBaseName = getBaseName(experiment.name);
 const base = import.meta.env.BASE_URL;
+const seriesColor = seriesSiblings ? getSeriesMeta(seriesSiblings.seriesId)?.color : undefined;
 
 const allMetricEntries = experiment.metrics
   ? Object.entries(experiment.metrics.queries).filter(([, qr]) => !qr.error)
@@ -85,12 +88,11 @@ const markdown = experimentToMarkdown({ experiment, displayName, tags });
   )}
   <MetricCard label="Created" value={formatDate(experiment.createdAt)} />
   <MetricCard label="Duration" value={formatDuration(experiment.durationSeconds)} />
-  <MetricCard label="Targets" value={String(experiment.targets.length)} />
   {experiment.costEstimate && (
     <MetricCard label="Est. Cost" value={formatCost(experiment.costEstimate.totalUSD)} />
   )}
   <button class="metric-card copy-btn" id="copy-page-btn">
-    <span class="metric-label">Export</span>
+    <span class="metric-label">Clipboard</span>
     <span class="metric-value copy-btn-label">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
            stroke-linecap="round" stroke-linejoin="round" width="16" height="16">
@@ -100,6 +102,19 @@ const markdown = experimentToMarkdown({ experiment, displayName, tags });
       Copy
     </span>
   </button>
+  <button class="metric-card copy-btn" id="md-download-btn">
+    <span class="metric-label">Download</span>
+    <span class="metric-value copy-btn-label">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+           stroke-linecap="round" stroke-linejoin="round" width="16" height="16">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+        <polyline points="7 10 12 15 17 10"/>
+        <line x1="12" y1="15" x2="12" y2="3"/>
+      </svg>
+      .md
+    </span>
+  </button>
+  <VoiceChat workerUrl="https://voice-proxy.illmadecoder.workers.dev" />
 </div>
 
 {analysis?.architectureDiagram && (
@@ -268,7 +283,7 @@ const markdown = experimentToMarkdown({ experiment, displayName, tags });
   return (
     <details class="section section-series series-nav">
       <summary class="section-title">
-        {nextGroups.length > 0 ? 'Next' : 'Part of'} <a href={`${base}series/${seriesSiblings.seriesId}/`} class="series-link">{seriesSiblings.seriesName}</a>
+        {nextGroups.length > 0 ? 'Next in' : 'Part of'} <a href={`${base}series/${seriesSiblings.seriesId}/`} class="series-link" style={seriesColor ? `color: ${seriesColor}` : undefined}>{seriesSiblings.seriesName}</a>
       </summary>
       {nextGroups.length > 0 ? (
         <div class="series-cards">
@@ -314,6 +329,25 @@ const markdown = experimentToMarkdown({ experiment, displayName, tags });
         label.textContent = 'Copied!';
         setTimeout(function() { label.innerHTML = original; }, 1500);
       });
+    });
+  })();
+</script>
+<script is:inline>
+  (function() {
+    var btn = document.getElementById('md-download-btn');
+    if (!btn) return;
+
+    btn.addEventListener('click', function() {
+      var md = document.getElementById('page-markdown');
+      if (!md || !md.textContent) return;
+
+      var slug = window.location.pathname.split('/').filter(Boolean).pop() || 'experiment';
+      var blob = new Blob([md.textContent], { type: 'text/markdown' });
+      var a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = slug + '.md';
+      a.click();
+      URL.revokeObjectURL(a.href);
     });
   })();
 </script>

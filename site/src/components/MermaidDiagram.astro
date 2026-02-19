@@ -179,19 +179,19 @@ const chartId = `mermaid-${Math.random().toString(36).slice(2, 10)}`;
         })(buttons[i]);
       }
 
-      // Initial zoom: fit to container
-      applyZoom(fitScale());
+      // Initial zoom: 100%
+      applyZoom(1);
 
       // ResizeObserver: recalculate fit if user had "Fit" active
       if (typeof ResizeObserver !== 'undefined') {
-        var lastFit = true;
+        var lastFit = false;
         var origApplyZoom = applyZoom;
         applyZoom = function(scale) {
           lastFit = (Math.abs(scale - fitScale()) < 0.01);
           origApplyZoom(scale);
         };
-        // Re-bind initial
-        applyZoom(fitScale());
+        // Re-bind initial at 100%
+        applyZoom(1);
 
         new ResizeObserver(function() {
           if (lastFit) {
