@@ -89,7 +89,6 @@ const markdown = experimentToMarkdown({ experiment, displayName, tags });
   {experiment.costEstimate && (
     <MetricCard label="Est. Cost" value={formatCost(experiment.costEstimate.totalUSD)} />
   )}
-  <MetricCard label="Workflow" value={experiment.workflow.phase} />
   <button class="metric-card copy-btn" id="copy-page-btn">
     <span class="metric-label">Export</span>
     <span class="metric-value copy-btn-label">

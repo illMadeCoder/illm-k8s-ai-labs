@@ -25,9 +25,7 @@ const verdictClass = verdict === 'validated' ? 'badge-complete'
   <div class="card-header">
     <div class="card-header-left">
       {verdictLabel && <span class={`badge ${verdictClass}`}>{verdictLabel}</span>}
-      {group.runs.length > 1 && (
-        <span class="run-count">{group.runs.length} runs</span>
-      )}
+      <span class="run-count">{group.runs.length} {group.runs.length === 1 ? 'run' : 'runs'}</span>
     </div>
     <span class="card-date">{formatDate(latest.createdAt)}</span>
   </div>
