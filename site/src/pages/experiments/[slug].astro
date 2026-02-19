@@ -29,7 +29,7 @@ let seriesSiblings: { seriesId: string; seriesName: string; groups: ExperimentGr
 if (seriesId) {
   const meta = getSeriesMeta(seriesId);
   const siblings = getSeriesSiblings(group.baseName, experiments);
-  if (meta && siblings && siblings.length > 1) {
+  if (meta && siblings && siblings.length > 0) {
     seriesSiblings = { seriesId, seriesName: meta.name, groups: siblings };
   }
 }
