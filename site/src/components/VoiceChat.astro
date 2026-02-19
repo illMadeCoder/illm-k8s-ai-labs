@@ -1,0 +1,400 @@
+---
+interface Props {
+  workerUrl: string;
+}
+
+const { workerUrl } = Astro.props;
+---
+
+<button class="metric-card voice-btn" id="voice-chat-btn" data-worker-url={workerUrl}>
+  <span class="metric-label">AI Voice</span>
+  <span class="metric-value voice-btn-label" id="voice-btn-label">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+         stroke-linecap="round" stroke-linejoin="round" width="16" height="16">
+      <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+      <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+      <line x1="12" y1="19" x2="12" y2="23"/>
+      <line x1="8" y1="23" x2="16" y2="23"/>
+    </svg>
+    Talk
+  </span>
+</button>
+
+<div class="voice-panel" id="voice-panel" hidden>
+  <div class="voice-panel-header">
+    <span class="voice-status" id="voice-status">Connecting...</span>
+    <button class="voice-close" id="voice-close">&times;</button>
+  </div>
+  <div class="voice-visualizer" id="voice-viz">
+    <div class="voice-viz-dot"></div>
+    <div class="voice-viz-dot"></div>
+    <div class="voice-viz-dot"></div>
+  </div>
+  <div class="voice-controls">
+    <button class="voice-end" id="voice-end">End conversation</button>
+  </div>
+</div>
+<audio id="voice-audio" autoplay></audio>
+
+<script is:inline>
+(function() {
+  var btn = document.getElementById('voice-chat-btn');
+  var panel = document.getElementById('voice-panel');
+  var statusEl = document.getElementById('voice-status');
+  var btnLabel = document.getElementById('voice-btn-label');
+  var closeBtn = document.getElementById('voice-close');
+  var endBtn = document.getElementById('voice-end');
+  var audioEl = document.getElementById('voice-audio');
+  var viz = document.getElementById('voice-viz');
+
+  if (!btn || !panel) return;
+
+  var workerUrl = btn.getAttribute('data-worker-url');
+  var pc = null;
+  var dc = null;
+  var localStream = null;
+  var state = 'idle';
+
+  var micSvg = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" width="16" height="16"><path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/><path d="M19 10v2a7 7 0 0 1-14 0v-2"/><line x1="12" y1="19" x2="12" y2="23"/><line x1="8" y1="23" x2="16" y2="23"/></svg>';
+
+  function setState(newState, message) {
+    state = newState;
+    switch (state) {
+      case 'idle':
+        btnLabel.innerHTML = micSvg + ' Talk';
+        btn.disabled = false;
+        panel.hidden = true;
+        viz.classList.remove('speaking', 'listening');
+        break;
+      case 'connecting':
+        btnLabel.textContent = 'Connecting\u2026';
+        btn.disabled = true;
+        panel.hidden = false;
+        statusEl.textContent = 'Connecting\u2026';
+        viz.classList.add('listening');
+        break;
+      case 'active':
+        btnLabel.textContent = 'Live';
+        btn.disabled = true;
+        panel.hidden = false;
+        statusEl.textContent = message || 'Connected';
+        break;
+      case 'error':
+        btnLabel.innerHTML = micSvg + ' Talk';
+        btn.disabled = false;
+        panel.hidden = false;
+        statusEl.textContent = message || 'Error occurred';
+        viz.classList.remove('speaking', 'listening');
+        setTimeout(function() {
+          if (state === 'error') { panel.hidden = true; state = 'idle'; }
+        }, 4000);
+        break;
+      case 'disabled':
+        btnLabel.textContent = 'Unavailable';
+        btn.disabled = true;
+        btn.title = message || 'Voice chat is currently unavailable';
+        break;
+    }
+  }
+
+  function cleanup() {
+    if (dc) { try { dc.close(); } catch(e) {} dc = null; }
+    if (pc) { try { pc.close(); } catch(e) {} pc = null; }
+    if (localStream) {
+      localStream.getTracks().forEach(function(t) { t.stop(); });
+      localStream = null;
+    }
+    if (audioEl) { audioEl.srcObject = null; }
+  }
+
+  function endSession() {
+    cleanup();
+    setState('idle');
+  }
+
+  async function startSession() {
+    if (state !== 'idle') return;
+    setState('connecting');
+
+    // 1. Get microphone
+    try {
+      localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    } catch (e) {
+      setState('error', 'Microphone access denied');
+      return;
+    }
+
+    try {
+      // 2. Get ephemeral token from worker
+      var tokenRes = await fetch(workerUrl + '/session', { method: 'POST' });
+      if (tokenRes.status === 429) {
+        var errData = await tokenRes.json();
+        cleanup();
+        setState('error', errData.error || 'Rate limit reached');
+        return;
+      }
+      if (!tokenRes.ok) {
+        cleanup();
+        setState('error', 'Failed to start session');
+        return;
+      }
+
+      var session = await tokenRes.json();
+      var ephemeralToken = session.client_secret && session.client_secret.value;
+      if (!ephemeralToken) {
+        cleanup();
+        setState('error', 'Invalid session response');
+        return;
+      }
+
+      // 3. Create RTCPeerConnection
+      pc = new RTCPeerConnection();
+
+      // 4. Handle remote audio
+      pc.ontrack = function(event) {
+        if (audioEl && event.streams[0]) {
+          audioEl.srcObject = event.streams[0];
+        }
+      };
+
+      // 5. Create data channel
+      dc = pc.createDataChannel('oai-events');
+
+      dc.onopen = function() {
+        // Read experiment context from the page
+        var mdEl = document.getElementById('page-markdown');
+        var experimentMarkdown = mdEl ? mdEl.textContent : 'No experiment data available.';
+
+        // Send session configuration with experiment context
+        dc.send(JSON.stringify({
+          type: 'session.update',
+          session: {
+            instructions: 'You are an AI assistant embedded on a Kubernetes benchmarking portfolio site. A visitor has clicked "Talk" on an experiment page to discuss the results with you. Be conversational, technically accurate, and enthusiastic about the engineering work. Help them understand the results, methodology, and implications. Keep responses concise for voice.\n\nHere is the experiment data:\n\n' + experimentMarkdown,
+            turn_detection: { type: 'server_vad' }
+          }
+        }));
+
+        // Trigger initial greeting
+        dc.send(JSON.stringify({
+          type: 'response.create',
+          response: {
+            modalities: ['audio', 'text'],
+            instructions: 'Greet the visitor briefly and mention what experiment they are looking at. Keep it to 1-2 sentences.'
+          }
+        }));
+
+        setState('active', 'Listening\u2026');
+      };
+
+      dc.onmessage = function(event) {
+        try {
+          var msg = JSON.parse(event.data);
+          if (msg.type === 'response.audio_transcript.delta' || msg.type === 'response.audio.delta') {
+            viz.classList.add('speaking');
+            viz.classList.remove('listening');
+            statusEl.textContent = 'Speaking\u2026';
+          } else if (msg.type === 'response.done' || msg.type === 'response.audio.done') {
+            viz.classList.remove('speaking');
+            viz.classList.add('listening');
+            statusEl.textContent = 'Listening\u2026';
+          } else if (msg.type === 'input_audio_buffer.speech_started') {
+            viz.classList.add('listening');
+            statusEl.textContent = 'Listening\u2026';
+          }
+        } catch (e) {}
+      };
+
+      dc.onerror = function() {
+        cleanup();
+        setState('error', 'Connection error');
+      };
+
+      // 6. Add mic track
+      localStream.getTracks().forEach(function(track) {
+        pc.addTrack(track, localStream);
+      });
+
+      // 7. Create SDP offer
+      var offer = await pc.createOffer();
+      await pc.setLocalDescription(offer);
+
+      // 8. Send offer to OpenAI Realtime API
+      var sdpRes = await fetch('https://api.openai.com/v1/realtime?model=gpt-4o-realtime-preview', {
+        method: 'POST',
+        headers: {
+          'Authorization': 'Bearer ' + ephemeralToken,
+          'Content-Type': 'application/sdp',
+        },
+        body: offer.sdp,
+      });
+
+      if (!sdpRes.ok) {
+        cleanup();
+        setState('error', 'Failed to connect to AI');
+        return;
+      }
+
+      // 9. Set remote description
+      var answerSdp = await sdpRes.text();
+      await pc.setRemoteDescription({ type: 'answer', sdp: answerSdp });
+
+      pc.onconnectionstatechange = function() {
+        if (pc && (pc.connectionState === 'disconnected' || pc.connectionState === 'failed')) {
+          cleanup();
+          setState('idle');
+        }
+      };
+
+    } catch (e) {
+      console.error('Voice chat error:', e);
+      cleanup();
+      setState('error', 'Connection failed');
+    }
+  }
+
+  btn.addEventListener('click', startSession);
+  closeBtn.addEventListener('click', endSession);
+  endBtn.addEventListener('click', endSession);
+})();
+</script>
+
+<style>
+  .voice-btn {
+    cursor: pointer;
+    border: 1px solid transparent;
+    font-family: var(--font-mono);
+    transition: border-color 0.15s, background 0.15s;
+  }
+  .voice-btn:hover:not(:disabled) {
+    border-color: var(--accent);
+  }
+  .voice-btn:disabled {
+    opacity: 0.6;
+    cursor: default;
+  }
+  .voice-btn-label {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 1.05rem;
+  }
+
+  .voice-panel {
+    position: fixed;
+    bottom: 1.5rem;
+    right: 1.5rem;
+    width: 320px;
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    box-shadow: var(--shadow-lg);
+    z-index: 1000;
+    overflow: hidden;
+  }
+  .voice-panel-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid var(--border);
+    background: var(--bg-surface);
+  }
+  .voice-status {
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--text-muted);
+  }
+  .voice-close {
+    background: none;
+    border: none;
+    color: var(--text-muted);
+    font-size: 1.25rem;
+    cursor: pointer;
+    padding: 0 0.25rem;
+    line-height: 1;
+  }
+  .voice-close:hover {
+    color: var(--text);
+  }
+
+  .voice-visualizer {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 2rem 1rem;
+  }
+  .voice-viz-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: var(--text-muted);
+    transition: transform 0.2s, background 0.2s;
+  }
+  .voice-visualizer.listening .voice-viz-dot {
+    background: var(--accent);
+    animation: voice-pulse 1.4s ease-in-out infinite;
+  }
+  .voice-visualizer.listening .voice-viz-dot:nth-child(2) {
+    animation-delay: 0.2s;
+  }
+  .voice-visualizer.listening .voice-viz-dot:nth-child(3) {
+    animation-delay: 0.4s;
+  }
+  .voice-visualizer.speaking .voice-viz-dot {
+    background: var(--success);
+    animation: voice-speak 0.6s ease-in-out infinite alternate;
+  }
+  .voice-visualizer.speaking .voice-viz-dot:nth-child(1) {
+    animation-delay: 0s;
+  }
+  .voice-visualizer.speaking .voice-viz-dot:nth-child(2) {
+    animation-delay: 0.15s;
+    animation-duration: 0.5s;
+  }
+  .voice-visualizer.speaking .voice-viz-dot:nth-child(3) {
+    animation-delay: 0.3s;
+    animation-duration: 0.7s;
+  }
+
+  @keyframes voice-pulse {
+    0%, 100% { transform: scale(1); opacity: 0.5; }
+    50% { transform: scale(1.5); opacity: 1; }
+  }
+  @keyframes voice-speak {
+    0% { transform: scaleY(1); }
+    100% { transform: scaleY(2.5); }
+  }
+
+  .voice-controls {
+    padding: 0.75rem 1rem;
+    border-top: 1px solid var(--border);
+    text-align: center;
+  }
+  .voice-end {
+    background: color-mix(in srgb, var(--error) 15%, var(--bg-surface));
+    color: var(--error);
+    border: 1px solid color-mix(in srgb, var(--error) 30%, transparent);
+    border-radius: var(--radius);
+    padding: 0.5rem 1.5rem;
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .voice-end:hover {
+    background: color-mix(in srgb, var(--error) 25%, var(--bg-surface));
+  }
+
+  @media (max-width: 640px) {
+    .voice-panel {
+      bottom: 0;
+      right: 0;
+      left: 0;
+      width: 100%;
+      border-radius: var(--radius) var(--radius) 0 0;
+    }
+  }
+</style>
