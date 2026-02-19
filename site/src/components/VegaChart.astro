@@ -27,10 +27,16 @@ const chartId = `vega-${Math.random().toString(36).slice(2, 10)}`;
       var accent = style.getPropertyValue('--accent').trim();
       var fontMono = style.getPropertyValue('--font-mono').trim();
       var patchedSpec = JSON.parse(JSON.stringify(spec));
+      var narrow = el.offsetWidth < 500;
       if (patchedSpec.encoding && patchedSpec.encoding.color) {
+        var legendOpts = { titleColor: text, labelColor: text, titleFont: fontMono, labelFont: fontMono };
+        if (narrow) {
+          legendOpts.orient = 'bottom';
+          legendOpts.columns = 2;
+        }
         patchedSpec.encoding.color.legend = Object.assign(
           patchedSpec.encoding.color.legend || {},
-          { titleColor: text, labelColor: text, titleFont: fontMono, labelFont: fontMono }
+          legendOpts
         );
       }
       vegaEmbed(el, patchedSpec, {
