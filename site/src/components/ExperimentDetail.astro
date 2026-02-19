@@ -88,6 +88,18 @@ const machineVerdict = getMachineVerdict(experiment);
     <MetricCard label="Est. Cost" value={formatCost(experiment.costEstimate.totalUSD)} />
   )}
   <MetricCard label="Workflow" value={experiment.workflow.phase} />
+  <button class="metric-card pdf-btn" id="pdf-download-btn" data-experiment-name={experiment.name}>
+    <span class="metric-label">Export</span>
+    <span class="metric-value pdf-btn-label">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+           stroke-linecap="round" stroke-linejoin="round" width="16" height="16">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+        <polyline points="7 10 12 15 17 10"/>
+        <line x1="12" y1="15" x2="12" y2="3"/>
+      </svg>
+      PDF
+    </span>
+  </button>
 </div>
 
 {analysis?.architectureDiagram && (
@@ -146,7 +158,7 @@ const machineVerdict = getMachineVerdict(experiment);
 </details>
 
 {(hypothesisClaim || questions.length > 0 || focusAreas.length > 0 || hasRichAnalysis || analysis?.summary) && (
-  <details class="section section-overview">
+  <details class="section section-overview" open>
     <summary class="section-title">Overview</summary>
     {hypothesisClaim && (
       <details class="section" open>
@@ -155,7 +167,7 @@ const machineVerdict = getMachineVerdict(experiment);
       </details>
     )}
     {hasRichAnalysis && analysis && (
-      <details class="section" open>
+      <details class="section">
         <summary class="section-title">Abstract</summary>
         <AnalysisAbstract
           abstract={analysis.abstract!}
@@ -165,7 +177,7 @@ const machineVerdict = getMachineVerdict(experiment);
       </details>
     )}
     {questions.length > 0 && (
-      <details class="section" open>
+      <details class="section">
         <summary class="section-title">Questions</summary>
         <div class="study-questions-list">
           {questions.map((q, i) => (
@@ -180,7 +192,7 @@ const machineVerdict = getMachineVerdict(experiment);
       </details>
     )}
     {focusAreas.length > 0 && (
-      <details class="section" open>
+      <details class="section">
         <summary class="section-title">Focus Areas</summary>
         <div class="focus-tags">
           {focusAreas.map((f) => <span class="focus-tag">{f}</span>)}
@@ -274,6 +286,56 @@ const machineVerdict = getMachineVerdict(experiment);
   import mermaid from 'mermaid';
   (window as any).mermaidLib = mermaid;
   window.dispatchEvent(new CustomEvent('mermaid:ready'));
+</script>
+<script>
+  const btn = document.getElementById('pdf-download-btn') as HTMLButtonElement | null;
+  if (btn) {
+    btn.addEventListener('click', async () => {
+      btn.disabled = true;
+      const label = btn.querySelector('.pdf-btn-label')!;
+      const origHTML = label.innerHTML;
+      label.textContent = 'Generating…';
+
+      try {
+        const html2pdf = (await import('html2pdf.js')).default;
+        const main = document.querySelector('main');
+        if (!main) return;
+
+        // Expand all closed <details> and track which ones we opened
+        const closedDetails: HTMLDetailsElement[] = [];
+        main.querySelectorAll('details:not([open])').forEach((el) => {
+          const d = el as HTMLDetailsElement;
+          closedDetails.push(d);
+          d.open = true;
+        });
+
+        // Wait for reflow of newly visible content
+        await new Promise((r) => setTimeout(r, 500));
+
+        // Hide the PDF button from capture
+        btn.style.display = 'none';
+
+        const name = btn.dataset.experimentName || 'experiment';
+        await html2pdf().set({
+          margin: 10,
+          filename: `${name}.pdf`,
+          image: { type: 'jpeg', quality: 0.95 },
+          html2canvas: { scale: 2, useCORS: true, logging: false },
+          jsPDF: { unit: 'mm', format: 'a4', orientation: 'portrait' },
+          pagebreak: { mode: ['avoid-all', 'css', 'legacy'] },
+        }).from(main).save();
+
+        // Restore collapsed sections
+        closedDetails.forEach((d) => { d.open = false; });
+        btn.style.display = '';
+      } catch (e) {
+        console.error('PDF generation failed:', e);
+      } finally {
+        label.innerHTML = origHTML;
+        btn.disabled = false;
+      }
+    });
+  }
 </script>
 
 <style>
@@ -535,6 +597,27 @@ const machineVerdict = getMachineVerdict(experiment);
     padding: 0.15rem 0.5rem;
     border-radius: 2px;
     z-index: 1;
+  }
+
+  .pdf-btn {
+    cursor: pointer;
+    border: 1px solid transparent;
+    font-family: var(--font-mono);
+    transition: border-color 0.15s;
+  }
+  .pdf-btn:hover {
+    border-color: var(--accent);
+  }
+  .pdf-btn:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    border-color: transparent;
+  }
+  .pdf-btn-label {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 1.05rem;
   }
 
   @media (max-width: 640px) {
