@@ -10,7 +10,8 @@
   "tags": [
     "comparison",
     "storage",
-    "database"
+    "database",
+    "baseline"
   ],
   "hypothesis": {
     "claim": "Fsync latency is dominated by disk hardware \u2014 pd-ssd fsync should be 5-10x faster than pd-standard HDD, while no-fsync writes are uniformly fast regardless of disk type since they only hit the page cache",
@@ -7812,5 +7813,5 @@
     "generatedAt": "2026-02-19T07:23:10Z",
     "model": "claude-opus-4-6"
   },
-  "series": "modern-database-survey"
+  "series": "modern-database-internals"
 }

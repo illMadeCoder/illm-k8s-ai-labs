@@ -11,7 +11,7 @@
       "description": "Head-to-head comparisons of CNCF and commercial tools across ingress, service mesh, and more"
     },
     {
-      "id": "modern-database-survey",
+      "id": "modern-database-internals",
       "name": "Modern Database Internals",
       "description": "Benchmarking cloud-native databases — NewSQL, distributed KV, time-series, and object storage",
       "order": ["db-fvm", "db-dsc"]
