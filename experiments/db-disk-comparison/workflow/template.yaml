@@ -53,8 +53,8 @@ spec:
             echo "=== Waiting for ArgoCD to sync 6 naive-db variants + loadgen ==="
             echo "6 StatefulSets with PVCs across 3 StorageClasses + kube-prometheus-stack"
             echo "PVC provisioning for 3 disk types may take extra time..."
-            for i in $(seq 1 15); do
-              echo "Wait $i/15 (30s intervals)..."
+            for i in $(seq 1 20); do
+              echo "Wait $i/20 (30s intervals)..."
               sleep 30
             done
             echo "Stack sync wait complete"

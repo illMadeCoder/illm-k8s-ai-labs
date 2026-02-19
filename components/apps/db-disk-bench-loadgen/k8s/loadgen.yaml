@@ -20,7 +20,7 @@ spec:
             - |
               echo "Waiting for all 6 naive-db variants..."
               VARIANTS="naive-db-fsync-hdd naive-db-nosync-hdd naive-db-fsync-balanced naive-db-nosync-balanced naive-db-fsync-ssd naive-db-nosync-ssd"
-              for i in $(seq 1 60); do
+              for i in $(seq 1 120); do
                 all_ready=1
                 status=""
                 for v in $VARIANTS; do
@@ -35,10 +35,10 @@ spec:
                   echo "All databases ready"
                   exit 0
                 fi
-                echo "Attempt $i/60:$status — retrying in 5s..."
+                echo "Attempt $i/120:$status — retrying in 5s..."
                 sleep 5
               done
-              echo "Databases not ready after 5 minutes"
+              echo "Databases not ready after 10 minutes"
               exit 1
       containers:
         - name: loadgen
