@@ -8,12 +8,15 @@ interface Props {
 const { matrix } = Astro.props;
 ---
 
-<details class="section">
+<details class="section section-capabilities">
   <summary class="section-title">Capabilities Matrix</summary>
 
   <div class="cap-list">
     {matrix.summary && (
-      <p class="cap-summary">{matrix.summary}</p>
+      <div class="cap-summary">
+        <h3 class="cap-summary-title">Capabilities Summary</h3>
+        <p class="cap-summary-text">{matrix.summary}</p>
+      </div>
     )}
 
     {matrix.categories.map((category) => (
@@ -50,15 +53,27 @@ const { matrix } = Astro.props;
   }
 
   .cap-summary {
-    margin: 0;
-    padding: 0.75rem 1rem;
-    font-size: 0.9rem;
-    color: var(--text);
-    line-height: 1.65;
+    padding: 1.25rem 1.5rem;
     background: color-mix(in srgb, var(--accent) 8%, var(--bg-card));
     border: 1px solid color-mix(in srgb, var(--accent) 30%, var(--border));
     border-left: 3px solid var(--accent);
     border-radius: var(--radius);
+  }
+
+  .cap-summary-title {
+    font-size: 0.9rem;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--accent);
+    margin: 0 0 0.5rem;
+  }
+
+  .cap-summary-text {
+    margin: 0;
+    font-size: 0.95rem;
+    color: var(--text);
+    line-height: 1.7;
   }
 
   .cap-category-panels {

@@ -96,7 +96,7 @@ const machineVerdict = getMachineVerdict(experiment);
   </div>
 )}
 
-<details class="section">
+<details class="section section-metadata">
   <summary class="section-title">Metadata</summary>
   <TargetTable targets={experiment.targets} />
   {experiment.costEstimate && (
@@ -146,7 +146,7 @@ const machineVerdict = getMachineVerdict(experiment);
 </details>
 
 {(hypothesisClaim || questions.length > 0 || focusAreas.length > 0 || hasRichAnalysis || analysis?.summary) && (
-  <details class="section overview" open>
+  <details class="section section-overview overview" open>
     <summary class="section-title">Overview</summary>
     <div class="overview-inner">
       {hypothesisClaim && (
@@ -221,7 +221,7 @@ const machineVerdict = getMachineVerdict(experiment);
 )}
 
 {metricEntries.length > 0 && (
-  <details class="section">
+  <details class="section section-metrics">
     <summary class="section-title">Metrics ({metricEntries.length})</summary>
     <div class="metrics-list">
       {metricEntries.map(([name, qr]) => (
@@ -248,7 +248,7 @@ const machineVerdict = getMachineVerdict(experiment);
 )}
 
 {metricsEmpty && (
-  <details class="section">
+  <details class="section section-metrics">
     <summary class="section-title">Metrics</summary>
     <div class="empty-state">
       <p>No metrics data collected for this experiment run.</p>
@@ -263,7 +263,7 @@ const machineVerdict = getMachineVerdict(experiment);
 )}
 
 {seriesSiblings && seriesSiblings.groups.length > 1 && (
-  <details class="section series-nav" open>
+  <details class="section section-series series-nav" open>
     <summary class="section-title">
       More in <a href={`${base}series/${seriesSiblings.seriesId}/`} class="series-link">{seriesSiblings.seriesName}</a>
     </summary>
