@@ -316,7 +316,14 @@ const machineVerdict = getMachineVerdict(experiment);
         el.remove();
       });
 
+      // Attach clone off-screen so innerText computes layout
+      // (detached clones fall back to textContent behavior — no newlines between blocks)
+      clone.style.position = 'fixed';
+      clone.style.left = '-9999px';
+      clone.style.opacity = '0';
+      document.body.appendChild(clone);
       var text = clone.innerText;
+      document.body.removeChild(clone);
 
       navigator.clipboard.writeText(text).then(function() {
         var label = btn.querySelector('.copy-btn-label');
