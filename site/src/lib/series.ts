@@ -6,6 +6,7 @@ export interface Series {
   name: string;
   description: string;
   order?: string[];
+  color?: string;
 }
 
 interface SeriesData {

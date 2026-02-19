@@ -3,23 +3,27 @@
     {
       "id": "this-lab",
       "name": "This Lab",
-      "description": "Building and benchmarking the lab itself — operator lifecycle, observability stack, CI/CD, site publishing"
+      "description": "Building and benchmarking the lab itself — operator lifecycle, observability stack, CI/CD, site publishing",
+      "color": "#a78bfa"
     },
     {
       "id": "ecosystem-comparisons",
       "name": "Ecosystem Venn Diagram",
-      "description": "Head-to-head comparisons of CNCF and commercial tools across ingress, service mesh, and more"
+      "description": "Head-to-head comparisons of CNCF and commercial tools across ingress, service mesh, and more",
+      "color": "#34d399"
     },
     {
       "id": "cloud-database-internals",
       "name": "Cloud Database Internals",
       "description": "Benchmarking cloud-native databases — NewSQL, distributed KV, time-series, and object storage",
-      "order": ["db-fvm", "db-dsc"]
+      "order": ["db-fvm", "db-dsc"],
+      "color": "#f97316"
     },
     {
       "id": "messages-and-streams",
       "name": "Messages and Streams",
-      "description": "Evaluating message brokers and streaming platforms — Kafka, NATS, Pulsar, RabbitMQ, and beyond"
+      "description": "Evaluating message brokers and streaming platforms — Kafka, NATS, Pulsar, RabbitMQ, and beyond",
+      "color": "#38bdf8"
     }
   ]
 }

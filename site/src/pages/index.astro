@@ -103,20 +103,6 @@ const recentGroups = groups.slice(0, 6);
     )}
   </section>
 
-  <section class="mb-12">
-    <h2 class="text-xl font-semibold mb-4">Ongoing Series</h2>
-    <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-      {allSeries.map((s) => (
-        <SeriesCard
-          id={s.id}
-          name={s.name}
-          description={s.description}
-          experimentCount={(seriesGroups[s.id] ?? []).length}
-        />
-      ))}
-    </div>
-  </section>
-
 </Base>
 
 <style>

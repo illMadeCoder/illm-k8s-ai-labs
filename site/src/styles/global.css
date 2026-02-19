@@ -119,6 +119,11 @@ a:hover {
   color: var(--accent);
 }
 
+.badge-warning {
+  background: color-mix(in srgb, var(--warning) 15%, transparent);
+  color: var(--warning);
+}
+
 table {
   width: 100%;
   border-collapse: collapse;
