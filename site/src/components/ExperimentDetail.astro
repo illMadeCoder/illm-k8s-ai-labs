@@ -263,21 +263,22 @@ const markdown = experimentToMarkdown({ experiment, displayName, tags });
   <AnalysisFeedback feedback={analysis.feedback} />
 )}
 
-{seriesSiblings && seriesSiblings.groups.length > 1 && (
-  <details class="section section-series series-nav" open>
-    <summary class="section-title">
-      More in <a href={`${base}series/${seriesSiblings.seriesId}/`} class="series-link">{seriesSiblings.seriesName}</a>
-    </summary>
-    <div class="series-cards">
-      {seriesSiblings.groups.map((g) => (
-        <div class:list={['series-card-wrapper', { 'series-card-current': g.baseName === currentBaseName }]}>
-          {g.baseName === currentBaseName && <span class="series-current-label">Current</span>}
+{seriesSiblings && (() => {
+  const idx = seriesSiblings.groups.findIndex((g) => g.baseName === currentBaseName);
+  const nextGroups = idx !== -1 ? seriesSiblings.groups.slice(idx + 1) : seriesSiblings.groups;
+  return nextGroups.length > 0 ? (
+    <details class="section section-series series-nav" open>
+      <summary class="section-title">
+        Next in <a href={`${base}series/${seriesSiblings.seriesId}/`} class="series-link">{seriesSiblings.seriesName}</a>
+      </summary>
+      <div class="series-cards">
+        {nextGroups.map((g) => (
           <ExperimentGroupCard group={g} />
-        </div>
-      ))}
-    </div>
-  </details>
-)}
+        ))}
+      </div>
+    </details>
+  ) : null;
+})()}
 
 <script>
   import vegaEmbed from 'vega-embed';
@@ -533,7 +534,7 @@ const markdown = experimentToMarkdown({ experiment, displayName, tags });
   }
 
   .series-nav {
-    margin-top: 2rem;
+    margin-top: 0;
   }
   .series-link {
     color: var(--accent);
@@ -547,27 +548,6 @@ const markdown = experimentToMarkdown({ experiment, displayName, tags });
     grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
     gap: 1rem;
     padding: 1rem;
-  }
-  .series-card-wrapper {
-    position: relative;
-  }
-  .series-card-current {
-    opacity: 0.6;
-    pointer-events: none;
-  }
-  .series-current-label {
-    position: absolute;
-    top: 0.5rem;
-    right: 0.5rem;
-    font-size: 0.65rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.06em;
-    color: var(--accent);
-    background: color-mix(in srgb, var(--accent) 12%, transparent);
-    padding: 0.15rem 0.5rem;
-    border-radius: 2px;
-    z-index: 1;
   }
 
   .copy-btn {
