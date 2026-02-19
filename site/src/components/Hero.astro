@@ -21,15 +21,15 @@ const costDisplay = `$${totalCostUSD.toFixed(2)}`;
         comparing performance, cost, and operational complexity.
       </p>
       <div class="flex flex-wrap gap-6">
-        <div class="flex flex-col">
+        <div class="flex flex-col items-center">
           <span class="text-2xl font-bold font-mono text-accent">{experimentCount}</span>
           <span class="text-xs text-text-muted uppercase tracking-wider font-semibold">Experiments</span>
         </div>
-        <div class="flex flex-col">
+        <div class="flex flex-col items-center">
           <span class="text-2xl font-bold font-mono text-accent">{totalRuns}</span>
           <span class="text-xs text-text-muted uppercase tracking-wider font-semibold">Runs</span>
         </div>
-        <div class="flex flex-col">
+        <div class="flex flex-col items-center">
           <span class="text-2xl font-bold font-mono text-accent">{costDisplay}</span>
           <span class="text-xs text-text-muted uppercase tracking-wider font-semibold">OpEx</span>
         </div>
