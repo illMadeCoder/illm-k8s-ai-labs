@@ -75,6 +75,11 @@ type ExperimentSpec struct {
 	// +optional
 	QualityGate *QualityGateSpec `json:"qualityGate,omitempty"`
 
+	// CodeSnippets defines source code to fetch and display alongside experiment results.
+	// Keys are slug identifiers (e.g., "fsync-store") used for referencing in analysis blocks.
+	// +optional
+	CodeSnippets map[string]CodeSnippet `json:"codeSnippets,omitempty"`
+
 	// AnalyzerConfig configures which AI analysis sections to generate on
 	// experiment completion. When publish is true and analyzerConfig is nil,
 	// default sections are used. Set analyzerConfig with an empty sections
@@ -212,6 +217,46 @@ type SuccessCriterion struct {
 	// Description is a human-readable explanation of what this criterion tests.
 	// +optional
 	Description string `json:"description,omitempty"`
+}
+
+// CodeSnippet defines a source code snippet to fetch and display alongside experiment results.
+type CodeSnippet struct {
+	// Name is a human-readable title for the snippet.
+	// +required
+	Name string `json:"name"`
+
+	// Description explains the snippet's role in the experiment.
+	// +optional
+	Description string `json:"description,omitempty"`
+
+	// Language is the programming language for syntax highlighting (e.g., "rust", "go", "python").
+	// +required
+	Language string `json:"language"`
+
+	// Repo is the GitHub "owner/repo" to fetch from. If omitted, uses the operator's configured repo.
+	// +optional
+	Repo string `json:"repo,omitempty"`
+
+	// Path is the file path within the repo.
+	// +required
+	Path string `json:"path"`
+
+	// StartLine is the first line to extract (1-indexed, inclusive). If omitted, fetches entire file.
+	// +optional
+	StartLine int `json:"startLine,omitempty"`
+
+	// EndLine is the last line to extract (1-indexed, inclusive).
+	// +optional
+	EndLine int `json:"endLine,omitempty"`
+
+	// Ref is the git ref (branch, tag, SHA) to fetch. Defaults to the repo's default branch.
+	// +optional
+	Ref string `json:"ref,omitempty"`
+
+	// UsedBy lists the pod or deployment names that run this code (e.g., "naive-db-fsync-hdd").
+	// Displayed as context tags alongside the snippet on the benchmark site.
+	// +optional
+	UsedBy []string `json:"usedBy,omitempty"`
 }
 
 // MetricsQuery defines a PromQL query to execute at experiment completion.

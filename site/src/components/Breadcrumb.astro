@@ -2,6 +2,7 @@
 interface Crumb {
   label: string;
   href?: string;
+  color?: string;
 }
 
 interface Props {
@@ -18,9 +19,9 @@ const { crumbs } = Astro.props;
         <li class="flex items-center gap-2">
           {i > 0 && <span class="text-border">/</span>}
           {crumb.href ? (
-            <a href={crumb.href} class="hover:text-accent no-underline transition-colors">{crumb.label}</a>
+            <a href={crumb.href} class="hover:text-accent no-underline transition-colors" style={crumb.color ? `color: ${crumb.color}` : ''}>{crumb.label}</a>
           ) : (
-            <span class="text-text font-medium">{crumb.label}</span>
+            <span class="text-text font-medium" style={crumb.color ? `color: ${crumb.color}` : ''}>{crumb.label}</span>
           )}
         </li>
       ))}

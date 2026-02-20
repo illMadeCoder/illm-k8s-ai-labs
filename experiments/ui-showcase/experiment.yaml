@@ -1,0 +1,139 @@
+apiVersion: experiments.illm.io/v1alpha1
+kind: Experiment
+metadata:
+  generateName: ui-showcase-
+  namespace: experiments
+spec:
+  description: "UI component showcase — Loki vs Elasticsearch comparison designed to exercise every block type in the rich narrative body (metric charts, comparisons, capability rows, callouts, tables, recommendations, architecture diagrams)"
+  tags: ["comparison", "observability", "logging", "demo"]
+  publish: true
+
+  analyzerConfig:
+    sections:
+      - abstract
+      - targetAnalysis
+      - performanceAnalysis
+      - metricInsights
+      - finopsAnalysis
+      - secopsAnalysis
+      - capabilitiesMatrix
+      - body
+      - feedback
+      - architectureDiagram
+
+  hypothesis:
+    claim: "A visual-first analysis body with typed content blocks (charts, comparison cards, callouts, tables, capability rows) tells a more effective story than paragraphs of prose — and Loki will still use fewer resources than Elasticsearch while doing it"
+    questions:
+      - "Can every body block type (metric, comparison, capabilityRow, table, callout, recommendation, architecture) render correctly inline?"
+      - "Do collapsible topics create a better reading experience than flat analysis sections?"
+      - "What is the resource overhead difference between Loki and Elasticsearch even on a 5-minute observation?"
+      - "How many distinct visual components can the AI weave into a coherent narrative?"
+    focus:
+      - "UI component coverage"
+      - "visual storytelling"
+      - "resource efficiency"
+      - "query capability comparison"
+      - "deployment complexity"
+
+  # Rich metrics mix — range queries for time-series charts, instant for summary cards
+  metrics:
+    # Per-stack CPU rate (comparison charts)
+    - name: loki_stack_cpu
+      query: 'sum(rate(container_cpu_usage_seconds_total{experiment="$EXPERIMENT",pod=~"loki.*|promtail.*",container!="POD",container!=""}[1m]))'
+      type: range
+      unit: cores
+      description: "Loki stack CPU usage (loki + promtail)"
+    - name: es_stack_cpu
+      query: 'sum(rate(container_cpu_usage_seconds_total{experiment="$EXPERIMENT",pod=~"elasticsearch.*|fluent-bit.*",container!="POD",container!=""}[1m]))'
+      type: range
+      unit: cores
+      description: "Elasticsearch stack CPU usage (ES + fluent-bit)"
+    # Per-stack memory (comparison charts)
+    - name: loki_stack_memory
+      query: 'sum(container_memory_working_set_bytes{experiment="$EXPERIMENT",pod=~"loki.*|promtail.*",container!="POD",container!=""})'
+      type: range
+      unit: bytes
+      description: "Loki stack memory (loki + promtail)"
+    - name: es_stack_memory
+      query: 'sum(container_memory_working_set_bytes{experiment="$EXPERIMENT",pod=~"elasticsearch.*|fluent-bit.*",container!="POD",container!=""})'
+      type: range
+      unit: bytes
+      description: "Elasticsearch stack memory (ES + fluent-bit)"
+    # Per-pod detail (drill-down charts with multiple series)
+    - name: cpu_rate_by_pod
+      query: 'sum(rate(container_cpu_usage_seconds_total{experiment="$EXPERIMENT",container!="POD",container!=""}[1m])) by (pod)'
+      type: range
+      unit: cores
+      description: "CPU rate by pod"
+    - name: memory_by_pod
+      query: 'sum(container_memory_working_set_bytes{experiment="$EXPERIMENT",container!="POD",container!=""}) by (pod)'
+      type: range
+      unit: bytes
+      description: "Memory working set by pod"
+    # Total resource usage (full-width overview charts)
+    - name: total_cpu
+      query: 'sum(rate(container_cpu_usage_seconds_total{experiment="$EXPERIMENT",container!="POD",container!=""}[1m]))'
+      type: range
+      unit: cores
+      description: "Total CPU usage across all components"
+    - name: total_memory
+      query: 'sum(container_memory_working_set_bytes{experiment="$EXPERIMENT",container!="POD",container!=""})'
+      type: range
+      unit: bytes
+      description: "Total memory across all components"
+    # Instant summary cards (single-value display)
+    - name: loki_cpu_peak
+      query: 'max_over_time(sum(rate(container_cpu_usage_seconds_total{experiment="$EXPERIMENT",pod=~"loki.*|promtail.*",container!="POD",container!=""}[1m]))[${DURATION}:])'
+      type: instant
+      unit: cores
+      description: "Loki stack peak CPU"
+    - name: es_cpu_peak
+      query: 'max_over_time(sum(rate(container_cpu_usage_seconds_total{experiment="$EXPERIMENT",pod=~"elasticsearch.*|fluent-bit.*",container!="POD",container!=""}[1m]))[${DURATION}:])'
+      type: instant
+      unit: cores
+      description: "ES stack peak CPU"
+    - name: loki_memory_peak
+      query: 'max_over_time(sum(container_memory_working_set_bytes{experiment="$EXPERIMENT",pod=~"loki.*|promtail.*",container!="POD",container!=""})[${DURATION}:])'
+      type: instant
+      unit: bytes
+      description: "Loki stack peak memory"
+    - name: es_memory_peak
+      query: 'max_over_time(sum(container_memory_working_set_bytes{experiment="$EXPERIMENT",pod=~"elasticsearch.*|fluent-bit.*",container!="POD",container!=""})[${DURATION}:])'
+      type: instant
+      unit: bytes
+      description: "ES stack peak memory"
+    # Pod count (instant card)
+    - name: pod_count
+      query: 'count(count by (pod) (container_memory_working_set_bytes{experiment="$EXPERIMENT",container!="POD",container!=""}))'
+      type: instant
+      unit: count
+      description: "Running pod count"
+    # Container restart count (hopefully 0 — good for a callout)
+    - name: container_restarts
+      query: 'sum(kube_pod_container_status_restarts_total{namespace=~".*$EXPERIMENT.*"})'
+      type: instant
+      unit: count
+      description: "Total container restarts"
+
+  targets:
+    - name: app
+      cluster:
+        type: gke
+        machineType: e2-standard-4
+        preemptible: true
+      observability:
+        enabled: true
+        transport: tailscale
+      components:
+        - app: loki
+        - app: promtail
+        - app: elasticsearch
+        - app: fluent-bit
+        - app: log-generator
+          params:
+            logRate: "50"
+
+  workflow:
+    template: ui-showcase-validation
+    completion:
+      mode: workflow

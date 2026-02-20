@@ -37,6 +37,24 @@ spec:
       - "page-cache independence from disk type"
       - "cost-performance tradeoff across disk tiers"
 
+  codeSnippets:
+    fsync-store:
+      name: "Write with Conditional Fsync"
+      description: "Single-row write that calls file.sync_all() (fsync) when in Fsync mode, ensuring each write is durably persisted to disk at the cost of latency."
+      language: rust
+      path: components/apps/naive-db/src/src/store.rs
+      startLine: 72
+      endLine: 87
+      usedBy: ["naive-db-fsync-hdd", "naive-db-fsync-balanced", "naive-db-fsync-ssd"]
+    nosync-store:
+      name: "SyncMode Configuration"
+      description: "Controls whether writes call fsync — set via NAIVE_DB_SYNC_MODE environment variable. In NoSync mode, writes land in the page cache only, trading durability for throughput."
+      language: rust
+      path: components/apps/naive-db/src/src/store.rs
+      startLine: 9
+      endLine: 22
+      usedBy: ["naive-db-nosync-hdd", "naive-db-nosync-balanced", "naive-db-nosync-ssd"]
+
   targets:
     - name: app
       cluster:

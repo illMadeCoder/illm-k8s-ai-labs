@@ -8,6 +8,7 @@ import CapabilitiesMatrix from './CapabilitiesMatrix.astro';
 import AnalysisBody from './AnalysisBody.astro';
 import AnalysisFeedback from './AnalysisFeedback.astro';
 import ArchitectureDiagram from './ArchitectureDiagram.astro';
+import CodeSnippetCard from './CodeSnippetCard.astro';
 import ExperimentGroupCard from './ExperimentGroupCard.astro';
 import { formatDuration, formatDate, formatCost, formatValue } from '../lib/format';
 import { buildSpec } from '../lib/vega-specs';
@@ -237,7 +238,22 @@ const markdown = experimentToMarkdown({ experiment, displayName, tags });
 
 {/* Rich analysis: Body (block-based narrative) */}
 {hasRichAnalysis && analysis?.body && (
-  <AnalysisBody body={analysis.body} metrics={experiment.metrics} />
+  <AnalysisBody body={analysis.body} metrics={experiment.metrics} codeSnippets={experiment.codeSnippets} />
+)}
+
+{experiment.codeSnippets && Object.keys(experiment.codeSnippets).length > 0 && (
+  <details class="section section-code">
+    <summary class="section-title">Code ({Object.keys(experiment.codeSnippets).length})</summary>
+    <div class="code-snippets-list">
+      {Object.entries(experiment.codeSnippets).map(([key, snippet]) => (
+        <CodeSnippetCard
+          snippet={snippet}
+          snippetKey={key}
+          insight={analysis?.codeInsights?.[key]}
+        />
+      ))}
+    </div>
+  </details>
 )}
 
 {metricEntries.length > 0 && (
@@ -509,6 +525,12 @@ const markdown = experimentToMarkdown({ experiment, displayName, tags });
     font-weight: 600;
     padding: 0.2rem 0.6rem;
     border-radius: 2px;
+  }
+  .code-snippets-list {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    padding: 1rem;
   }
   .metrics-list {
     display: flex;

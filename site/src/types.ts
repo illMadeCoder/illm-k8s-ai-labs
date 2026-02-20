@@ -18,6 +18,7 @@ export interface ExperimentSummary {
   targets: TargetSummary[];
   workflow: WorkflowSummary;
   metrics?: MetricsResult;
+  codeSnippets?: Record<string, CodeSnippet>;
   costEstimate?: CostEstimate;
   analysis?: AnalysisResult;
 }
@@ -98,6 +99,19 @@ export interface CostEstimate {
   note: string;
 }
 
+export interface CodeSnippet {
+  name: string;
+  description?: string;
+  language: string;
+  repo?: string;
+  path: string;
+  ref?: string;
+  startLine?: number;
+  endLine?: number;
+  usedBy?: string[];
+  code: string;
+}
+
 export interface AnalysisResult {
   // Backward-compatible fields
   summary: string;
@@ -107,6 +121,9 @@ export interface AnalysisResult {
 
   // Hypothesis verdict for at-a-glance display
   hypothesisVerdict?: 'validated' | 'invalidated' | 'insufficient';
+
+  // Code snippet insights
+  codeInsights?: Record<string, string>;
 
   // Structured analysis sections
   abstract?: string;
@@ -143,7 +160,18 @@ export type BodyBlock =
   | { type: 'architecture'; diagram: string; caption?: string; format?: 'ascii' | 'mermaid' }
   | { type: 'callout'; variant: 'info' | 'warning' | 'success' | 'finding'; title: string; content: string }
   | { type: 'recommendation'; priority: 'p0' | 'p1' | 'p2' | 'p3'; title: string; description: string; effort?: 'low' | 'medium' | 'high' }
+  | { type: 'code'; key: string; insight?: string; annotations?: CodeAnnotation[] }
   | { type: 'row'; blocks: BodyBlock[] };
+
+export type AnnotationCategory = 'syscall' | 'algorithm' | 'hot-path' | 'config' | 'branching' | 'io' | 'general';
+
+export interface CodeAnnotation {
+  fromLine: number;    // 1-based offset within snippet (1 = first line)
+  toLine?: number;     // end line inclusive (omit for single-line)
+  category: AnnotationCategory;
+  label: string;       // 2-5 word header
+  content: string;     // 1-2 sentence explanation referencing metrics
+}
 
 export interface AnalysisBody {
   blocks: BodyBlock[];

@@ -94,6 +94,48 @@ spec:
                 required:
                 - sections
                 type: object
+              codeSnippets:
+                description: Source code snippets to fetch and display alongside
+                  experiment results. Keys are slug identifiers used for referencing
+                  in analysis blocks.
+                type: object
+                additionalProperties:
+                  type: object
+                  properties:
+                    name:
+                      description: Human-readable title for the snippet.
+                      type: string
+                    description:
+                      description: Explains the snippet's role in the experiment.
+                      type: string
+                    language:
+                      description: Programming language for syntax highlighting.
+                      type: string
+                    repo:
+                      description: GitHub owner/repo to fetch from. Defaults to
+                        operator's configured repo.
+                      type: string
+                    path:
+                      description: File path within the repo.
+                      type: string
+                    startLine:
+                      description: First line to extract (1-indexed, inclusive).
+                      type: integer
+                    endLine:
+                      description: Last line to extract (1-indexed, inclusive).
+                      type: integer
+                    ref:
+                      description: Git ref (branch, tag, SHA) to fetch.
+                      type: string
+                    usedBy:
+                      description: Pod or deployment names that run this code.
+                      items:
+                        type: string
+                      type: array
+                  required:
+                  - name
+                  - language
+                  - path
               description:
                 description: Description of the experiment
                 type: string

@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 
 	"golang.org/x/oauth2"
 
@@ -162,6 +163,39 @@ func WithTitle(title string) PublishOption {
 	return func(o *publishOptions) {
 		o.title = title
 	}
+}
+
+// FetchFileContent fetches a file's content from the configured repo (or a different repo).
+// If repo is empty, the client's configured owner/repo is used.
+// If ref is empty, the repo's default branch is used.
+func (c *Client) FetchFileContent(ctx context.Context, repo, path, ref string) (string, error) {
+	owner, repoName := c.owner, c.repo
+	if repo != "" {
+		parts := strings.SplitN(repo, "/", 2)
+		if len(parts) == 2 {
+			owner, repoName = parts[0], parts[1]
+		}
+	}
+
+	opts := &gh.RepositoryContentGetOptions{}
+	if ref != "" {
+		opts.Ref = ref
+	}
+
+	fileContent, _, _, err := c.client.Repositories.GetContents(ctx, owner, repoName, path, opts)
+	if err != nil {
+		return "", fmt.Errorf("get contents %s/%s:%s: %w", owner, repoName, path, err)
+	}
+	if fileContent == nil {
+		return "", fmt.Errorf("path %s is a directory, not a file", path)
+	}
+
+	content, err := fileContent.GetContent()
+	if err != nil {
+		return "", fmt.Errorf("decode content %s: %w", path, err)
+	}
+
+	return content, nil
 }
 
 // MergePR squash-merges a pull request and deletes the source branch.

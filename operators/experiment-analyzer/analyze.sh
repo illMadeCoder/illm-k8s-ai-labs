@@ -280,7 +280,7 @@ fi
 # Build conditional code placement hint for Pass 5
 CODE_PLACEMENT_HINT=""
 if [ -n "${CODE_SNIPPET_KEYS}" ]; then
-  CODE_PLACEMENT_HINT="CODE PLACEMENT: You MUST include a \"code\" block for each of these snippet keys: ${CODE_SNIPPET_KEYS}. Place each one in the topic where its code is most relevant to the discussion. The \"insight\" field should explain how the code connects to the metrics in that topic — not generic description."
+  CODE_PLACEMENT_HINT="CODE PLACEMENT: You MUST include a \"code\" block for each of these snippet keys: ${CODE_SNIPPET_KEYS}. Place each one in the topic where its code is most relevant to the discussion. For each code block, add an \"annotations\" array (max 3) identifying the most performance-critical lines — syscalls, branching points, hot paths — with category-specific callouts that reference actual metric values. If no lines are annotation-worthy, use \"insight\" instead."
 fi
 
 # Extract hypothesis context if present (claim, questions, focus from experiment spec)
@@ -721,9 +721,34 @@ Each block has a "type" field. Available types:
                Do NOT duplicate the top-level architectureDiagram.
                Fields: type, diagram, format, caption (optional)
   code       — Reference a code snippet by key. "key" must match a codeSnippets key.
-               Optional "insight" provides contextual explanation shown below the code.
-               UI renders the actual source code with syntax highlighting and line numbers.
-               Fields: type, key, insight (optional)
+               Optional "insight" provides contextual explanation shown below the code
+               (only shown when no annotations are present).
+               Optional "annotations" array highlights specific lines with categorized callouts.
+               UI renders syntax-highlighted source code with annotated line backgrounds and badges.
+               Fields: type, key, insight (optional), annotations (optional array)
+
+               Each annotation object:
+                 fromLine: number  — 1-based offset within the snippet (1 = first line of snippet)
+                 toLine?: number   — end line inclusive (omit for single-line annotation)
+                 category: string  — one of: syscall, algorithm, hot-path, config, branching, io, general
+                 label: string     — 2-5 word header (e.g. "fsync(2) durability barrier")
+                 content: string   — 1-2 sentence explanation that MUST reference specific metric data
+
+               Annotation rules:
+               - Max 3 annotations per code block — highlight the most important lines only
+               - fromLine/toLine are offsets within the snippet (1 = first line), NOT file line numbers
+               - Multi-line annotations span at most 5 contiguous lines
+               - Annotation content must reference specific metric values from the experiment data
+               - Do NOT create overlapping line ranges between annotations
+               - If no specific lines are interesting enough to annotate, use "insight" instead
+
+               Example:
+               {"type":"code","key":"fsync-store","annotations":[
+                 {"fromLine":5,"toLine":8,"category":"branching","label":"Conditional sync path",
+                  "content":"This branch determines whether fsync is called. In fsync mode, adds 4.5ms mean latency per write."},
+                 {"fromLine":7,"category":"syscall","label":"fsync(2) durability barrier",
+                  "content":"file.sync_all() maps to fsync(2). On pd-standard this takes 5.2ms vs 3.1ms on pd-ssd."}
+               ]}
   callout    — Emphasis box. "variant" (info|warning|success|finding) + "title" + "content".
                Fields: type, variant, title, content
   recommendation — Action item. "priority" (p0-p3) + "title" + "description" + "effort" (low|medium|high).

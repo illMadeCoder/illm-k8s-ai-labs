@@ -16,6 +16,13 @@
   --error: #ef4444;
   --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
   --radius: 8px;
+  --ann-syscall: #ef4444;
+  --ann-algorithm: #8b5cf6;
+  --ann-hot-path: #f97316;
+  --ann-config: #06b6d4;
+  --ann-branching: #eab308;
+  --ann-io: #10b981;
+  --ann-general: #6b7280;
   --shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
   --shadow-lg: 0 4px 12px rgba(0, 0, 0, 0.1);
 }
@@ -31,6 +38,13 @@
   --accent-hover: #93bbfd;
   --shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
   --shadow-lg: 0 4px 12px rgba(0, 0, 0, 0.4);
+  --ann-syscall: #f87171;
+  --ann-algorithm: #a78bfa;
+  --ann-hot-path: #fb923c;
+  --ann-config: #22d3ee;
+  --ann-branching: #facc15;
+  --ann-io: #34d399;
+  --ann-general: #9ca3af;
 }
 
 *,
@@ -403,4 +417,28 @@ details.section > details.section > summary.section-title code {
     padding: 0.5rem;
   }
 }
+
+/* Shiki dual-theme support */
+.shiki,
+.shiki span {
+  color: var(--shiki-light) !important;
+  background-color: var(--shiki-light-bg) !important;
+}
+
+@media (prefers-color-scheme: dark) {
+  .shiki,
+  .shiki span {
+    color: var(--shiki-dark) !important;
+    background-color: var(--shiki-dark-bg) !important;
+  }
+}
+
+/* Annotation line highlights */
+.shiki .line.highlight-syscall { background: color-mix(in srgb, var(--ann-syscall) 10%, transparent) !important; }
+.shiki .line.highlight-algorithm { background: color-mix(in srgb, var(--ann-algorithm) 10%, transparent) !important; }
+.shiki .line.highlight-hot-path { background: color-mix(in srgb, var(--ann-hot-path) 10%, transparent) !important; }
+.shiki .line.highlight-config { background: color-mix(in srgb, var(--ann-config) 10%, transparent) !important; }
+.shiki .line.highlight-branching { background: color-mix(in srgb, var(--ann-branching) 10%, transparent) !important; }
+.shiki .line.highlight-io { background: color-mix(in srgb, var(--ann-io) 10%, transparent) !important; }
+.shiki .line.highlight-general { background: color-mix(in srgb, var(--ann-general) 10%, transparent) !important; }
 

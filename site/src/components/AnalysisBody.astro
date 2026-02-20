@@ -1,16 +1,18 @@
 ---
-import type { AnalysisBody, BodyBlock, MetricsResult } from '../types';
+import type { AnalysisBody, BodyBlock, MetricsResult, CodeSnippet, CodeAnnotation } from '../types';
 import VegaChart from './VegaChart.astro';
 import MermaidDiagram from './MermaidDiagram.astro';
+import CodeSnippetCard from './CodeSnippetCard.astro';
 import { buildSpec } from '../lib/vega-specs';
 import { formatValue } from '../lib/format';
 
 interface Props {
   body: AnalysisBody;
   metrics?: MetricsResult;
+  codeSnippets?: Record<string, CodeSnippet>;
 }
 
-const { body, metrics } = Astro.props;
+const { body, metrics, codeSnippets } = Astro.props;
 
 // Skip rendering if body has no blocks (old format)
 const hasBlocks = body?.blocks && Array.isArray(body.blocks) && body.blocks.length > 0;
@@ -165,6 +167,14 @@ function getCalloutColor(variant: string): string {
                   );
                 }
 
+                if (inner.type === 'code') {
+                  const snippet = codeSnippets?.[inner.key];
+                  if (!snippet) {
+                    return <p class="block-text block-metric-missing">Code snippet <code>{inner.key}</code> not available.</p>;
+                  }
+                  return <CodeSnippetCard snippet={snippet} snippetKey={inner.key} insight={inner.insight} annotations={inner.annotations} />;
+                }
+
                 if (inner.type === 'callout') {
                   return (
                     <div class="block-callout" style={`border-left-color: ${getCalloutColor(inner.variant)}`}>
@@ -258,6 +268,14 @@ function getCalloutColor(variant: string): string {
         );
       }
 
+      if (block.type === 'code') {
+        const snippet = codeSnippets?.[block.key];
+        if (!snippet) {
+          return <p class="block-text block-metric-missing">Code snippet <code>{block.key}</code> not available.</p>;
+        }
+        return <CodeSnippetCard snippet={snippet} snippetKey={block.key} insight={block.insight} annotations={block.annotations} />;
+      }
+
       if (block.type === 'callout') {
         return (
           <div class="block-callout" style={`border-left-color: ${getCalloutColor(block.variant)}`}>
@@ -285,6 +303,11 @@ function getCalloutColor(variant: string): string {
           <div class="block-row">
             {block.blocks.map((child: BodyBlock) => {
               if (child.type === 'text') return <p class="block-text">{child.content}</p>;
+              if (child.type === 'code') {
+                const snippet = codeSnippets?.[child.key];
+                if (!snippet) return null;
+                return <CodeSnippetCard snippet={snippet} snippetKey={child.key} insight={child.insight} annotations={child.annotations} />;
+              }
               if (child.type === 'callout') {
                 return (
                   <div class="block-callout" style={`border-left-color: ${getCalloutColor(child.variant)}`}>

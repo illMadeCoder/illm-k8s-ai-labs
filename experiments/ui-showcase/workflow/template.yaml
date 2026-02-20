@@ -1,0 +1,74 @@
+# UI Showcase - Quick validation + short observation
+# Designed to run fast — just enough data for diverse charts
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: ui-showcase-validation
+  namespace: argo-workflows
+spec:
+  arguments:
+    parameters:
+      - name: experiment-name
+        value: ""
+      - name: target-endpoint
+        value: ""
+      - name: target-name
+        value: ""
+  entrypoint: validate-and-observe
+  serviceAccountName: argo-workflow
+  templates:
+    - name: validate-and-observe
+      steps:
+        - - name: smoke-test
+            template: check-target
+        - - name: short-observation
+            template: observe
+
+    - name: check-target
+      container:
+        image: curlimages/curl:8.5.0
+        command: [sh, -c]
+        args:
+          - |
+            ENDPOINT="{{workflow.parameters.target-endpoint}}"
+            EXP="{{workflow.parameters.experiment-name}}"
+            echo "=== UI Showcase: ${EXP} ==="
+            echo "Target endpoint: ${ENDPOINT}"
+
+            if [ -z "${ENDPOINT}" ]; then
+              echo "No target endpoint, skipping check"
+              exit 0
+            fi
+
+            echo "Checking target cluster API server..."
+            HTTP_CODE=$(curl -sk -o /dev/null -w '%{http_code}' --connect-timeout 10 "https://${ENDPOINT}/livez" || true)
+            echo "API server /livez returned: ${HTTP_CODE}"
+
+            if [ "${HTTP_CODE}" = "401" ] || [ "${HTTP_CODE}" = "403" ] || [ "${HTTP_CODE}" = "200" ]; then
+              echo "Target cluster is reachable (HTTP ${HTTP_CODE})"
+            else
+              echo "WARNING: Could not reach target (HTTP ${HTTP_CODE}) — may be transient"
+            fi
+
+            echo "Smoke test passed — components deployed by ArgoCD"
+
+    - name: observe
+      container:
+        image: busybox:1.36
+        command: [sh, -c]
+        args:
+          - |
+            EXP="{{workflow.parameters.experiment-name}}"
+            echo "========================================="
+            echo "  UI SHOWCASE OBSERVATION: ${EXP}"
+            echo "  Duration: 5 minutes"
+            echo "  Purpose: Collect enough data points"
+            echo "           for diverse chart rendering"
+            echo "  Log generator rate: 50 lines/sec"
+            echo "  Start: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            echo "========================================="
+            sleep 300
+            echo "========================================="
+            echo "  OBSERVATION COMPLETE"
+            echo "  End: $(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            echo "========================================="

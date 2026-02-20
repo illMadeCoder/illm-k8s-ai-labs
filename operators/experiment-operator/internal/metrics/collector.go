@@ -89,6 +89,7 @@ type ExperimentSummary struct {
 	Targets        []TargetSummary     `json:"targets"`
 	Workflow       WorkflowSummary     `json:"workflow"`
 	Metrics        *MetricsResult      `json:"metrics,omitempty"`
+	CodeSnippets    map[string]CodeSnippetResult            `json:"codeSnippets,omitempty"`
 	CostEstimate    *CostEstimate                          `json:"costEstimate,omitempty"`
 	IterationStatus *experimentsv1alpha1.IterationStatus   `json:"iterationStatus,omitempty"`
 	Analysis        *AnalysisResult                        `json:"analysis,omitempty"`
@@ -140,11 +141,26 @@ type CostEstimate struct {
 	Note        string             `json:"note"`
 }
 
+// CodeSnippetResult is the resolved code snippet stored in the summary JSON.
+type CodeSnippetResult struct {
+	Name        string   `json:"name"`
+	Description string   `json:"description,omitempty"`
+	Language    string   `json:"language"`
+	Repo        string   `json:"repo,omitempty"`
+	Path        string   `json:"path"`
+	Ref         string   `json:"ref,omitempty"`
+	StartLine   int      `json:"startLine,omitempty"`
+	EndLine     int      `json:"endLine,omitempty"`
+	UsedBy      []string `json:"usedBy,omitempty"`
+	Code        string   `json:"code"`
+}
+
 // AnalysisResult holds AI-generated analysis of experiment results.
 type AnalysisResult struct {
 	// Backward-compatible fields
 	Summary        string            `json:"summary"`
 	MetricInsights map[string]string `json:"metricInsights"`
+	CodeInsights   map[string]string `json:"codeInsights,omitempty"`
 	GeneratedAt    time.Time         `json:"generatedAt"`
 	Model          string            `json:"model"`
 
@@ -736,6 +752,61 @@ func IterationDuration(iteration int, fullDuration time.Duration) time.Duration 
 	default:
 		return 2 * time.Minute
 	}
+}
+
+// FetchCodeSnippets resolves code snippets from the experiment spec by fetching
+// file contents via the provided fetch function. Errors on individual snippets
+// are logged but do not fail the overall operation.
+func FetchCodeSnippets(snippets map[string]experimentsv1alpha1.CodeSnippet, fetchFn func(repo, path, ref string) (string, error)) map[string]CodeSnippetResult {
+	if len(snippets) == 0 {
+		return nil
+	}
+
+	results := make(map[string]CodeSnippetResult, len(snippets))
+	for key, snippet := range snippets {
+		code, err := fetchFn(snippet.Repo, snippet.Path, snippet.Ref)
+		if err != nil {
+			continue
+		}
+
+		startLine := snippet.StartLine
+		endLine := snippet.EndLine
+
+		// Extract line range if specified
+		if startLine > 0 || endLine > 0 {
+			code = extractLineRange(code, startLine, endLine)
+		}
+
+		results[key] = CodeSnippetResult{
+			Name:        snippet.Name,
+			Description: snippet.Description,
+			Language:    snippet.Language,
+			Repo:        snippet.Repo,
+			Path:        snippet.Path,
+			Ref:         snippet.Ref,
+			StartLine:   startLine,
+			EndLine:     endLine,
+			UsedBy:      snippet.UsedBy,
+			Code:        code,
+		}
+	}
+
+	return results
+}
+
+// extractLineRange extracts lines from startLine to endLine (1-indexed, inclusive).
+func extractLineRange(content string, startLine, endLine int) string {
+	lines := strings.Split(content, "\n")
+	if startLine < 1 {
+		startLine = 1
+	}
+	if endLine < 1 || endLine > len(lines) {
+		endLine = len(lines)
+	}
+	if startLine > len(lines) {
+		return ""
+	}
+	return strings.Join(lines[startLine-1:endLine], "\n")
 }
 
 // EstimateCost produces a rough GCP cost estimate from the experiment spec.
