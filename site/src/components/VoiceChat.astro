@@ -1,30 +1,16 @@
 ---
 interface Props {
-  workerUrl: string;
-  experimentName: string;
+  pageTopic: string;
   openingMessage: string;
+  pageContext?: string;
 }
 
-const { workerUrl, experimentName, openingMessage } = Astro.props;
+const { pageTopic, openingMessage, pageContext } = Astro.props;
+const workerUrl = 'https://voice-proxy.illmadecoder.workers.dev';
 ---
 
-<div class="conv-panel" id="conv-panel" data-worker-url={workerUrl} data-experiment-name={experimentName}>
+<div class="conv-panel" id="conv-panel" data-worker-url={workerUrl} data-page-topic={pageTopic} data-page-context={pageContext ?? ''}>
   <div class="conv-drag" id="conv-drag"><div class="conv-drag-bar"></div></div>
-  <div class="conv-header" id="conv-header">
-    <span class="conv-title">Ask about this experiment</span>
-    <div class="conv-header-actions">
-      <div class="conv-mini-viz" id="conv-mini-viz">
-        <div class="conv-mini-dot"></div>
-        <div class="conv-mini-dot"></div>
-        <div class="conv-mini-dot"></div>
-      </div>
-      <button class="conv-minimize" id="conv-minimize" title="Minimize">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14">
-          <line x1="5" y1="12" x2="19" y2="12"/>
-        </svg>
-      </button>
-    </div>
-  </div>
   <div class="conv-body" id="conv-body">
     <div class="conv-messages" id="conv-messages">
       <div class="conv-msg conv-msg-ai">
@@ -32,35 +18,45 @@ const { workerUrl, experimentName, openingMessage } = Astro.props;
         <div class="conv-msg-text">{openingMessage}</div>
       </div>
     </div>
-    <div class="conv-input-area">
-      <input type="text" id="conv-input" placeholder="Ask about this experiment..." autocomplete="off" />
-      <select id="conv-voice-select" class="conv-voice-select" title="AI voice" hidden>
-        <option value="verse">verse</option>
-        <option value="alloy">alloy</option>
-        <option value="ash">ash</option>
-        <option value="ballad">ballad</option>
-        <option value="coral">coral</option>
-        <option value="echo">echo</option>
-        <option value="sage">sage</option>
-        <option value="shimmer">shimmer</option>
-      </select>
-      <button id="conv-voice-btn" class="conv-action-btn" title="Voice mode">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-             stroke-linecap="round" stroke-linejoin="round" width="18" height="18">
-          <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
-          <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
-          <line x1="12" y1="19" x2="12" y2="23"/>
-          <line x1="8" y1="23" x2="16" y2="23"/>
-        </svg>
-      </button>
-      <button id="conv-send-btn" class="conv-action-btn" title="Send">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
-             stroke-linecap="round" stroke-linejoin="round" width="18" height="18">
-          <line x1="22" y1="2" x2="11" y2="13"/>
-          <polygon points="22 2 15 22 11 13 2 9 22 2"/>
-        </svg>
-      </button>
+  </div>
+  <div class="conv-input-area">
+    <input type="text" id="conv-input" placeholder="Ask about experiments..." autocomplete="off" />
+    <select id="conv-voice-select" class="conv-voice-select" title="AI voice" hidden>
+      <option value="verse">verse</option>
+      <option value="alloy">alloy</option>
+      <option value="ash">ash</option>
+      <option value="ballad">ballad</option>
+      <option value="coral">coral</option>
+      <option value="echo">echo</option>
+      <option value="sage">sage</option>
+      <option value="shimmer">shimmer</option>
+    </select>
+    <button id="conv-send-btn" class="conv-action-btn" title="Send">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+           stroke-linecap="round" stroke-linejoin="round" width="18" height="18">
+        <line x1="22" y1="2" x2="11" y2="13"/>
+        <polygon points="22 2 15 22 11 13 2 9 22 2"/>
+      </svg>
+    </button>
+    <button id="conv-voice-btn" class="conv-action-btn" title="Voice mode">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+           stroke-linecap="round" stroke-linejoin="round" width="18" height="18">
+        <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"/>
+        <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+        <line x1="12" y1="19" x2="12" y2="23"/>
+        <line x1="8" y1="23" x2="16" y2="23"/>
+      </svg>
+    </button>
+    <div class="conv-mini-viz" id="conv-mini-viz">
+      <div class="conv-mini-dot"></div>
+      <div class="conv-mini-dot"></div>
+      <div class="conv-mini-dot"></div>
     </div>
+    <button class="conv-minimize conv-action-btn" id="conv-minimize" title="Minimize">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="18" height="18">
+        <polyline points="6 9 12 15 18 9"/>
+      </svg>
+    </button>
   </div>
 </div>
 
@@ -69,7 +65,6 @@ const { workerUrl, experimentName, openingMessage } = Astro.props;
 <script is:inline>
 (function() {
   var panel = document.getElementById('conv-panel');
-  var header = document.getElementById('conv-header');
   var messages = document.getElementById('conv-messages');
   var input = document.getElementById('conv-input');
   var sendBtn = document.getElementById('conv-send-btn');
@@ -82,8 +77,10 @@ const { workerUrl, experimentName, openingMessage } = Astro.props;
   if (!panel) return;
 
   var workerUrl = panel.getAttribute('data-worker-url');
-  var experimentName = panel.getAttribute('data-experiment-name');
+  var pageTopic = panel.getAttribute('data-page-topic') || '';
+  var pageContext = panel.getAttribute('data-page-context') || '';
   var mainEl = document.querySelector('main');
+  var hasContext = !!document.getElementById('page-markdown') || !!pageContext;
 
   // Restore saved voice preference
   var savedVoice = localStorage.getItem('conv-voice');
@@ -99,10 +96,12 @@ const { workerUrl, experimentName, openingMessage } = Astro.props;
   var dragHandle = document.getElementById('conv-drag');
   var panelHeight = 50; // vh
   var dragging = false;
+  var dragMoved = false;
 
   function startDrag(e) {
     if (panelState === 'minimized') return;
     dragging = true;
+    dragMoved = false;
     document.body.style.cursor = 'ns-resize';
     document.body.style.userSelect = 'none';
     e.preventDefault();
@@ -110,6 +109,7 @@ const { workerUrl, experimentName, openingMessage } = Astro.props;
 
   function onDrag(e) {
     if (!dragging) return;
+    dragMoved = true;
     var clientY = e.touches ? e.touches[0].clientY : e.clientY;
     var vh = ((window.innerHeight - clientY) / window.innerHeight) * 100;
     panelHeight = Math.max(10, Math.min(85, vh));
@@ -122,7 +122,9 @@ const { workerUrl, experimentName, openingMessage } = Astro.props;
     dragging = false;
     document.body.style.cursor = '';
     document.body.style.userSelect = '';
-    if (panelHeight < 20) {
+    if (!dragMoved) {
+      setPanelState('minimized');
+    } else if (panelHeight < 20) {
       panelHeight = 50;
       setPanelState('minimized');
     }
@@ -162,6 +164,9 @@ const { workerUrl, experimentName, openingMessage } = Astro.props;
     else panel.style.height = '';
     updatePadding();
     if (s === 'open') scrollMessages();
+    // Flip arrow: down when open, up when minimized
+    var chevron = minimizeBtn.querySelector('polyline');
+    if (chevron) chevron.setAttribute('points', s === 'minimized' ? '6 15 12 9 18 15' : '6 9 12 15 18 9');
   }
 
   // --- Messages ---
@@ -205,13 +210,11 @@ const { workerUrl, experimentName, openingMessage } = Astro.props;
 
   // --- Status ---
   function updateStatus() {
-    var title = header.querySelector('.conv-title');
-    if (!title) return;
-    if (connState === 'connecting') title.textContent = 'Connecting\u2026';
-    else if (connState === 'voice') title.textContent = 'Listening\u2026';
-    else title.textContent = 'Ask about this experiment';
     voiceBtn.classList.toggle('active', connState === 'voice');
     voiceSelect.hidden = connState !== 'voice';
+    if (connState === 'connecting') input.placeholder = 'Connecting\u2026';
+    else if (connState === 'voice') input.placeholder = 'Listening\u2026 (type or speak)';
+    else input.placeholder = hasContext ? 'Ask about this page\u2026' : 'Ask about experiments\u2026';
   }
 
   // --- Connection ---
@@ -293,16 +296,24 @@ const { workerUrl, experimentName, openingMessage } = Astro.props;
 
       dc.onopen = function() {
         var mdEl = document.getElementById('page-markdown');
-        var context = mdEl ? mdEl.textContent : '';
+        var context = mdEl ? mdEl.textContent : pageContext;
+        var hasCtx = !!context;
         var modalities = mode === 'voice' ? ['audio', 'text'] : ['text'];
         var turnDetection = mode === 'voice' ? { type: 'server_vad' } : null;
+
+        var instructions;
+        if (hasCtx) {
+          instructions = 'You are an AI assistant on the K8s Cloud TestBed, a Kubernetes benchmarking portfolio site. Always respond in English. The visitor is viewing "' + pageTopic + '". Be conversational, technically accurate, and enthusiastic. Help them understand the content on this page — results, methodology, and implications.' + (mode === 'voice' ? ' Keep responses concise for voice.' : '') + '\n\nPage content:\n\n' + context;
+        } else {
+          instructions = 'You are an AI assistant on the K8s Cloud TestBed, a Kubernetes benchmarking portfolio site. Always respond in English. The current page is "' + pageTopic + '". Help visitors explore benchmark experiments, discover research series, understand the methodology, and navigate to specific results. Be conversational, technically accurate, and enthusiastic.' + (mode === 'voice' ? ' Keep responses concise for voice.' : '');
+        }
 
         dc.send(JSON.stringify({
           type: 'session.update',
           session: {
             modalities: modalities,
             voice: getVoice(),
-            instructions: 'You are an AI assistant on a Kubernetes benchmarking portfolio site. Always respond in English. The visitor is asking about "' + experimentName + '". Be conversational, technically accurate, and enthusiastic. Help them understand the results, methodology, and implications.' + (mode === 'voice' ? ' Keep responses concise for voice.' : '') + '\n\nExperiment data:\n\n' + context,
+            instructions: instructions,
             input_audio_transcription: { model: 'whisper-1' },
             turn_detection: turnDetection
           }
@@ -347,9 +358,26 @@ const { workerUrl, experimentName, openingMessage } = Astro.props;
 
       pc.onconnectionstatechange = function() {
         if (pc && (pc.connectionState === 'disconnected' || pc.connectionState === 'failed')) {
+          var prevMode = connState;
           cleanup();
           connState = 'disconnected';
+          finalizeAiBubble();
           updateStatus();
+          if (prevMode === 'voice' || prevMode === 'text') {
+            connect(prevMode);
+          }
+        }
+      };
+
+      dc.onclose = function() {
+        if (connState === 'disconnected') return;
+        var prevMode = connState;
+        cleanup();
+        connState = 'disconnected';
+        finalizeAiBubble();
+        updateStatus();
+        if (prevMode === 'voice' || prevMode === 'text') {
+          connect(prevMode);
         }
       };
 
@@ -520,9 +548,9 @@ const { workerUrl, experimentName, openingMessage } = Astro.props;
   voiceBtn.addEventListener('click', toggleVoice);
   minimizeBtn.addEventListener('click', function(e) {
     e.stopPropagation();
-    setPanelState('minimized');
+    setPanelState(panelState === 'minimized' ? 'open' : 'minimized');
   });
-  header.addEventListener('click', function() {
+  input.addEventListener('focus', function() {
     if (panelState === 'minimized') setPanelState('open');
   });
   voiceSelect.addEventListener('change', function() {
@@ -577,40 +605,6 @@ const { workerUrl, experimentName, openingMessage } = Astro.props;
   }
   .conv-panel.minimized .conv-drag {
     display: none;
-  }
-
-  .conv-header {
-    flex-shrink: 0;
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 0.75rem 1rem;
-    border-bottom: 1px solid var(--border);
-    background: var(--bg-surface);
-  }
-  .conv-title {
-    font-family: var(--font-mono);
-    font-size: 0.85rem;
-    font-weight: 600;
-    color: var(--text-muted);
-  }
-  .conv-header-actions {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-  }
-  .conv-minimize {
-    background: none;
-    border: none;
-    color: var(--text-muted);
-    cursor: pointer;
-    padding: 0.15rem;
-    line-height: 1;
-    display: flex;
-    align-items: center;
-  }
-  .conv-minimize:hover {
-    color: var(--text);
   }
 
   /* Mini viz dots */
@@ -752,21 +746,14 @@ const { workerUrl, experimentName, openingMessage } = Astro.props;
   }
 
   /* Minimized state */
+  .conv-panel.minimized .conv-drag {
+    display: none;
+  }
   .conv-panel.minimized .conv-body {
     display: none;
   }
   .conv-panel.minimized {
     height: auto;
-  }
-  .conv-panel.minimized .conv-minimize {
-    display: none;
-  }
-  .conv-panel.minimized .conv-mini-viz {
-    display: flex;
-  }
-  .conv-panel.minimized .conv-header {
-    cursor: pointer;
-    border-bottom: none;
   }
 
   /* Mini viz animations */
@@ -801,4 +788,5 @@ const { workerUrl, experimentName, openingMessage } = Astro.props;
       max-width: 92%;
     }
   }
+
 </style>

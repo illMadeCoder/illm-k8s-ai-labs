@@ -1,12 +1,22 @@
 ---
 import '../styles/global.css';
+import VoiceChat from '../components/VoiceChat.astro';
 
 interface Props {
   title: string;
   description?: string;
+  pageTopic?: string;
+  openingMessage?: string;
+  pageContext?: string;
 }
 
-const { title, description = 'Kubernetes benchmark results from the K8s AI Lab' } = Astro.props;
+const {
+  title,
+  description = 'Kubernetes benchmark results from the K8s AI Lab',
+  pageTopic = title,
+  openingMessage = 'Welcome to the K8s Cloud TestBed. I can help you explore benchmark experiments, understand the methodology, or find specific results. What are you looking for?',
+  pageContext,
+} = Astro.props;
 const base = import.meta.env.BASE_URL;
 
 const navLinks = [
@@ -126,6 +136,11 @@ const currentPath = Astro.url.pathname;
         </p>
       </div>
     </footer>
+    <VoiceChat
+      pageTopic={pageTopic}
+      openingMessage={openingMessage}
+      pageContext={pageContext}
+    />
     <script is:inline>
       (function () {
         var btn = document.getElementById('mobile-menu-btn');

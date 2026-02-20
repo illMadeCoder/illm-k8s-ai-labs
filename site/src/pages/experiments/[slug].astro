@@ -2,7 +2,6 @@
 import Base from '../../layouts/Base.astro';
 import Breadcrumb from '../../components/Breadcrumb.astro';
 import ExperimentDetail from '../../components/ExperimentDetail.astro';
-import VoiceChat from '../../components/VoiceChat.astro';
 import { loadAllExperiments, groupExperiments, getDisplayTitle, getSeriesSiblings, getHypothesisClaim } from '../../lib/experiments';
 import { getSeriesMeta } from '../../lib/series';
 import type { ExperimentGroup } from '../../lib/experiments';
@@ -26,12 +25,12 @@ const displayName = getDisplayTitle(group);
 
 const experiments = loadAllExperiments();
 const seriesId = group.latest.series;
-let seriesSiblings: { seriesId: string; seriesName: string; groups: ExperimentGroup[] } | undefined;
+let seriesSiblings: { seriesId: string; seriesName: string; seriesColor?: string; groups: ExperimentGroup[] } | undefined;
 if (seriesId) {
   const meta = getSeriesMeta(seriesId);
   const siblings = getSeriesSiblings(group.baseName, experiments);
   if (meta && siblings && siblings.length > 0) {
-    seriesSiblings = { seriesId, seriesName: meta.name, groups: siblings };
+    seriesSiblings = { seriesId, seriesName: meta.name, seriesColor: meta.color, groups: siblings };
   }
 }
 
@@ -57,11 +56,13 @@ if (abstract) {
 }
 ---
 
-<Base title={`${displayName} — K8s AI Lab Benchmarks`} description={group.latest.description}>
+<Base title={`${displayName} — K8s AI Lab Benchmarks`} description={group.latest.description} pageTopic={displayName} openingMessage={openingMessage}>
   <Breadcrumb
     crumbs={[
       { label: 'Home', href: base },
-      { label: 'Experiments', href: base },
+      ...(seriesSiblings
+        ? [{ label: 'Series', href: `${base}series/` }, { label: seriesSiblings.seriesName, href: `${base}series/${seriesSiblings.seriesId}/`, color: seriesSiblings.seriesColor }]
+        : [{ label: 'Experiments', href: base }]),
       { label: displayName },
     ]}
     slot="breadcrumb"
@@ -72,10 +73,5 @@ if (abstract) {
     tags={group.tags}
     runHistory={{ baseName: group.baseName, runs: group.runs }}
     seriesSiblings={seriesSiblings}
-  />
-  <VoiceChat
-    workerUrl="https://voice-proxy.illmadecoder.workers.dev"
-    experimentName={displayName}
-    openingMessage={openingMessage}
   />
 </Base>

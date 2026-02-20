@@ -53,7 +53,11 @@ const { series, groups } = Astro.props;
 const base = import.meta.env.BASE_URL;
 ---
 
-<Base title={`${series.name} — K8s Cloud TestBed`}>
+<Base
+  title={`${series.name} — K8s Cloud TestBed`}
+  pageTopic={`${series.name} Series`}
+  openingMessage={`You're viewing the ${series.name} series. I can help you understand this research track or navigate to specific experiments. What would you like to know?`}
+>
   <Breadcrumb
     crumbs={[
       { label: 'Home', href: base },

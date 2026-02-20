@@ -2,7 +2,6 @@
 import Base from '../../../layouts/Base.astro';
 import Breadcrumb from '../../../components/Breadcrumb.astro';
 import ExperimentDetail from '../../../components/ExperimentDetail.astro';
-import VoiceChat from '../../../components/VoiceChat.astro';
 import { loadAllExperiments, getBaseName, getRunDisplayTitle, groupExperiments, getSeriesSiblings, getHypothesisClaim } from '../../../lib/experiments';
 import { getSeriesMeta } from '../../../lib/series';
 import type { ExperimentSummary } from '../../../types';
@@ -30,12 +29,12 @@ const displayName = getRunDisplayTitle(experiment);
 
 const experiments = loadAllExperiments();
 const seriesId = experiment.series;
-let seriesSiblings: { seriesId: string; seriesName: string; groups: ExperimentGroup[] } | undefined;
+let seriesSiblings: { seriesId: string; seriesName: string; seriesColor?: string; groups: ExperimentGroup[] } | undefined;
 if (seriesId) {
   const meta = getSeriesMeta(seriesId);
   const siblings = getSeriesSiblings(baseName, experiments);
   if (meta && siblings && siblings.length > 0) {
-    seriesSiblings = { seriesId, seriesName: meta.name, groups: siblings };
+    seriesSiblings = { seriesId, seriesName: meta.name, seriesColor: meta.color, groups: siblings };
   }
 }
 
@@ -60,11 +59,13 @@ if (abstract) {
 }
 ---
 
-<Base title={`${experiment.name} — K8s AI Lab Benchmarks`} description={experiment.description}>
+<Base title={`${experiment.name} — K8s AI Lab Benchmarks`} description={experiment.description} pageTopic={displayName} openingMessage={openingMessage}>
   <Breadcrumb
     crumbs={[
       { label: 'Home', href: base },
-      { label: 'Experiments', href: base },
+      ...(seriesSiblings
+        ? [{ label: 'Series', href: `${base}series/` }, { label: seriesSiblings.seriesName, href: `${base}series/${seriesSiblings.seriesId}/`, color: seriesSiblings.seriesColor }]
+        : [{ label: 'Experiments', href: base }]),
       { label: displayName, href: `${base}experiments/${baseName}/` },
       { label: experiment.name },
     ]}
@@ -80,10 +81,5 @@ if (abstract) {
       currentRunName: experiment.name,
     } : undefined}
     seriesSiblings={seriesSiblings}
-  />
-  <VoiceChat
-    workerUrl="https://voice-proxy.illmadecoder.workers.dev"
-    experimentName={displayName}
-    openingMessage={openingMessage}
   />
 </Base>
