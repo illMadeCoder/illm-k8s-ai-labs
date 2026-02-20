@@ -7,6 +7,7 @@ import {
   groupExperiments,
   deriveDomain,
   deriveExperimentType,
+  getDisplayTitle,
 } from '../../lib/experiments';
 import { loadCategories, getDomainMeta } from '../../lib/categories';
 
@@ -49,12 +50,17 @@ interface Props {
 const { domain, comparisons, tutorials, demos } = Astro.props;
 const base = import.meta.env.BASE_URL;
 const hasExperiments = comparisons.length > 0 || tutorials.length > 0 || demos.length > 0;
+const allInDomain = [...comparisons, ...tutorials, ...demos];
+const categoryContext = allInDomain.length > 0
+  ? `The "${domain.name}" category contains ${allInDomain.length} experiments:\n` + allInDomain.map((g) => `- ${getDisplayTitle(g)}: ${g.latest.description ?? ''}`).join('\n')
+  : `The "${domain.name}" category has no experiments yet.`;
 ---
 
 <Base
   title={`${domain.name} — K8s Cloud TestBed`}
   pageTopic={domain.name}
   openingMessage={`You're browsing ${domain.name} experiments. I can help you find comparisons or understand what's available in this category. What are you looking for?`}
+  pageContext={categoryContext}
 >
   <Breadcrumb
     crumbs={[

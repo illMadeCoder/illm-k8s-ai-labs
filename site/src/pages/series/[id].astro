@@ -5,6 +5,7 @@ import ExperimentGroupCard from '../../components/ExperimentGroupCard.astro';
 import {
   loadAllExperiments,
   groupBySeries,
+  getDisplayTitle,
 } from '../../lib/experiments';
 import { loadSeries, getSeriesOrder } from '../../lib/series';
 import type { ExperimentGroup } from '../../lib/experiments';
@@ -51,12 +52,16 @@ interface Props {
 
 const { series, groups } = Astro.props;
 const base = import.meta.env.BASE_URL;
+const seriesContext = groups.length > 0
+  ? `The "${series.name}" series contains ${groups.length} experiments:\n` + groups.map((g) => `- ${getDisplayTitle(g)}: ${g.latest.description ?? ''}`).join('\n')
+  : `The "${series.name}" series has no experiments yet.`;
 ---
 
 <Base
   title={`${series.name} — K8s Cloud TestBed`}
   pageTopic={`${series.name} Series`}
   openingMessage={`You're viewing the ${series.name} series. I can help you understand this research track or navigate to specific experiments. What would you like to know?`}
+  pageContext={seriesContext}
 >
   <Breadcrumb
     crumbs={[
