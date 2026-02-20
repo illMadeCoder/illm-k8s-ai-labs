@@ -62,7 +62,7 @@ const currentPath = Astro.url.pathname;
                   href={link.href}
                   class:list={[
                     'text-sm no-underline transition-colors',
-                    currentPath === link.href || currentPath.startsWith(link.href.replace(/\/$/, '') + '/')
+                    currentPath === link.href || (link.href !== base && currentPath.startsWith(link.href.replace(/\/$/, '') + '/'))
                       ? 'text-accent font-semibold'
                       : 'text-text-muted hover:text-accent',
                   ]}
@@ -104,7 +104,7 @@ const currentPath = Astro.url.pathname;
                 href={link.href}
                 class:list={[
                   'text-sm no-underline',
-                  currentPath === link.href || currentPath.startsWith(link.href.replace(/\/$/, '') + '/')
+                  currentPath === link.href || (link.href !== base && currentPath.startsWith(link.href.replace(/\/$/, '') + '/'))
                     ? 'text-accent font-semibold'
                     : 'text-text-muted hover:text-accent',
                 ]}
