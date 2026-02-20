@@ -3,13 +3,14 @@ interface Props {
   pageTopic: string;
   openingMessage: string;
   pageContext?: string;
+  placeholder?: string;
 }
 
-const { pageTopic, openingMessage, pageContext } = Astro.props;
+const { pageTopic, openingMessage, pageContext, placeholder = 'Ask about the testbed…' } = Astro.props;
 const workerUrl = 'https://voice-proxy.illmadecoder.workers.dev';
 ---
 
-<div class="conv-panel" id="conv-panel" data-worker-url={workerUrl} data-page-topic={pageTopic} data-page-context={pageContext ?? ''}>
+<div class="conv-panel" id="conv-panel" data-worker-url={workerUrl} data-page-topic={pageTopic} data-page-context={pageContext ?? ''} data-placeholder={placeholder}>
   <div class="conv-drag" id="conv-drag"><div class="conv-drag-bar"></div></div>
   <div class="conv-body" id="conv-body">
     <div class="conv-messages" id="conv-messages">
@@ -20,7 +21,7 @@ const workerUrl = 'https://voice-proxy.illmadecoder.workers.dev';
     </div>
   </div>
   <div class="conv-input-area">
-    <input type="text" id="conv-input" placeholder="Ask about experiments..." autocomplete="off" />
+    <input type="text" id="conv-input" placeholder="Ask about the testbed…" autocomplete="off" />
     <select id="conv-voice-select" class="conv-voice-select" title="AI voice" hidden>
       <option value="verse">verse</option>
       <option value="alloy">alloy</option>
@@ -81,6 +82,7 @@ const workerUrl = 'https://voice-proxy.illmadecoder.workers.dev';
   var pageContext = panel.getAttribute('data-page-context') || '';
   var mainEl = document.querySelector('main');
   var hasContext = !!document.getElementById('page-markdown') || !!pageContext;
+  var defaultPlaceholder = panel.getAttribute('data-placeholder') || 'Ask about the testbed\u2026';
 
   // Restore saved voice preference
   var savedVoice = localStorage.getItem('conv-voice');
@@ -214,7 +216,7 @@ const workerUrl = 'https://voice-proxy.illmadecoder.workers.dev';
     voiceSelect.hidden = connState !== 'voice';
     if (connState === 'connecting') input.placeholder = 'Connecting\u2026';
     else if (connState === 'voice') input.placeholder = 'Listening\u2026 (type or speak)';
-    else input.placeholder = hasContext ? 'Ask about this page\u2026' : 'Ask about experiments\u2026';
+    else input.placeholder = defaultPlaceholder;
   }
 
   // --- Connection ---
