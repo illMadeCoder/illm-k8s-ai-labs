@@ -174,7 +174,7 @@ type AnalysisResult struct {
 	Body                *AnalysisBody       `json:"body,omitempty"`
 	Feedback            *AnalysisFeedback   `json:"feedback,omitempty"`
 	ArchitectureDiagram string              `json:"architectureDiagram,omitempty"`
-	Vocabulary          []VocabularyEntry   `json:"vocabulary,omitempty"`
+	Glossary            []GlossaryEntry     `json:"glossary,omitempty"`
 }
 
 // CapabilitiesMatrix is a feature comparison table for comparison experiments.
@@ -212,8 +212,8 @@ type AnalysisFeedback struct {
 	ExperimentDesign []string `json:"experimentDesign,omitempty"`
 }
 
-// VocabularyEntry is a glossary term with a short definition for the experiment's domain.
-type VocabularyEntry struct {
+// GlossaryEntry is a glossary term with a short definition for the experiment's domain.
+type GlossaryEntry struct {
 	Term       string `json:"term"`
 	Definition string `json:"definition"`
 }

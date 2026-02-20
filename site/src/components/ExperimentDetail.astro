@@ -220,14 +220,14 @@ const markdown = experimentToMarkdown({ experiment, displayName, tags });
         </div>
       </details>
     )}
-    {analysis?.vocabulary && analysis.vocabulary.length > 0 && (
+    {analysis?.glossary && analysis.glossary.length > 0 && (
       <details class="section" open>
-        <summary class="section-title">Vocabulary</summary>
-        <dl class="vocabulary-list">
-          {analysis.vocabulary.map((entry) => (
-            <div class="vocabulary-entry">
-              <dt class="vocabulary-term">{entry.term}</dt>
-              <dd class="vocabulary-def">{entry.definition}</dd>
+        <summary class="section-title">Glossary</summary>
+        <dl class="glossary-list">
+          {analysis.glossary.map((entry) => (
+            <div class="glossary-entry">
+              <dt class="glossary-term">{entry.term}</dt>
+              <dd class="glossary-def">{entry.definition}</dd>
             </div>
           ))}
         </dl>
@@ -539,14 +539,14 @@ const markdown = experimentToMarkdown({ experiment, displayName, tags });
     padding: 0.2rem 0.6rem;
     border-radius: 2px;
   }
-  .vocabulary-list {
+  .glossary-list {
     margin: 0;
     padding: 0;
     display: flex;
     flex-direction: column;
     gap: 0.375rem;
   }
-  .vocabulary-entry {
+  .glossary-entry {
     display: flex;
     align-items: baseline;
     gap: 0.75rem;
@@ -555,7 +555,7 @@ const markdown = experimentToMarkdown({ experiment, displayName, tags });
     border: 1px solid var(--border);
     border-radius: var(--radius);
   }
-  .vocabulary-term {
+  .glossary-term {
     font-family: var(--font-mono);
     font-size: 0.8rem;
     font-weight: 700;
@@ -563,7 +563,7 @@ const markdown = experimentToMarkdown({ experiment, displayName, tags });
     white-space: nowrap;
     flex-shrink: 0;
   }
-  .vocabulary-def {
+  .glossary-def {
     margin: 0;
     font-size: 0.85rem;
     color: var(--text-muted);
