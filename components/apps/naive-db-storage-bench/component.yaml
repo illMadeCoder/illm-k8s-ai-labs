@@ -1,0 +1,11 @@
+apiVersion: experiments.illm.io/v1alpha1
+kind: Component
+metadata:
+  name: naive-db-storage-bench
+spec:
+  type: app
+  description: "Ten naive-db variants (fsync/nosync × hdd/balanced/ssd/hyperdisk-balanced/hyperdisk-extreme) for storage-tier comparison benchmark"
+  sources:
+    - repoURL: https://github.com/illMadeCoder/k8s-ai-cloud-testbed.git
+      targetRevision: HEAD
+      path: components/apps/naive-db-storage-bench/k8s

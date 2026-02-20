@@ -1,0 +1,73 @@
+apiVersion: argoproj.io/v1alpha1
+kind: WorkflowTemplate
+metadata:
+  name: db-storage-tiers-validation
+  namespace: argo-workflows
+  labels:
+    app.kubernetes.io/managed-by: experiment-operator
+spec:
+  entrypoint: validate-and-observe
+  serviceAccountName: argo-workflow
+  arguments:
+    parameters:
+      - name: experiment-name
+        value: ""
+      - name: target-endpoint
+        value: ""
+      - name: target-name
+        value: ""
+  templates:
+    - name: validate-and-observe
+      steps:
+        - - name: smoke-test
+            template: check-target
+        - - name: wait-for-stacks
+            template: wait-for-stacks
+        - - name: observe
+            template: observe
+
+    - name: check-target
+      container:
+        image: curlimages/curl:8.5.0
+        command: [sh, -c]
+        args:
+          - |
+            echo "=== Smoke-testing target cluster ==="
+            for i in $(seq 1 30); do
+              if curl -sk "https://{{workflow.parameters.target-endpoint}}/livez" 2>/dev/null; then
+                echo "Target cluster reachable"
+                exit 0
+              fi
+              echo "Attempt $i/30 — retrying in 10s..."
+              sleep 10
+            done
+            echo "Target cluster not reachable after 5 minutes"
+            exit 1
+
+    - name: wait-for-stacks
+      container:
+        image: busybox:1.36
+        command: [sh, -c]
+        args:
+          - |
+            echo "=== Waiting for ArgoCD to sync 10 naive-db variants + loadgen ==="
+            echo "10 StatefulSets with PVCs across 5 StorageClasses + kube-prometheus-stack"
+            echo "Hyperdisk PVC provisioning may take extra time..."
+            for i in $(seq 1 30); do
+              echo "Wait $i/30 (30s intervals)..."
+              sleep 30
+            done
+            echo "Stack sync wait complete"
+
+    - name: observe
+      container:
+        image: busybox:1.36
+        command: [sh, -c]
+        args:
+          - |
+            echo "=== Observation window (40 min) ==="
+            echo "LoadGen runs sustained 60s write bursts against 10 variants (~10 min),"
+            echo "plus reads and mixed OLTP (~10 min), plus 3 min cooldown = ~23 min."
+            echo "Allowing 40 min total for benchmark completion and metric settlement."
+            sleep 2400
+            echo "Observation complete"

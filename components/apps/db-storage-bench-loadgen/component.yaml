@@ -1,0 +1,11 @@
+apiVersion: experiments.illm.io/v1alpha1
+kind: Component
+metadata:
+  name: db-storage-bench-loadgen
+spec:
+  type: app
+  description: "Sustained-throughput load generator for storage-tier comparison benchmark (10 naive-db variants)"
+  sources:
+    - repoURL: https://github.com/illMadeCoder/k8s-ai-cloud-testbed.git
+      targetRevision: HEAD
+      path: components/apps/db-storage-bench-loadgen/k8s

@@ -16,7 +16,7 @@
       "id": "cloud-database-internals",
       "name": "Cloud Database Internals",
       "description": "Benchmarking cloud-native databases — NewSQL, distributed KV, time-series, and object storage",
-      "order": ["db-fvm", "db-dsc"],
+      "order": ["db-fvm", "db-dsc", "db-st"],
       "color": "#f97316"
     },
     {
