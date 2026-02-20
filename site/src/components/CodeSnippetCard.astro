@@ -1,0 +1,524 @@
+---
+import type { CodeSnippet, CodeAnnotation, AnnotationCategory } from '../types';
+import { codeToHtml } from 'shiki';
+
+interface Props {
+  snippet: CodeSnippet;
+  snippetKey: string;
+  insight?: string;
+  annotations?: CodeAnnotation[];
+}
+
+const { snippet, snippetKey, insight, annotations = [] } = Astro.props;
+
+const lineStart = snippet.startLine || 1;
+const codeLines = snippet.code.split('\n');
+const lineCount = codeLines.length;
+
+// Build GitHub URL for the file path
+const repo = snippet.repo || 'illMadeCoder/k8s-ai-cloud-testbed';
+const ref = snippet.ref || 'main';
+const lineFragment = snippet.startLine
+  ? '#L' + snippet.startLine + (snippet.endLine ? '-L' + snippet.endLine : '')
+  : '';
+const githubUrl = 'https://github.com/' + repo + '/blob/' + ref + '/' + snippet.path + lineFragment;
+
+const fileLabel = snippet.startLine
+  ? snippet.path + ':' + snippet.startLine + '-' + (snippet.endLine || snippet.startLine + codeLines.length - 1)
+  : snippet.path;
+
+// Build annotation maps: which lines are highlighted, which have badges
+const annotatedLines = new Set<number>();
+const badgeMap = new Map<number, number>();      // snippetLine → badge number (1-based)
+const categoryMap = new Map<number, AnnotationCategory>(); // snippetLine → category
+
+annotations.forEach((ann, idx) => {
+  const from = ann.fromLine;
+  const to = ann.toLine || ann.fromLine;
+  for (let l = from; l <= to && l <= lineCount; l++) {
+    annotatedLines.add(l);
+    if (!categoryMap.has(l)) categoryMap.set(l, ann.category);
+  }
+  if (!badgeMap.has(from)) badgeMap.set(from, idx + 1);
+});
+
+// Badge-specific category map: each badge uses its own annotation's category,
+// not the line-highlight category (which is first-writer-wins for overlapping ranges)
+const badgeCategoryMap = new Map<number, AnnotationCategory>();
+annotations.forEach((ann, idx) => {
+  if (badgeMap.get(ann.fromLine) === idx + 1) {
+    badgeCategoryMap.set(ann.fromLine, ann.category);
+  }
+});
+
+// Badge circled number characters
+const badgeChars = ['', '\u2776', '\u2777', '\u2778', '\u2779', '\u277A', '\u277B', '\u277C', '\u277D', '\u277E'];
+
+// Shiki syntax highlighting (build-time)
+let highlightedHtml = '';
+try {
+  highlightedHtml = await codeToHtml(snippet.code, {
+    lang: snippet.language,
+    themes: { light: 'github-light', dark: 'github-dark-dimmed' },
+    defaultColor: false,
+    transformers: [{
+      line(node, line) {
+        // line is 1-based within the snippet
+        node.properties['data-line'] = String(lineStart + line - 1);
+        if (annotatedLines.has(line)) {
+          this.addClassToHast(node, 'annotated-highlight');
+          const cat = categoryMap.get(line);
+          if (cat) this.addClassToHast(node, `highlight-${cat}`);
+        }
+        if (badgeMap.has(line)) {
+          this.addClassToHast(node, 'annotated-badge');
+          node.properties['data-badge'] = String(badgeMap.get(line));
+        }
+      }
+    }]
+  });
+} catch {
+  // Fallback for unknown languages
+  try {
+    highlightedHtml = await codeToHtml(snippet.code, {
+      lang: 'text',
+      themes: { light: 'github-light', dark: 'github-dark-dimmed' },
+      defaultColor: false,
+    });
+  } catch {
+    highlightedHtml = '';
+  }
+}
+
+// Build gutter data
+const gutterLines = codeLines.map((_: string, i: number) => {
+  const snippetLine = i + 1;
+  const displayNum = lineStart + i;
+  const badge = badgeMap.get(snippetLine);
+  const cat = badge ? (badgeCategoryMap.get(snippetLine) || 'general') : null;
+  const highlighted = annotatedLines.has(snippetLine);
+  return { displayNum, badge, cat, highlighted, snippetLine };
+});
+
+// Category display config
+const categoryConfig: Record<AnnotationCategory, { label: string }> = {
+  syscall:   { label: 'SYSCALL' },
+  algorithm: { label: 'ALGORITHM' },
+  'hot-path':  { label: 'HOT PATH' },
+  config:    { label: 'CONFIG' },
+  branching: { label: 'BRANCHING' },
+  io:        { label: 'I/O' },
+  general:   { label: 'GENERAL' },
+};
+---
+
+<div class="code-snippet-card">
+  <div class="code-snippet-header">
+    <div class="code-snippet-title">
+      <code class="code-snippet-name">{snippet.name}</code>
+      <span class="code-snippet-lang">{snippet.language}</span>
+    </div>
+    <a href={githubUrl} target="_blank" rel="noopener noreferrer" class="code-snippet-path">
+      {fileLabel}
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+           stroke-linecap="round" stroke-linejoin="round" width="12" height="12" class="code-snippet-link-icon">
+        <path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/>
+        <polyline points="15 3 21 3 21 9"/>
+        <line x1="10" y1="14" x2="21" y2="3"/>
+      </svg>
+    </a>
+  </div>
+  {snippet.description && (
+    <div class="code-snippet-description">
+      {snippet.description}
+      {snippet.usedBy && snippet.usedBy.length > 0 && (
+        <span class="code-snippet-usedby">
+          {snippet.usedBy.map((pod) => (
+            <span class="code-snippet-pod">{pod}</span>
+          ))}
+        </span>
+      )}
+    </div>
+  )}
+  {!snippet.description && snippet.usedBy && snippet.usedBy.length > 0 && (
+    <div class="code-snippet-description">
+      <span class="code-snippet-usedby">
+        {snippet.usedBy.map((pod) => (
+          <span class="code-snippet-pod">{pod}</span>
+        ))}
+      </span>
+    </div>
+  )}
+  <div class="code-snippet-code">
+    <div class="code-gutter" aria-hidden="true">
+      {gutterLines.map((gl) => (
+        <div class:list={[
+          'gutter-line',
+          gl.highlighted && 'gutter-highlighted',
+          gl.cat && `gutter-${gl.cat}`,
+        ]}>
+          {gl.badge ? (
+            <span
+              class="gutter-badge"
+              style={`background: color-mix(in srgb, var(--ann-${gl.cat}) 70%, black)`}
+            >
+              {gl.badge}
+            </span>
+          ) : (
+            <span class="gutter-num">{gl.displayNum}</span>
+          )}
+        </div>
+      ))}
+    </div>
+    <div class="code-content">
+      {highlightedHtml ? (
+        <Fragment set:html={highlightedHtml} />
+      ) : (
+        <pre><code set:text={snippet.code} /></pre>
+      )}
+    </div>
+  </div>
+  {annotations.length > 0 && (
+    <div class="code-annotations">
+      {annotations.map((ann, idx) => {
+        const cat = ann.category;
+        const lineRange = ann.toLine && ann.toLine !== ann.fromLine
+          ? `Lines ${lineStart + ann.fromLine - 1}\u2013${lineStart + (ann.toLine) - 1}`
+          : `Line ${lineStart + ann.fromLine - 1}`;
+        return (
+          <div class="annotation-card">
+            <div class="annotation-header">
+              <span
+                class="annotation-badge"
+                style={`background: color-mix(in srgb, var(--ann-${cat}) 70%, black)`}
+              >
+                {idx + 1}
+              </span>
+              <span
+                class="annotation-category"
+                style={`color: var(--ann-${cat})`}
+              >
+                {categoryConfig[cat]?.label || cat.toUpperCase()}
+              </span>
+              <span class="annotation-label">{ann.label}</span>
+              <span class="annotation-lines">{lineRange}</span>
+            </div>
+            <p class="annotation-content">{ann.content}</p>
+          </div>
+        );
+      })}
+    </div>
+  )}
+  {!annotations.length && insight && (
+    <div class="code-snippet-insight">{insight}</div>
+  )}
+</div>
+
+<style>
+  .code-snippet-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+
+  .code-snippet-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid var(--border);
+    flex-wrap: wrap;
+  }
+
+  .code-snippet-title {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+
+  .code-snippet-name {
+    font-family: var(--font-mono);
+    font-size: 1rem;
+    font-weight: 700;
+    background: none;
+    padding: 0;
+  }
+
+  .code-snippet-lang {
+    font-size: 0.65rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--accent);
+    background: color-mix(in srgb, var(--accent) 12%, transparent);
+    padding: 0.15rem 0.5rem;
+    border-radius: 2px;
+  }
+
+  .code-snippet-path {
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    text-decoration: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    transition: color 0.15s;
+  }
+
+  .code-snippet-path:hover {
+    color: var(--accent);
+  }
+
+  .code-snippet-link-icon {
+    opacity: 0.5;
+    flex-shrink: 0;
+  }
+
+  .code-snippet-path:hover .code-snippet-link-icon {
+    opacity: 1;
+  }
+
+  .code-snippet-description {
+    padding: 0.6rem 1rem;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    line-height: 1.5;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 0.5rem;
+  }
+
+  .code-snippet-usedby {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+    margin-left: auto;
+  }
+
+  .code-snippet-pod {
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: var(--text);
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    padding: 0.1rem 0.45rem;
+    border-radius: 2px;
+    white-space: nowrap;
+  }
+
+  /* Code area: gutter + content side by side */
+  .code-snippet-code {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    overflow-x: auto;
+    background: var(--bg-surface);
+  }
+
+  /* Gutter column */
+  .code-gutter {
+    position: sticky;
+    left: 0;
+    z-index: 1;
+    background: var(--bg-surface);
+    border-right: 1px solid var(--border);
+    padding: 0.75rem 0;
+    user-select: none;
+  }
+
+  .gutter-line {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: calc(0.875rem * 1.6);
+    min-width: 2.5rem;
+    padding: 0 0.4rem;
+  }
+
+  .gutter-num {
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    opacity: 0.5;
+    text-align: right;
+    width: 100%;
+  }
+
+  .gutter-badge {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.35rem;
+    height: 1.35rem;
+    border-radius: 50%;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #fff;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.6);
+    line-height: 1;
+    flex-shrink: 0;
+  }
+
+  /* Code content column */
+  .code-content {
+    min-width: 0;
+    overflow-x: auto;
+  }
+
+  .code-content :global(pre) {
+    margin: 0;
+    padding: 0.75rem 1rem;
+    font-family: var(--font-mono);
+    font-size: 0.875rem;
+    font-weight: 500;
+    line-height: 1.6;
+    letter-spacing: 0.01em;
+    background: transparent !important;
+  }
+
+  .code-content :global(code) {
+    font-family: var(--font-mono);
+    font-size: inherit;
+    font-weight: inherit;
+    background: none;
+    padding: 0;
+  }
+
+  .code-content :global(.shiki) {
+    background: transparent !important;
+  }
+
+  .code-content :global(.line) {
+    display: inline-block;
+    width: 100%;
+    padding: 0 0.25rem;
+  }
+
+  /* Annotation callout cards */
+  .code-annotations {
+    border-top: 1px solid var(--border);
+    display: flex;
+    flex-direction: column;
+    gap: 0;
+  }
+
+  .annotation-card {
+    padding: 0.6rem 1rem;
+    border-bottom: 1px solid color-mix(in srgb, var(--border) 50%, transparent);
+  }
+
+  .annotation-card:last-child {
+    border-bottom: none;
+  }
+
+  .annotation-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.3rem;
+    flex-wrap: wrap;
+  }
+
+  .annotation-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.4rem;
+    height: 1.4rem;
+    border-radius: 50%;
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #fff;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.6);
+    line-height: 1;
+    flex-shrink: 0;
+  }
+
+  .annotation-category {
+    font-size: 0.65rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+
+  .annotation-label {
+    font-size: 0.85rem;
+    font-weight: 600;
+    color: var(--text);
+  }
+
+  .annotation-lines {
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    margin-left: auto;
+  }
+
+  .annotation-content {
+    margin: 0;
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    line-height: 1.6;
+    padding-left: 1.9rem;
+  }
+
+  /* Legacy insight (shown when no annotations) */
+  .code-snippet-insight {
+    padding: 0.6rem 1rem;
+    border-top: 1px solid var(--border);
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    line-height: 1.6;
+  }
+
+  @media (max-width: 640px) {
+    .code-snippet-header {
+      padding: 0.5rem 0.75rem;
+    }
+
+    .code-snippet-description {
+      padding: 0.5rem 0.75rem;
+      flex-direction: column;
+      align-items: flex-start;
+    }
+
+    .code-snippet-usedby {
+      margin-left: 0;
+    }
+
+    .code-content :global(pre) {
+      font-size: 0.8rem;
+      padding: 0.5rem 0.75rem;
+    }
+
+    .code-snippet-insight {
+      padding: 0.5rem 0.75rem;
+    }
+
+    .code-gutter {
+      padding: 0.5rem 0;
+    }
+
+    .gutter-line {
+      min-width: 2rem;
+    }
+
+    .annotation-card {
+      padding: 0.5rem 0.75rem;
+    }
+
+    .annotation-lines {
+      margin-left: 0;
+      width: 100%;
+    }
+
+    .annotation-content {
+      padding-left: 0;
+    }
+  }
+</style>
