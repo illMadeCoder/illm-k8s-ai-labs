@@ -4,26 +4,38 @@
       "id": "this-lab",
       "name": "This Lab",
       "description": "Building and benchmarking the lab itself — operator lifecycle, observability stack, CI/CD, site publishing",
-      "color": "#a78bfa"
+      "color": "#a78bfa",
+      "shape": "circle"
     },
     {
       "id": "ecosystem-comparisons",
       "name": "Ecosystem Venn Diagram",
       "description": "Head-to-head comparisons of CNCF and commercial tools across ingress, service mesh, and more",
-      "color": "#34d399"
+      "color": "#34d399",
+      "shape": "diamond"
     },
     {
       "id": "cloud-database-internals",
       "name": "Cloud Database Internals",
       "description": "Benchmarking cloud-native databases — NewSQL, distributed KV, time-series, and object storage",
       "order": ["db-fvm", "db-dsc", "db-st"],
-      "color": "#f97316"
+      "color": "#f97316",
+      "shape": "hexagon"
     },
     {
       "id": "messages-and-streams",
       "name": "Messages and Streams",
       "description": "Evaluating message brokers and streaming platforms — Kafka, NATS, Pulsar, RabbitMQ, and beyond",
-      "color": "#38bdf8"
+      "color": "#38bdf8",
+      "shape": "triangle"
+    },
+    {
+      "id": "identity",
+      "name": "Identity & Access",
+      "description": "From separate passwords to SSO — a hands-on journey through authentication, LDAP, SAML, and OIDC",
+      "order": ["id-101", "id-102", "id-103", "id-104"],
+      "color": "#e879f9",
+      "shape": "square"
     }
   ]
 }

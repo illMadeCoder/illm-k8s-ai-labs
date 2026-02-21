@@ -36,12 +36,64 @@ const unsorted = allGroups.filter(g => !seriesExpNames.has(g.baseName));
 const CANVAS_W = 1200;
 const CANVAS_H = 900;
 
-const quadrantCenters = [
-  { x: 216, y: 174 },
-  { x: 936, y: 210 },
-  { x: 264, y: 726 },
-  { x: 900, y: 690 },
-];
+// Radial layout: places organisms on concentric elliptical rings
+// Ring 1 (diagonals): NW, NE, SE, SW — up to 4 series
+// Ring 2 (cardinals): N, E, S, W — series 5-8
+// Ring 3+: bisect existing angles — series 9+
+function generateOrganismPositions(count: number): { x: number; y: number }[] {
+  const cx = CANVAS_W / 2;
+  const cy = CANVAS_H / 2;
+  const DEG = Math.PI / 180;
+
+  // Elliptical radii per ring (wider X for 4:3 canvas)
+  const RX_BASE = 310, RY_BASE = 225;
+  const RX_STEP = 50,  RY_STEP = 40;
+
+  // Ring 1: diagonals (NW, NE, SE, SW) — clock convention: 0°=N, clockwise
+  const ring1 = [315, 45, 135, 225];
+  // Ring 2: cardinals (N, E, S, W)
+  const ring2 = [0, 90, 180, 270];
+
+  // Build slot list: ring1 first, then ring2, then bisect for ring3+
+  const slots: { angle: number; ring: number }[] = [];
+  for (const a of ring1) slots.push({ angle: a, ring: 0 });
+  for (const a of ring2) slots.push({ angle: a, ring: 1 });
+
+  // Ring 3+: bisect all previous angles sorted, expanding outward
+  if (count > 8) {
+    const existingAngles = [...ring1, ...ring2].sort((a, b) => a - b);
+    let ring = 2;
+    let available = existingAngles;
+    while (slots.length < count) {
+      const bisected: number[] = [];
+      for (let i = 0; i < available.length; i++) {
+        const a1 = available[i];
+        const a2 = available[(i + 1) % available.length];
+        const mid = a1 < a2 ? (a1 + a2) / 2 : ((a1 + a2 + 360) / 2) % 360;
+        bisected.push(mid);
+        slots.push({ angle: mid, ring });
+        if (slots.length >= count) break;
+      }
+      available = [...available, ...bisected].sort((a, b) => a - b);
+      ring++;
+    }
+  }
+
+  const positions: { x: number; y: number }[] = [];
+  for (let i = 0; i < count; i++) {
+    const { angle, ring } = slots[i];
+    const rad = angle * DEG;
+    const rx = RX_BASE + ring * RX_STEP;
+    const ry = RY_BASE + ring * RY_STEP;
+    positions.push({
+      x: Math.round(cx + rx * Math.sin(rad)),
+      y: Math.round(cy - ry * Math.cos(rad)),
+    });
+  }
+  return positions;
+}
+
+const organismPositions = generateOrganismPositions(allSeries.length);
 
 function seededRandom(seed: number) {
   let s = seed;
@@ -51,7 +103,7 @@ function seededRandom(seed: number) {
   };
 }
 
-const SERIES_SHAPES = ['circle', 'diamond', 'hexagon', 'triangle'] as const;
+const SERIES_SHAPES = ['circle', 'diamond', 'hexagon', 'triangle', 'square'] as const;
 type SporeShape = typeof SERIES_SHAPES[number];
 
 interface OrganismData {
@@ -93,10 +145,10 @@ const organisms: OrganismData[] = [];
 const tendrils: TendrilData[] = [];
 
 allSeries.forEach((s, i) => {
-  const center = quadrantCenters[i % quadrantCenters.length];
+  const center = organismPositions[i];
   const exps = seriesGroups[s.id] ?? [];
   const color = s.color || '#60a5fa';
-  const shape = SERIES_SHAPES[i % SERIES_SHAPES.length];
+  const shape = (s.shape || SERIES_SHAPES[i % SERIES_SHAPES.length]) as SporeShape;
   const isEmpty = exps.length === 0;
 
   const rng = seededRandom(s.id.length * 1000 + i * 7919);
@@ -787,6 +839,19 @@ const layoutData = JSON.stringify({ organisms, hubWaypoints });
     user-select: none;
     position: relative;
     z-index: 1;
+    cursor: pointer;
+    transition: background 0.12s;
+    border-radius: 4px;
+  }
+
+  .catalog-root:hover {
+    background: color-mix(in srgb, var(--accent) 10%, transparent);
+  }
+
+  .catalog-root:hover .root-title {
+    text-shadow:
+      0 0 10px rgba(96, 165, 250, 0.5),
+      0 0 24px rgba(96, 165, 250, 0.2);
   }
 
   .root-icon {
@@ -890,6 +955,15 @@ const layoutData = JSON.stringify({ organisms, hubWaypoints });
     letter-spacing: 0.02em;
     white-space: nowrap;
     flex-shrink: 0;
+    cursor: pointer;
+    transition: opacity 0.12s, text-decoration 0.12s;
+    text-decoration: underline transparent;
+    text-underline-offset: 2px;
+  }
+
+  #catalog-scroll .tree-series-name:hover {
+    text-decoration-color: currentColor;
+    opacity: 0.85;
   }
 
   .tree-series-line {
@@ -1090,6 +1164,13 @@ const layoutData = JSON.stringify({ organisms, hubWaypoints });
     clip-path: polygon(50% 2%, 98% 92%, 2% 92%);
   }
 
+  .organism-square .organism-blob {
+    clip-path: polygon(
+      8% 4%, 92% 4%, 96% 8%, 96% 92%,
+      92% 96%, 8% 96%, 4% 92%, 4% 8%
+    );
+  }
+
   .organism--empty .organism-blob {
     width: 50px;
     height: 50px;
@@ -1170,6 +1251,7 @@ const layoutData = JSON.stringify({ organisms, hubWaypoints });
   .spore-diamond:hover { transform: translate(-50%, -50%) rotate(45deg) scale(1.3); }
   .spore-hexagon .spore-inner { clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%); }
   .spore-triangle .spore-inner { clip-path: polygon(50% 5%, 100% 95%, 0% 95%); }
+  .spore-square .spore-inner { border-radius: 3px; }
 
   .spore-node:hover .spore-inner {
     opacity: 1;
@@ -1295,6 +1377,12 @@ const layoutData = JSON.stringify({ organisms, hubWaypoints });
     clip-path: polygon(50% 0%, 100% 100%, 0% 100%);
     width: 8px;
     height: 8px;
+  }
+
+  .legend-square {
+    border-radius: 2px;
+    width: 7px;
+    height: 7px;
   }
 
   .legend-count {
@@ -1865,6 +1953,7 @@ const layoutData = JSON.stringify({ organisms, hubWaypoints });
 
     let cardVisible = false;
     let selectedBaseName: string | null = null;
+    let hoverBaseName: string | null = null;   // tracks transient hover-preview over sticky selection
     let hideTimer: ReturnType<typeof setTimeout> | null = null;
 
     // Keep card alive when mouse moves from spore → card
@@ -1872,6 +1961,7 @@ const layoutData = JSON.stringify({ organisms, hubWaypoints });
       if (hideTimer) { clearTimeout(hideTimer); hideTimer = null; }
     });
     card.addEventListener('mouseleave', () => {
+      if (hoverBaseName) { restoreSticky(); return; }
       if (selectedBaseName) return;
       clearCatalogSync();
       hideCard();
@@ -1907,7 +1997,13 @@ const layoutData = JSON.stringify({ organisms, hubWaypoints });
       const cardH = card.offsetHeight || 200;
       const gap = 16;
       const paneW = paneRect.width;
-      const paneH = paneRect.height;
+
+      // Use viewport height (excludes legend) instead of full pane height
+      const visibleH = vpRect.bottom - paneRect.top;
+
+      // Bounds: keep card inside the visible rhizome area
+      const minLeft = 8;
+      const maxTop = visibleH - cardH - 8;
 
       // Default: card to the right of spore
       let left = sporeLeft + data.size * st.scale * 0.5 + gap;
@@ -1918,8 +2014,9 @@ const layoutData = JSON.stringify({ organisms, hubWaypoints });
         left = sporeLeft - data.size * st.scale * 0.5 - gap - cardW;
       }
 
-      // Clamp vertically
-      top = Math.max(8, Math.min(top, paneH - cardH - 8));
+      // Clamp: keep card within visible bounds
+      left = Math.max(minLeft, Math.min(left, paneW - cardW - 8));
+      top = Math.max(8, Math.min(top, maxTop));
 
       card.style.left = `${Math.round(left)}px`;
       card.style.top = `${Math.round(top)}px`;
@@ -2003,9 +2100,27 @@ const layoutData = JSON.stringify({ organisms, hubWaypoints });
       clearCatalogSync();
       clearRhizomeSync();
       selectedBaseName = null;
+      hoverBaseName = null;
       focusedSeriesId = null;
       hideCard();
       hideHubWaypoint();
+    }
+
+    // Restore sticky selection after a hover-preview ends
+    function restoreSticky() {
+      hoverBaseName = null;
+      if (!selectedBaseName) return;
+      clearCatalogSync();
+      clearRhizomeSync();
+      const row = catalogRows.find(r => r.dataset.baseName === selectedBaseName);
+      if (row) {
+        row.classList.add('active');
+        selectedIndex = catalogRows.indexOf(row);
+      }
+      focusSpore(selectedBaseName);
+      const data = sporeDataMap[selectedBaseName];
+      if (data) highlightSeries(data.seriesId);
+      showCard(selectedBaseName);
     }
 
     // --- Hub view state ---
@@ -2129,7 +2244,7 @@ const layoutData = JSON.stringify({ organisms, hubWaypoints });
       const baseName = row.dataset.baseName || '';
 
       row.addEventListener('mouseenter', () => {
-        if (selectedBaseName) return; // don't override sticky selection
+        if (selectedBaseName && selectedBaseName === baseName) return; // already showing this one
         clearCatalogSync();
         clearRhizomeSync();
         row.classList.add('active');
@@ -2138,9 +2253,11 @@ const layoutData = JSON.stringify({ organisms, hubWaypoints });
         const data = sporeDataMap[baseName];
         if (data) highlightSeries(data.seriesId);
         showCard(baseName);
+        if (selectedBaseName) hoverBaseName = baseName; // track hover-preview over sticky
       });
 
       row.addEventListener('mouseleave', () => {
+        if (hoverBaseName) { restoreSticky(); return; }
         if (selectedBaseName) return; // keep sticky
         clearAllSync();
       });
@@ -2155,6 +2272,7 @@ const layoutData = JSON.stringify({ organisms, hubWaypoints });
           return;
         }
 
+        hoverBaseName = null;
         clearCatalogSync();
         clearRhizomeSync();
         row.classList.add('active');
@@ -2172,16 +2290,18 @@ const layoutData = JSON.stringify({ organisms, hubWaypoints });
 
       spore.addEventListener('mouseenter', () => {
         if (hideTimer) { clearTimeout(hideTimer); hideTimer = null; }
-        if (selectedBaseName) return; // don't override sticky selection
+        if (selectedBaseName && selectedBaseName === baseName) return; // already showing this one
         clearRhizomeSync();
         rhizomeToCatalog(baseName);
         focusSpore(baseName);
         const data = sporeDataMap[baseName];
         if (data) highlightSeries(data.seriesId);
         showCard(baseName);
+        if (selectedBaseName) hoverBaseName = baseName; // track hover-preview over sticky
       });
 
       spore.addEventListener('mouseleave', () => {
+        if (hoverBaseName) { restoreSticky(); return; }
         if (selectedBaseName) return;
         hideTimer = setTimeout(() => {
           hideTimer = null;
@@ -2203,6 +2323,7 @@ const layoutData = JSON.stringify({ organisms, hubWaypoints });
           return;
         }
 
+        hoverBaseName = null;
         clearCatalogSync();
         clearRhizomeSync();
         selectedBaseName = baseName;
@@ -2249,7 +2370,6 @@ const layoutData = JSON.stringify({ organisms, hubWaypoints });
     // --- Catalog series name click → zoom to series ---
     const catalogSeriesNames = document.querySelectorAll<HTMLElement>('#catalog-scroll .tree-series-name');
     catalogSeriesNames.forEach(nameEl => {
-      nameEl.style.cursor = 'pointer';
       nameEl.addEventListener('click', (e) => {
         e.stopPropagation();
         const seriesEl = nameEl.closest<HTMLElement>('.tree-series');
@@ -2262,7 +2382,6 @@ const layoutData = JSON.stringify({ organisms, hubWaypoints });
     // --- Catalog root click → zoom to hub ---
     const catalogRoot = document.getElementById('catalog-root');
     if (catalogRoot) {
-      catalogRoot.style.cursor = 'pointer';
       catalogRoot.addEventListener('click', () => zoomToHub());
     }
 

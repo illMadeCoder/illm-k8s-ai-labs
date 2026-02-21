@@ -7,6 +7,7 @@ export interface Series {
   description: string;
   order?: string[];
   color?: string;
+  shape?: string;
 }
 
 interface SeriesData {
