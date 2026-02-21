@@ -1,6 +1,6 @@
 # Identity & Authentication Series Roadmap
 
-*Experiment-focused roadmap for application-level identity, authentication, and authorization. 10 experiments progressing from cryptographic primitives through protocol benchmarks to IdP comparison and authorization model shootouts. Each entry is scaffold-ready — enough detail to create the experiment YAML from.*
+*Experiment-focused roadmap for application-level identity, authentication, and authorization. 14 experiments: 4 interactive tutorials that tell the historical story (why SSO? why SAML? why OAuth+OIDC?) followed by 10 benchmark comparisons that quantify the costs. Each entry is scaffold-ready — enough detail to create the experiment YAML from.*
 
 *This is distinct from Phase 3's infrastructure-level security (RBAC, admission control) and from [Appendix C: PKI & Certificates](appendix-pki-certs.md) which covers TLS/mTLS/cert-manager.*
 
@@ -14,41 +14,44 @@
 {
   "id": "identity-and-auth",
   "name": "Identity & Authentication",
-  "description": "Progressive exploration of identity infrastructure -- from JWT signing algorithms and password hashing costs through OAuth/OIDC/SAML protocol benchmarks to full IdP comparison and zero-trust integration patterns",
-  "order": ["id-phb", "id-jwt", "id-oaf", "id-oidc", "id-saml", "id-idp", "id-prx", "id-sso", "id-mfa", "id-azp"],
+  "description": "Progressive exploration of identity infrastructure -- from the pre-SSO password problem through SAML and OAuth/OIDC protocol tutorials to quantitative benchmarks of IdPs, auth proxies, and authorization engines",
+  "order": ["id-101", "id-102", "id-103", "id-104", "id-phb", "id-jwt", "id-oaf", "id-oidc", "id-saml", "id-idp", "id-prx", "id-sso", "id-mfa", "id-azp"],
   "color": "#e879f9"
 }
 ```
 
-**Naming convention:** All experiments use the `id-` prefix (identity), following the pattern established by `db-` (database) in the cloud-database-internals series. Each suffix is a 2-4 character mnemonic: `phb` = password hashing benchmark, `jwt` = JWT signing, `oaf` = OAuth flows, etc.
+**Naming convention:** All experiments use the `id-` prefix (identity). Tutorials use numeric IDs (`101`–`104`) for the story arc. Benchmarks use 2–4 character mnemonics: `phb` = password hashing benchmark, `jwt` = JWT signing, `oaf` = OAuth flows, etc.
 
 **Color rationale:** `#e879f9` (fuchsia/violet-400) — visually distinct from the existing palette (purple `#a78bfa`, green `#34d399`, orange `#f97316`, blue `#38bdf8`). Security/identity is commonly associated with purple/violet tones in security tooling UIs.
 
 ### Narrative Arc
 
-| Phase | Experiments | Theme |
-|-------|-------------|-------|
-| 1. Cryptographic Foundations | `id-phb`, `id-jwt` | Raw primitive performance — no IdP needed |
-| 2. Protocol Internals | `id-oaf`, `id-oidc`, `id-saml` | OAuth/OIDC/SAML protocol benchmarks with Keycloak |
-| 3. Infrastructure Comparison | `id-idp`, `id-prx`, `id-sso` | IdP vs IdP, proxy vs proxy, federation cost |
-| 4. Advanced Capabilities | `id-mfa`, `id-azp` | MFA mechanism costs, authorization model shootout |
+| Phase | Experiments | Type | Theme |
+|-------|-------------|------|-------|
+| 0. The Story | `id-101`, `id-102`, `id-103`, `id-104` | tutorial | Why SSO? Why SAML? Why OAuth+OIDC? Hands-on protocol walkthroughs |
+| 1. Cryptographic Foundations | `id-phb`, `id-jwt` | comparison | Raw primitive performance — no IdP needed |
+| 2. Protocol Internals | `id-oaf`, `id-oidc`, `id-saml` | comparison | OAuth/OIDC/SAML protocol benchmarks with Keycloak |
+| 3. Infrastructure Comparison | `id-idp`, `id-prx`, `id-sso` | comparison | IdP vs IdP, proxy vs proxy, federation cost |
+| 4. Advanced Capabilities | `id-mfa`, `id-azp` | comparison | MFA mechanism costs, authorization model shootout |
+
+Phase 0 tutorials tell the historical story that motivates the benchmarks. They can be consumed as static educational content on the benchmark site, or as live hands-on walkthroughs with a running cluster.
 
 ### Appendix B.1–B.12 Coverage Matrix
 
-| Appendix Section | Covered By |
-|-----------------|------------|
-| B.1 Password Management & Credential Storage | `id-phb` (primary) |
-| B.2 JWT Fundamentals & Internals | `id-jwt` (primary), `id-oidc` (validation) |
-| B.3 JWE – JSON Web Encryption | `id-jwt` (JWE sub-benchmark) |
-| B.4 OAuth 2.0 Flows | `id-oaf` (primary) |
-| B.5 OpenID Connect (OIDC) | `id-oidc` (primary), `id-saml` (comparison baseline), `id-sso` (federation) |
-| B.6 Session Management | `id-oaf` (refresh tokens), `id-prx` (session cookies), `id-mfa` (session establishment) |
-| B.7 Identity Provider Deployment | `id-idp` (primary), `id-saml` (SAML IdP config), `id-sso` (brokering) |
-| B.8 Application Integration Patterns | `id-prx` (primary), `id-sso` (federation), `id-azp` (service-to-service) |
-| B.9 Multi-Factor Authentication | `id-mfa` (primary) |
-| B.10 Authorization Patterns | `id-azp` (primary) |
-| B.11 Security Operations | Covered as security analysis sections in experiments 3–10 |
-| B.12 API Keys & PATs | Deferred — see [Future Work](#future-work) |
+| Appendix Section | Tutorial Coverage | Benchmark Coverage |
+|-----------------|-------------------|-------------------|
+| B.1 Password Management & Credential Storage | `id-101` (motivation) | `id-phb` (primary) |
+| B.2 JWT Fundamentals & Internals | `id-104` (hands-on JWT inspection) | `id-jwt` (primary), `id-oidc` (validation) |
+| B.3 JWE – JSON Web Encryption | — | `id-jwt` (JWE sub-benchmark) |
+| B.4 OAuth 2.0 Flows | `id-104` (Authorization Code + PKCE walkthrough) | `id-oaf` (primary) |
+| B.5 OpenID Connect (OIDC) | `id-104` (OIDC flow + ID token) | `id-oidc` (primary), `id-saml` (baseline), `id-sso` (federation) |
+| B.6 Session Management | `id-101` (cookie sessions), `id-104` (token refresh) | `id-oaf` (refresh tokens), `id-prx` (session cookies), `id-mfa` |
+| B.7 Identity Provider Deployment | `id-103` (Keycloak deployment + realm config) | `id-idp` (primary), `id-saml` (config), `id-sso` (brokering) |
+| B.8 Application Integration Patterns | `id-104` (API bearer tokens) | `id-prx` (primary), `id-sso` (federation), `id-azp` (service-to-service) |
+| B.9 Multi-Factor Authentication | — | `id-mfa` (primary) |
+| B.10 Authorization Patterns | — | `id-azp` (primary) |
+| B.11 Security Operations | — | Covered as security analysis sections in benchmark experiments |
+| B.12 API Keys & PATs | — | Deferred — see [Future Work](#future-work) |
 
 ---
 
@@ -56,31 +59,42 @@
 
 ### New Component Category: `components/identity/`
 
-| Component | Source | Description |
-|-----------|--------|-------------|
-| `keycloak` | Helm: `bitnami/keycloak` (OCI registry) | Keycloak IdP with PostgreSQL. Params: realm config, SAML/OIDC client definitions |
-| `keycloak-postgres` | Helm: `bitnami/postgresql` | PostgreSQL for Keycloak backend. Params: database name, credentials |
-| `dex` | Helm: `dex/dex` (`https://charts.dexidp.io`) | Dex OIDC federation proxy. Params: static clients, connectors |
-| `oauth2-proxy` | Helm: `oauth2-proxy/oauth2-proxy` (`https://oauth2-proxy.github.io/manifests`) | OAuth2 reverse proxy. Params: OIDC provider URL, client ID/secret |
-| `pomerium` | Helm: `pomerium/pomerium` (`https://helm.pomerium.io`) | Identity-aware access proxy. Params: IdP config, routes, policies |
-| `opa` | Helm or raw manifests | Open Policy Agent for authorization decisions. Params: policy bundle |
-| `spicedb` | Helm: `authzed/spicedb` (`https://authzed.github.io/helm-charts`) | Zanzibar-style authorization. Params: schema, datastore config |
+| Component | Source | Description | Used By |
+|-----------|--------|-------------|---------|
+| `openldap` | Helm: `bitnami/openldap` or raw manifests | OpenLDAP directory server with pre-configured users/groups | `id-102` |
+| `keycloak` | Helm: `bitnami/keycloak` (OCI registry) | Keycloak IdP with PostgreSQL. Params: realm config, SAML/OIDC client definitions | `id-103`+ |
+| `keycloak-postgres` | Helm: `bitnami/postgresql` | PostgreSQL for Keycloak backend. Params: database name, credentials | `id-103`+ |
+| `dex` | Helm: `dex/dex` (`https://charts.dexidp.io`) | Dex OIDC federation proxy. Params: static clients, connectors | `id-idp` |
+| `oauth2-proxy` | Helm: `oauth2-proxy/oauth2-proxy` (`https://oauth2-proxy.github.io/manifests`) | OAuth2 reverse proxy. Params: OIDC provider URL, client ID/secret | `id-prx` |
+| `pomerium` | Helm: `pomerium/pomerium` (`https://helm.pomerium.io`) | Identity-aware access proxy. Params: IdP config, routes, policies | `id-prx` |
+| `opa` | Helm or raw manifests | Open Policy Agent for authorization decisions. Params: policy bundle | `id-azp` |
+| `spicedb` | Helm: `authzed/spicedb` (`https://authzed.github.io/helm-charts`) | Zanzibar-style authorization. Params: schema, datastore config | `id-azp` |
 
-### Custom Bench Apps: `components/apps/`
+### Tutorial Apps: `components/apps/`
+
+| Component | Description | Used By |
+|-----------|-------------|---------|
+| `id-app-portal` | Simple web app with login form. Configurable auth backend: embedded SQLite, LDAP bind, SAML SP, or OIDC RP. Shows "Welcome, user" after login. | `id-101`–`id-104` |
+| `id-app-dashboard` | Same pattern as portal, different branding. Demonstrates multi-app SSO (or lack thereof). | `id-101`–`id-104` |
+| `id-app-wiki` | Same pattern, third app. Three apps make the SSO difference tangible. | `id-101`–`id-104` |
+| `auth-resource-api` | Simple protected API (validates JWT bearer tokens, returns 200/401). Demonstrates what SAML can't do: API-level auth. | `id-104`, `id-oaf` |
+
+The three tutorial apps (`id-app-*`) are a single codebase with a config flag that switches the auth backend. This lets the same app progress through the story: standalone → LDAP → SAML → OIDC.
+
+### Benchmark Apps: `components/apps/`
 
 | Component | Description | Used By |
 |-----------|-------------|---------|
 | `auth-hash-bench` | Password hashing benchmark service (Go). Exposes bcrypt/argon2id/scrypt/PBKDF2 endpoints with Prometheus histograms | `id-phb` |
 | `auth-jwt-bench` | JWT sign/verify/encrypt benchmark service (Go). All algorithm families with histograms | `id-jwt` |
 | `auth-oauth-bench` | OAuth flow benchmark client. Drives AuthCode+PKCE, Client Credentials, Device flows against an IdP | `id-oaf` |
-| `auth-resource-api` | Simple protected API (validates tokens, returns 200/401). Resource server for auth experiments | `id-oaf` |
 | `auth-oidc-validator` | OIDC token validation benchmark. Three strategies: local JWKS, introspection, UserInfo | `id-oidc` |
 | `auth-saml-sp` | SAML Service Provider with instrumented assertion parsing and XML signature verification | `id-saml` |
 | `auth-idp-bench` | IdP benchmark client. Authenticates against both Keycloak and Dex, measures token issuance | `id-idp` |
 | `auth-mfa-bench` | MFA benchmark client. Simulates TOTP code generation and WebAuthn ceremonies | `id-mfa` |
 | `auth-authz-bench` | Authorization benchmark API. Three backends: in-process RBAC, OPA sidecar, SpiceDB | `id-azp` |
 
-All bench apps are CI-built as container images, following the existing `components/apps/` pattern.
+All apps are CI-built as container images, following the existing `components/apps/` pattern.
 
 ### Load Testing: `components/testing/`
 
@@ -138,6 +152,320 @@ Deployed via ArgoCD sync waves:
 3. **Wave 2:** Realm configuration Job
 4. **Wave 3:** Application components (bench apps)
 5. **Wave 4:** Load generator
+
+---
+
+## Tutorial UX Model
+
+Identity tutorials serve two audiences in two modes:
+
+### Static Mode (no cluster needed)
+
+The benchmark site renders tutorial content as a self-contained walkthrough — step-by-step instructions with flow diagrams (Mermaid), code samples (Shiki-highlighted), annotated screenshots, and protocol trace examples. A user reads through the tutorial and understands the concepts without deploying anything.
+
+This requires extending the site's `BodyBlock` system with:
+
+| New Block Type | Purpose |
+|---------------|---------|
+| `step` | Numbered, ordered tutorial step with title and nested content blocks. Renders as a card with step number badge. Optional `localStorage`-backed completion checkbox. |
+| `markdown` | Prose rendered as HTML via markdown-to-HTML transform (`set:html`). Enables inline code, bold, links, lists — currently all prose is plain text. |
+| `terminal` | Static terminal mockup showing commands and expected output. Styled like a terminal window (dark background, monospace). Not interactive in static mode. |
+| `protocolTrace` | Visual representation of an HTTP redirect flow (SP → IdP → SP) showing each hop, headers, and payloads. Specific to auth protocol tutorials. |
+
+Tutorial experiments publish to `site/data/` like comparisons, but with a `tutorial` tag instead of `comparison`. The `ExperimentDetail` component conditionally renders tutorial steps (from `analysis.body` using `step` blocks) instead of the metrics/chart sections.
+
+### Live Mode (cluster running)
+
+When the user runs the experiment (`kubectl create -f experiments/id-101/experiment.yaml`), the tutorial gains live interactivity:
+
+- **Ephemeral service links** — `tutorial.services` entries become clickable URLs to Keycloak admin console, web apps, etc. The site can render these as callout blocks with a "requires running cluster" indicator.
+- **Interactive terminal** — `labctl tutorial <name>` renders the tutorial with checkpoint validation. Future: `xterm.js` web terminal component for in-browser shell access.
+- **Live protocol inspection** — browser dev tools (Network tab) show actual redirects, SAML assertions, JWT tokens in real-time.
+
+Progressive enhancement: static content is always available; live features activate when a cluster is detected.
+
+### Tutorial Experiment Structure
+
+Each tutorial has two files:
+
+```
+experiments/id-101/
+├── experiment.yaml    # CRD: components, tutorial.services, completion.mode: manual
+└── tutorial.yaml      # Structured content: modules, checkpoints, learning objectives
+```
+
+The `tutorial.yaml` uses the SLO-tutorial structured format (modules with checkpoints and validation) rather than the Loki-tutorial free-form format, because identity tutorials need explicit checkpoint validation ("Did you see the SAML assertion? Did you decode the JWT?").
+
+### Site Changes Required
+
+| Change | File | Description |
+|--------|------|-------------|
+| New block types | `site/src/types.ts` | Add `step`, `markdown`, `terminal`, `protocolTrace` to `BodyBlock` union |
+| Block renderers | `site/src/components/AnalysisBody.astro` | New `StepCard.astro`, `TerminalBlock.astro`, `ProtocolTrace.astro` components |
+| Markdown rendering | `site/src/lib/` | Add `marked` or `remark` dependency for `markdown` block HTML transform |
+| Tutorial publish path | operator / manual | Tutorials publish a JSON to `site/data/` with step content in `analysis.body` |
+| Conditional rendering | `site/src/components/ExperimentDetail.astro` | Suppress metrics/charts sections for tutorial-type experiments |
+| Tutorial listing | `site/src/pages/` | Optional `/tutorials/` index page grouping all tutorial experiments |
+
+These site changes are a separate implementation milestone — tutorials can be scaffolded and run via `labctl` before the site rendering is built.
+
+---
+
+## Phase 0: The Story (Tutorials)
+
+### id-101 — The Identity Problem
+
+**Title:** Why SSO? The Multi-App Password Problem
+
+**Type:** `tutorial`
+
+**Description:** Deploy three simple web applications, each with its own independent user database. Walk through creating separate accounts, logging in separately, and experiencing the friction that drove the entire identity industry. This is the problem that existed before SAML, before OAuth, before any federated identity — and it's still the default for most homegrown apps today.
+
+**The story this tells:** In the 1990s, every application managed its own credentials. An employee with 15 internal apps had 15 passwords. IT had 15 user databases to manage. When someone was fired, 15 accounts had to be disabled. When a password was breached on one app, password reuse meant all apps were compromised. This tutorial makes you *feel* that pain.
+
+**What you experience:**
+1. Create an account on App A (portal). Log in. See "Welcome, user."
+2. Navigate to App B (dashboard). You're not logged in — create another account with the same username and a different password.
+3. Navigate to App C (wiki). Same thing — another account.
+4. Log out of App A. Apps B and C are unaffected — no centralized session.
+5. Try to answer: "How would IT disable this user's access across all apps?"
+
+**What you observe:**
+- Each app stores passwords independently (inspect the databases)
+- No single point of identity management
+- No SSO — logging in to one app says nothing about the others
+- Password reuse is the only "convenience" — and it's a security disaster
+
+**Deploys:**
+- 3 simple web apps (`id-app-portal`, `id-app-dashboard`, `id-app-wiki`) — each with embedded SQLite user database, basic login form, session cookie
+- No IdP, no shared directory, no federation
+
+**Capability matrix:**
+
+| Capability | Status |
+|-----------|--------|
+| Single Sign-On | No |
+| Centralized user management | No |
+| Single point of revocation | No |
+| Password not exposed to apps | No (each app sees plaintext password at login) |
+| Works cross-domain | N/A (no federation to evaluate) |
+| API-friendly (tokens in headers) | No (cookie-based sessions only) |
+
+**Tags:** `tutorial`, `identity`, `authentication`
+
+**GKE sizing:** `e2-small`, 1 node (minimal — just 3 tiny apps)
+
+**Prerequisites:** None
+
+**Appendix coverage:** Motivates all of B.1–B.12
+
+---
+
+### id-102 — LDAP Centralization
+
+**Title:** One Directory, Still No SSO: LDAP Authentication
+
+**Type:** `tutorial`
+
+**Description:** Deploy OpenLDAP as a central directory and reconfigure the three apps to authenticate against it instead of their own databases. You now have one password and one place to manage users — but you still type that password into every app separately. This tutorial shows why a centralized directory is necessary but not sufficient for SSO.
+
+**The story this tells:** LDAP (1993) and Active Directory solved the "15 databases" problem by centralizing identity storage. Every app asks the same directory "is this password correct?" But the user's password still crosses the network for every app. There's no "logged in" state that carries across apps. And LDAP only works inside the corporate network — Salesforce can't bind to your LDAP server.
+
+**What you experience:**
+1. Deploy OpenLDAP with pre-configured users (alice, bob, admin)
+2. All three apps now authenticate against LDAP — one password works everywhere
+3. Log in to App A. Navigate to App B — you're not logged in. Type the same password again.
+4. Disable a user in LDAP. They're locked out of all three apps immediately. (Progress!)
+5. But: each app still receives the raw password. Inspect the LDAP bind request.
+
+**What you observe:**
+- Centralized user store (add/remove users in one place)
+- Password still typed into every app (no SSO)
+- Password transmitted to every app, then to LDAP (multiple network hops)
+- Only works within network reach of the LDAP server (no cross-org federation)
+
+**Deploys:**
+- `openldap` — OpenLDAP server with pre-configured directory (users, groups)
+- 3 web apps (same as id-101, reconfigured for LDAP bind authentication)
+
+**Capability matrix:**
+
+| Capability | id-101 | id-102 (LDAP) |
+|-----------|--------|---------------|
+| Single Sign-On | No | No |
+| Centralized user management | No | **Yes** |
+| Single point of revocation | No | **Yes** |
+| Password not exposed to apps | No | No (apps see password for LDAP bind) |
+| Works cross-domain | N/A | No (network-local only) |
+| API-friendly | No | No |
+
+**Tags:** `tutorial`, `identity`, `authentication`, `ldap`
+
+**GKE sizing:** `e2-small`, 1 node
+
+**Prerequisites:** `id-101` (same apps, reconfigured)
+
+**Appendix coverage:** Context for B.7 (IdP deployment), B.1 (credential storage)
+
+---
+
+### id-103 — SAML SSO
+
+**Title:** Real Single Sign-On: SAML 2.0 with Keycloak
+
+**Type:** `tutorial`
+
+**Description:** Deploy Keycloak as a SAML Identity Provider and configure the apps as SAML Service Providers. For the first time, log in once and access all apps without re-entering credentials. Walk through the SAML flow step-by-step: inspect the XML assertion, see the browser redirects, decode the XML digital signature. Understand why SAML was the standard for enterprise SSO from 2005 to ~2015.
+
+**The story this tells:** SAML (2002/2005) was the first widely-adopted, vendor-neutral, HTTP-based federated identity protocol. It solved the cross-domain SSO problem that LDAP and Kerberos couldn't: an app on `salesforce.com` can now ask an IdP on `company.com` "who is this person?" and get a cryptographically signed answer through the browser. SAML uses XML because that was the interoperability format of 2002 — JSON wasn't formalized until 2006.
+
+**What you experience:**
+1. Deploy Keycloak with a realm, users, and SAML client configurations for all three apps
+2. Access App A — you're redirected to Keycloak login. Authenticate once.
+3. Access App B — **no login prompt**. You're already authenticated. This is SSO.
+4. Open browser dev tools (Network tab) — see the redirects: app → Keycloak → app
+5. Find the SAML assertion in the POST-back. Base64-decode it. See the XML:
+   - `<saml:Assertion>` with issuer, subject, conditions, attribute statements
+   - `<ds:Signature>` with XML digital signature (RSA-SHA256)
+   - Observe the size: 4–10 KB of XML for what is essentially "this is alice, she's in group engineering"
+6. Log out of Keycloak — Single Logout propagates to all apps
+
+**What you observe:**
+- True SSO — one login, access everywhere
+- Browser redirects carry the protocol (HTTP-Redirect and HTTP-POST bindings)
+- SAML assertions are large XML documents with embedded digital signatures
+- XML digital signature verification is required at every SP on every assertion
+- The IdP (Keycloak) is the single source of truth — revoke access in one place
+- Works cross-domain (browser-mediated, no direct network access needed between SP and IdP)
+
+**Deploys:**
+- `keycloak` + `keycloak-postgres` — IdP with SAML realm configuration
+- 3 web apps (reconfigured as SAML Service Providers using a SAML library)
+- Realm configuration Job (creates realm, SAML clients, test users)
+
+**Capability matrix:**
+
+| Capability | id-101 | id-102 (LDAP) | id-103 (SAML) |
+|-----------|--------|---------------|---------------|
+| Single Sign-On | No | No | **Yes** |
+| Centralized user management | No | Yes | **Yes** |
+| Single point of revocation | No | Yes | **Yes** |
+| Password not exposed to apps | No | No | **Yes** (only IdP sees password) |
+| Works cross-domain | N/A | No | **Yes** |
+| API-friendly | No | No | **No** (XML assertions, browser-only) |
+
+**Protocol flow to inspect:**
+
+```mermaid
+sequenceDiagram
+    participant User as Browser
+    participant SP as App (Service Provider)
+    participant IdP as Keycloak (SAML IdP)
+
+    User->>SP: GET /protected
+    SP->>User: 302 Redirect to IdP (SAMLRequest)
+    User->>IdP: GET /auth?SAMLRequest=...
+    IdP->>User: Login form
+    User->>IdP: POST credentials
+    IdP->>User: 200 + auto-submit form (SAMLResponse)
+    User->>SP: POST /saml/acs (SAMLResponse with Assertion)
+    Note over SP: Verify XML Digital Signature<br/>Parse XML Assertion (4-10 KB)<br/>Extract attributes
+    SP->>User: 200 /protected (session cookie set)
+```
+
+**Tags:** `tutorial`, `identity`, `authentication`, `saml`, `keycloak`, `sso`
+
+**GKE sizing:** `e2-standard-4`, 2 nodes (Keycloak + PostgreSQL need memory)
+
+**Prerequisites:** `id-102` (same apps, reconfigured for SAML)
+
+**Appendix coverage:** B.7 (IdP deployment), B.5 (OIDC comparison baseline set here)
+
+---
+
+### id-104 — OAuth 2.0 + OIDC SSO
+
+**Title:** The Modern Stack: OAuth 2.0 + OpenID Connect with Keycloak
+
+**Type:** `tutorial`
+
+**Description:** Reconfigure the same Keycloak instance to serve OIDC (instead of SAML) and reconfigure the apps as OIDC Relying Parties. Walk through the Authorization Code + PKCE flow, inspect the compact JWT ID token (vs the SAML assertion), and see why the industry shifted to OIDC. Then demonstrate what SAML can't do: attach the token to an API call.
+
+**The story this tells:** Two things changed between 2005 and 2014 that broke SAML's assumptions: (1) the iPhone (2007) and mobile apps can't do browser redirects with XML POST-backs, and (2) the API economy — services talk to services via REST APIs, not browser forms. OAuth 2.0 (2012) solved delegated API authorization. OIDC (2014) added an identity layer on top. The key innovation: the ID token is a compact JWT (~500 bytes of JSON) that fits in an HTTP `Authorization` header. SAML assertions (4-10 KB of XML) don't.
+
+**What you experience:**
+1. Keycloak is already running from id-103. Configure OIDC clients alongside the existing SAML clients.
+2. Access App A via OIDC — redirected to Keycloak, same login, but now the response is different
+3. Open browser dev tools — see the Authorization Code in the redirect URL
+4. Inspect the token exchange (code → access token + ID token). Decode the JWT:
+   - Header: `{"alg": "RS256", "typ": "JWT", "kid": "..."}`
+   - Payload: `{"sub": "alice", "iss": "https://keycloak...", "aud": "app-a", "exp": ...}`
+   - Signature: 86 bytes of base64
+   - **Total size: ~500 bytes** vs the 4-10 KB SAML assertion
+5. Use the access token to call an API directly:
+   ```bash
+   curl -H "Authorization: Bearer eyJhbG..." http://api-server/protected
+   ```
+   This is impossible with SAML — the assertion is too large for a header and requires browser mediation.
+6. Side-by-side: the same Keycloak instance, the same users, SAML vs OIDC
+
+**What you observe:**
+- Same SSO experience as SAML from the user's perspective
+- JWT is ~20x smaller than SAML assertion
+- No XML parsing, no XML digital signature verification — just a fast HMAC or RSA signature check
+- Token works in HTTP headers → APIs, mobile apps, SPAs, CLI tools, not just browsers
+- PKCE protects against code interception (no client secret needed for public clients)
+- OIDC Discovery (`.well-known/openid-configuration`) enables auto-configuration
+
+**Deploys:**
+- Same `keycloak` + `keycloak-postgres` from id-103
+- 3 web apps (reconfigured as OIDC Relying Parties)
+- `auth-resource-api` — a simple protected API that validates JWT bearer tokens
+- Realm configuration Job (adds OIDC clients to existing realm)
+
+**Capability matrix (cumulative):**
+
+| Capability | id-101 | id-102 (LDAP) | id-103 (SAML) | id-104 (OIDC) |
+|-----------|--------|---------------|---------------|---------------|
+| Single Sign-On | No | No | Yes | **Yes** |
+| Centralized user management | No | Yes | Yes | **Yes** |
+| Single point of revocation | No | Yes | Yes | **Yes** |
+| Password not exposed to apps | No | No | Yes | **Yes** |
+| Works cross-domain | N/A | No | Yes | **Yes** |
+| API-friendly (tokens in headers) | No | No | No | **Yes** |
+| Works for mobile/SPA/CLI | No | No | No | **Yes** |
+| Compact tokens (<1 KB) | N/A | N/A | No (4-10 KB XML) | **Yes (~500 B)** |
+| Auto-discovery/configuration | N/A | N/A | No (manual metadata) | **Yes (.well-known)** |
+
+**Protocol flow to inspect:**
+
+```mermaid
+sequenceDiagram
+    participant User as Browser
+    participant App as App (OIDC Client)
+    participant IdP as Keycloak (OIDC Provider)
+
+    User->>App: GET /protected
+    App->>User: 302 Redirect to IdP (/authorize?response_type=code&code_challenge=...)
+    User->>IdP: GET /authorize
+    IdP->>User: Login form
+    User->>IdP: POST credentials
+    IdP->>User: 302 Redirect to App (/callback?code=abc123)
+    User->>App: GET /callback?code=abc123
+    App->>IdP: POST /token (code + code_verifier)
+    Note over IdP: Verify PKCE
+    IdP->>App: 200 {access_token: "eyJ...", id_token: "eyJ...", refresh_token: "..."}
+    Note over App: Verify JWT signature (~500 bytes)<br/>No XML parsing needed
+    App->>User: 200 /protected (session established)
+```
+
+**Tags:** `tutorial`, `identity`, `authentication`, `oauth`, `oidc`, `keycloak`, `sso`, `jwt`
+
+**GKE sizing:** `e2-standard-4`, 2 nodes (reuses Keycloak from id-103)
+
+**Prerequisites:** `id-103` (Keycloak already deployed, adds OIDC alongside SAML)
+
+**Appendix coverage:** B.4 (OAuth flows), B.5 (OIDC), B.2 (JWT fundamentals)
 
 ---
 
@@ -537,13 +865,18 @@ This was deliberately omitted from the initial 10 experiments. If added, it woul
 ## Dependency Graph
 
 ```
-Phase 1 (no IdP needed):
-  id-phb ──┐
-  id-jwt ──┤  (independent, can run in parallel)
-           │
-Phase 2 (Keycloak required):
-           ├──► id-oaf ──┬──► id-oidc
-           │             └──► id-saml
+Phase 0 (tutorials — progressive story):
+  id-101 (no SSO) ──► id-102 (LDAP) ──► id-103 (SAML) ──► id-104 (OIDC)
+       │                    │                  │                   │
+       │   (same 3 apps, reconfigured at each step)               │
+       │                                                          │
+Phase 1 (no IdP needed, can run in parallel with tutorials):      │
+  id-phb ──┐                                                      │
+  id-jwt ──┤                                                      │
+           │                                                      │
+Phase 2 (Keycloak required — reuses id-103/104 patterns):         │
+           ├──► id-oaf ──┬──► id-oidc                             │
+           │             └──► id-saml ◄───────────────────────────┘
            │
 Phase 3 (additional infrastructure):
            ├──► id-idp  (needs Keycloak + Dex)
@@ -557,32 +890,56 @@ Phase 4 (advanced):
 
 ## Implementation Sequencing
 
-### Phase 1: Foundation (Experiments 1–2)
+### Phase 0: Story Arc (Tutorials 101–104) — START HERE
 
-No external infrastructure needed. Build the custom bench apps (Go microservices with Prometheus instrumentation) and k6 load scripts. These establish the identity component category and CI pipeline patterns.
+Build the tutorial apps and tell the story. This is the learning foundation for everything that follows.
+
+1. **Build the multi-auth app** — a single Go/Node codebase (`id-app-portal`, `id-app-dashboard`, `id-app-wiki`) with a config flag that switches between auth backends (embedded, LDAP, SAML, OIDC). CI builds the image once; experiment YAML sets the config.
+
+2. **id-101:** Deploy 3 apps with embedded auth. Write `tutorial.yaml` with structured modules and checkpoints. Test the "no SSO" experience.
+
+3. **id-102:** Add `openldap` component. Reconfigure apps for LDAP bind. Tutorial shows centralization without SSO.
+
+4. **id-103:** Add `keycloak` + `keycloak-postgres` components and realm configuration Job. Reconfigure apps as SAML SPs. Tutorial walks through SAML assertion inspection.
+
+5. **id-104:** Add OIDC client config to Keycloak. Reconfigure apps as OIDC RPs. Add `auth-resource-api` for API token demo. Tutorial compares JWT vs SAML assertion.
+
+**Create:** `components/apps/id-app-portal/` (shared codebase), `components/identity/openldap/`, `components/identity/keycloak/`, `components/identity/keycloak-postgres/`, `components/apps/auth-resource-api/`, `experiments/id-101/` through `experiments/id-104/`
+
+### Phase 1: Foundation (Benchmarks 1–2)
+
+No external infrastructure needed. Build the custom bench apps (Go microservices with Prometheus instrumentation) and k6 load scripts.
 
 **Create:** `components/apps/auth-hash-bench/`, `components/apps/auth-jwt-bench/`, `components/testing/k6-auth-loadtest/`, `experiments/id-phb/`, `experiments/id-jwt/`
 
-### Phase 2: IdP Infrastructure (Experiments 3–5)
+### Phase 2: Protocol Benchmarks (3–5)
 
-Deploy Keycloak component and the realm configuration pattern. Once Keycloak works, experiments 3–5 iterate rapidly.
+Keycloak is already deployed from Phase 0. Build instrumented benchmark apps and k6 scenarios.
 
-**Create:** `components/identity/keycloak/`, `components/identity/keycloak-postgres/`, realm configuration Job manifests, `components/apps/auth-oauth-bench/`, `auth-oidc-validator/`, `auth-saml-sp/`, `experiments/id-oaf/`, `id-oidc/`, `id-saml/`
+**Create:** `components/apps/auth-oauth-bench/`, `auth-oidc-validator/`, `auth-saml-sp/`, `experiments/id-oaf/`, `id-oidc/`, `id-saml/`
 
-### Phase 3: Comparison Layer (Experiments 6–8)
+### Phase 3: Infrastructure Comparison (6–8)
 
 Add Dex, OAuth2-Proxy, Pomerium, and Envoy ext_authz components. Mostly Helm charts, not custom code.
 
 **Create:** `components/identity/dex/`, `oauth2-proxy/`, `pomerium/`, `components/apps/auth-idp-bench/`, `experiments/id-idp/`, `id-prx/`, `id-sso/`
 
-### Phase 4: Advanced (Experiments 9–10)
+### Phase 4: Advanced (9–10)
 
 MFA simulation and authorization engines. More complex test harnesses.
 
 **Create:** `components/identity/opa/`, `spicedb/`, `components/apps/auth-mfa-bench/`, `auth-authz-bench/`, `experiments/id-mfa/`, `id-azp/`
 
-### Site Changes (All Phases)
+### Site Changes
 
+**Tutorial rendering (new capability):**
+- Add `step`, `markdown`, `terminal`, `protocolTrace` block types to `site/src/types.ts`
+- Build `StepCard.astro`, `TerminalBlock.astro`, `ProtocolTrace.astro` renderers
+- Add markdown-to-HTML pipeline (marked/remark) for prose blocks
+- Conditional rendering in `ExperimentDetail.astro` for tutorial-type experiments
+- Tutorial publish path: tutorials publish JSON to `site/data/` with step content in `analysis.body`
+
+**Taxonomy:**
 - Add identity domain to `site/data/_categories.json`
 - Add series to `site/data/_series.json`
 - Add tag mappings to `site/src/lib/experiments.ts`
