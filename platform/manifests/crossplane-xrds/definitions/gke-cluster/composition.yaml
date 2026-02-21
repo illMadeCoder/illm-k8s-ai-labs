@@ -103,9 +103,10 @@ spec:
               kind: Cluster
               spec:
                 forProvider:
-                  # Start with no default node pool (we create our own)
+                  # Keep default pool (1 × e2-medium) — removing it races with
+                  # custom nodepool creation in Crossplane async mode, causing
+                  # INVALID_STATE_FOR_UPDATE errors (P1 bug illm-k8s-ai-lab-ku4)
                   initialNodeCount: 1
-                  removeDefaultNodePool: true
                   # VPC-native cluster (uses alias IPs)
                   networkingMode: VPC_NATIVE
                   networkSelector:
