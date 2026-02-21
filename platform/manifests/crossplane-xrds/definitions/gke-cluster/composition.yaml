@@ -124,10 +124,8 @@ spec:
                   deletionProtection: false  # Allow easy cleanup
                   loggingService: none       # Use own observability stack
                   monitoringService: none
-                  # UNMANAGED prevents GKE auto-upgrades that put the cluster
-                  # in RECONCILING state, blocking nodepool creation
-                  releaseChannel:
-                    channel: UNMANAGED
+                  # No release channel — static version, no auto-upgrades
+                  # that would put the cluster in RECONCILING state
                 writeConnectionSecretToRef:
                   namespace: crossplane-system
             patches:
