@@ -37,10 +37,10 @@ const CANVAS_W = 1200;
 const CANVAS_H = 900;
 
 const quadrantCenters = [
-  { x: 280, y: 220 },
-  { x: 880, y: 250 },
-  { x: 320, y: 680 },
-  { x: 850, y: 650 },
+  { x: 216, y: 174 },
+  { x: 936, y: 210 },
+  { x: 264, y: 726 },
+  { x: 900, y: 690 },
 ];
 
 function seededRandom(seed: number) {
@@ -89,18 +89,8 @@ interface TendrilData {
   path: string;
 }
 
-interface JunctionData {
-  cx: number;
-  cy: number;
-  color: string;
-  tag: string;
-  fromSeries: string[];
-  size: number;
-}
-
 const organisms: OrganismData[] = [];
 const tendrils: TendrilData[] = [];
-const junctions: JunctionData[] = [];
 
 allSeries.forEach((s, i) => {
   const center = quadrantCenters[i % quadrantCenters.length];
@@ -168,41 +158,21 @@ allSeries.forEach((s, i) => {
   }
 });
 
-// Shared-tag junctions
-const tagToSeries: Record<string, { seriesIds: string[]; positions: { cx: number; cy: number }[] }> = {};
-for (const org of organisms) {
-  for (const exp of org.experiments) {
-    for (const tag of exp.tags) {
-      if (!tagToSeries[tag]) tagToSeries[tag] = { seriesIds: [], positions: [] };
-      if (!tagToSeries[tag].seriesIds.includes(org.id)) {
-        tagToSeries[tag].seriesIds.push(org.id);
-        tagToSeries[tag].positions.push({ cx: exp.cx, cy: exp.cy });
-      }
-    }
-  }
-}
-
-for (const [tag, data] of Object.entries(tagToSeries)) {
-  if (data.seriesIds.length < 2) continue;
-  const avgCx = Math.round(data.positions.reduce((s, p) => s + p.cx, 0) / data.positions.length);
-  const avgCy = Math.round(data.positions.reduce((s, p) => s + p.cy, 0) / data.positions.length);
-  const involvedOrgs = organisms.filter(o => data.seriesIds.includes(o.id));
-  const blendColor = involvedOrgs.length > 0 ? involvedOrgs[0].color : '#60a5fa';
-
-  junctions.push({
-    cx: avgCx,
-    cy: avgCy,
-    color: blendColor,
-    tag,
-    fromSeries: data.seriesIds,
-    size: 10 + data.seriesIds.length * 2,
-  });
-}
-
-// Root node tendrils (organism → center)
+// Root node tendrils (organism → center) + indicator waypoints on the Bezier
 const ROOT_CX = CANVAS_W / 2;
 const ROOT_CY = CANVAS_H / 2;
 const rootTendrils: TendrilData[] = [];
+
+interface IndicatorData {
+  seriesId: string;
+  name: string;
+  color: string;
+  expCount: number;
+  cx: number;
+  cy: number;
+}
+const indicatorPoints: IndicatorData[] = [];
+
 for (const org of organisms) {
   const dx = ROOT_CX - org.cx;
   const dy = ROOT_CY - org.cy;
@@ -216,38 +186,55 @@ for (const org of organisms) {
   rootTendrils.push({
     seriesId: org.id,
     color: org.color,
-    path: `M ${org.cx} ${org.cy} C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${ROOT_CX} ${ROOT_CY}`,
+    path: `M ${ROOT_CX} ${ROOT_CY} C ${cp2x} ${cp2y}, ${cp1x} ${cp1y}, ${org.cx} ${org.cy}`,
+  });
+
+  // Compute indicator position on the actual cubic Bezier at t=0.55
+  // Path: P0=hub, P1=cp2, P2=cp1, P3=org
+  const t = 0.55;
+  const mt = 1 - t;
+  const bx = mt*mt*mt*ROOT_CX + 3*mt*mt*t*cp2x + 3*mt*t*t*cp1x + t*t*t*org.cx;
+  const by = mt*mt*mt*ROOT_CY + 3*mt*mt*t*cp2y + 3*mt*t*t*cp1y + t*t*t*org.cy;
+  indicatorPoints.push({
+    seriesId: org.id,
+    name: org.name,
+    color: org.color,
+    expCount: org.experiments.length,
+    cx: Math.round(bx),
+    cy: Math.round(by),
   });
 }
 
-// Junction tendrils
-const junctionTendrils: TendrilData[] = [];
-for (const junction of junctions) {
-  for (const seriesId of junction.fromSeries) {
-    const org = organisms.find(o => o.id === seriesId);
-    if (!org || org.experiments.length === 0) continue;
-    let closest = org.experiments[0];
-    let minDist = Infinity;
-    for (const exp of org.experiments) {
-      const d = Math.hypot(exp.cx - junction.cx, exp.cy - junction.cy);
-      if (d < minDist) { minDist = d; closest = exp; }
-    }
-    if (!closest) continue;
-    const rng2 = seededRandom(junction.cx * 31 + junction.cy * 17 + seriesId.length);
-    const dx = junction.cx - closest.cx;
-    const dy = junction.cy - closest.cy;
-    const perpX = -dy * 0.2 * (rng2() - 0.5);
-    const perpY = dx * 0.2 * (rng2() - 0.5);
-    junctionTendrils.push({
-      seriesId,
-      color: org.color,
-      path: `M ${closest.cx} ${closest.cy} Q ${Math.round(closest.cx + dx * 0.5 + perpX)} ${Math.round(closest.cy + dy * 0.5 + perpY)}, ${junction.cx} ${junction.cy}`,
-    });
-  }
+// Hub waypoint positions (t=0.80 on root tendril, near organism/series end)
+// Path: P0=hub → P3=organism. High t = close to organism, visible when zoomed into series.
+interface HubWaypointData {
+  seriesId: string;
+  cx: number;
+  cy: number;
+}
+const hubWaypoints: HubWaypointData[] = [];
+for (const org of organisms) {
+  const dx = ROOT_CX - org.cx;
+  const dy = ROOT_CY - org.cy;
+  const rngR = seededRandom(org.id.length * 3137 + 42);
+  const perpX = -dy * 0.2 * (rngR() - 0.5);
+  const perpY = dx * 0.2 * (rngR() - 0.5);
+  const cp1x = Math.round(org.cx + dx * 0.35 + perpX);
+  const cp1y = Math.round(org.cy + dy * 0.35 + perpY);
+  const cp2x = Math.round(org.cx + dx * 0.65 - perpX * 0.5);
+  const cp2y = Math.round(org.cy + dy * 0.65 - perpY * 0.5);
+  // t=0.80 on Bezier (P0=hub, P1=cp2, P2=cp1, P3=org)
+  const tw = 0.80;
+  const mw = 1 - tw;
+  hubWaypoints.push({
+    seriesId: org.id,
+    cx: Math.round(mw*mw*mw*ROOT_CX + 3*mw*mw*tw*cp2x + 3*mw*tw*tw*cp1x + tw*tw*tw*org.cx),
+    cy: Math.round(mw*mw*mw*ROOT_CY + 3*mw*mw*tw*cp2y + 3*mw*tw*tw*cp1y + tw*tw*tw*org.cy),
+  });
 }
 
 // Serialize for client-side sync
-const layoutData = JSON.stringify({ organisms, junctions });
+const layoutData = JSON.stringify({ organisms, hubWaypoints });
 ---
 
 <Base title="Series — K8s Cloud TestBed">
@@ -276,7 +263,6 @@ const layoutData = JSON.stringify({ organisms, junctions });
                 const isLast = i === exps.length - 1;
                 const branch = isLast ? '\u2514\u2500\u2500' : '\u251C\u2500\u2500';
                 const title = getDisplayTitle(group);
-                const runCount = group.runs.length;
                 return (
                   <a
                     href={`${base}experiments/${group.baseName}/`}
@@ -286,7 +272,7 @@ const layoutData = JSON.stringify({ organisms, junctions });
                     <span class="tree-branch" style={`color: ${series.color || 'var(--text-muted)'}`}>{branch}</span>
                     <span class="tree-exp-name">{title}</span>
                     <span class="tree-dots"></span>
-                    <span class="tree-runs">{runCount} {runCount === 1 ? 'run' : 'runs'}</span>
+                    <span class="tree-runs">{group.latest.createdAt ? formatDate(group.latest.createdAt) : ''}</span>
                   </a>
                 );
               })
@@ -305,7 +291,6 @@ const layoutData = JSON.stringify({ organisms, junctions });
               const isLast = i === unsorted.length - 1;
               const branch = isLast ? '\u2514\u2500\u2500' : '\u251C\u2500\u2500';
               const title = getDisplayTitle(group);
-              const runCount = group.runs.length;
               return (
                 <a
                   href={`${base}experiments/${group.baseName}/`}
@@ -315,7 +300,7 @@ const layoutData = JSON.stringify({ organisms, junctions });
                   <span class="tree-branch" style="color: var(--text-muted)">{branch}</span>
                   <span class="tree-exp-name">{title}</span>
                   <span class="tree-dots"></span>
-                  <span class="tree-runs">{runCount} {runCount === 1 ? 'run' : 'runs'}</span>
+                  <span class="tree-runs">{group.latest.createdAt ? formatDate(group.latest.createdAt) : ''}</span>
                 </a>
               );
             })}
@@ -356,7 +341,6 @@ const layoutData = JSON.stringify({ organisms, junctions });
                 const isLast = i === exps.length - 1;
                 const branch = isLast ? '\u2514\u2500\u2500' : '\u251C\u2500\u2500';
                 const title = getDisplayTitle(group);
-                const runCount = group.runs.length;
                 return (
                   <a
                     href={`${base}experiments/${group.baseName}/`}
@@ -366,7 +350,7 @@ const layoutData = JSON.stringify({ organisms, junctions });
                     <span class="tree-branch" style={`color: ${series.color || 'var(--text-muted)'}`}>{branch}</span>
                     <span class="tree-exp-name">{title}</span>
                     <span class="tree-dots"></span>
-                    <span class="tree-runs">{runCount} {runCount === 1 ? 'run' : 'runs'}</span>
+                    <span class="tree-runs">{group.latest.createdAt ? formatDate(group.latest.createdAt) : ''}</span>
                   </a>
                 );
               })
@@ -386,7 +370,6 @@ const layoutData = JSON.stringify({ organisms, junctions });
               const isLast = i === unsorted.length - 1;
               const branch = isLast ? '\u2514\u2500\u2500' : '\u251C\u2500\u2500';
               const title = getDisplayTitle(group);
-              const runCount = group.runs.length;
               return (
                 <a
                   href={`${base}experiments/${group.baseName}/`}
@@ -396,7 +379,7 @@ const layoutData = JSON.stringify({ organisms, junctions });
                   <span class="tree-branch" style="color: var(--text-muted)">{branch}</span>
                   <span class="tree-exp-name">{title}</span>
                   <span class="tree-dots"></span>
-                  <span class="tree-runs">{runCount} {runCount === 1 ? 'run' : 'runs'}</span>
+                  <span class="tree-runs">{group.latest.createdAt ? formatDate(group.latest.createdAt) : ''}</span>
                 </a>
               );
             })}
@@ -429,13 +412,6 @@ const layoutData = JSON.stringify({ organisms, junctions });
                   </feMerge>
                 </filter>
               ))}
-              <filter id="glow-junction" x="-50%" y="-50%" width="200%" height="200%">
-                <feGaussianBlur stdDeviation="4" result="blur" />
-                <feMerge>
-                  <feMergeNode in="blur" />
-                  <feMergeNode in="SourceGraphic" />
-                </feMerge>
-              </filter>
               <filter id="glow-root" x="-50%" y="-50%" width="200%" height="200%">
                 <feGaussianBlur stdDeviation="14" result="blur" />
                 <feMerge>
@@ -463,53 +439,6 @@ const layoutData = JSON.stringify({ organisms, junctions });
               />
             ))}
 
-            <!-- Junction tendrils -->
-            {junctionTendrils.map((t, i) => (
-              <path
-                class="tendril junction-tendril"
-                d={t.path}
-                stroke={t.color}
-                stroke-width="1"
-                fill="none"
-                opacity="0.25"
-                stroke-dasharray="4 4"
-                data-series={t.seriesId}
-                style={`--tendril-delay: ${(tendrils.length + i) * 0.08}s`}
-              />
-            ))}
-
-            <!-- Junction diamonds -->
-            {junctions.map((j) => (
-              <g
-                class="junction-group"
-                data-tag={j.tag}
-                data-series-ids={j.fromSeries.join(',')}
-              >
-                <rect
-                  x={j.cx - j.size / 2}
-                  y={j.cy - j.size / 2}
-                  width={j.size}
-                  height={j.size}
-                  rx="2"
-                  fill={j.color}
-                  opacity="0.35"
-                  transform={`rotate(45, ${j.cx}, ${j.cy})`}
-                  filter="url(#glow-junction)"
-                />
-                <text
-                  x={j.cx}
-                  y={j.cy + j.size / 2 + 14}
-                  text-anchor="middle"
-                  fill={j.color}
-                  font-size="9"
-                  opacity="0.5"
-                  font-family="var(--font-mono)"
-                >
-                  {j.tag}
-                </text>
-              </g>
-            ))}
-
             <!-- Root tendrils (organism → center) -->
             {rootTendrils.map((t, i) => (
               <path
@@ -521,7 +450,7 @@ const layoutData = JSON.stringify({ organisms, junctions });
                 opacity="0.35"
                 stroke-dasharray="6 4"
                 data-series={t.seriesId}
-                style={`--tendril-delay: ${(tendrils.length + junctionTendrils.length + i) * 0.08}s`}
+                style={`--tendril-delay: ${(tendrils.length + i) * 0.08}s`}
               />
             ))}
 
@@ -588,6 +517,32 @@ const layoutData = JSON.stringify({ organisms, junctions });
               </a>
             ))
           )}
+
+          <!-- Series indicators (on actual Bezier tendril paths) -->
+          {indicatorPoints.map((ind) => (
+            <div
+              class="series-indicator"
+              data-series={ind.seriesId}
+              data-no-pan
+              role="button"
+              tabindex="0"
+              style={`left:${ind.cx}px;top:${ind.cy}px;--ind-color:${ind.color}`}
+            >
+              <span class="indicator-ring" />
+              <span class="indicator-dot" />
+              <span class="indicator-name">{ind.name}</span>
+              <span class="indicator-count">
+                {ind.expCount > 0 ? `${ind.expCount} experiment${ind.expCount !== 1 ? 's' : ''}` : 'coming soon'}
+              </span>
+            </div>
+          ))}
+
+          <!-- Hub waypoint (shown when zoomed into a series) -->
+          <div id="hub-waypoint" class="hub-waypoint" style="display:none" data-no-pan>
+            <span class="hub-waypoint-ring" />
+            <span class="hub-waypoint-dot">&#9670;</span>
+            <span class="hub-waypoint-label">Hub</span>
+          </div>
         </div>
       </div>
 
@@ -620,6 +575,25 @@ const layoutData = JSON.stringify({ organisms, junctions });
           </span>
         ))}
       </div>
+
+      <!-- Zoom controls -->
+      <div class="zoom-controls" id="zoom-controls">
+        <button class="zoom-btn" id="zoom-in-btn" aria-label="Zoom in" title="Zoom in">
+          <span>+</span>
+        </button>
+        <button class="zoom-btn" id="zoom-out-btn" aria-label="Zoom out" title="Zoom out">
+          <span>&minus;</span>
+        </button>
+        <button class="zoom-btn" id="zoom-hub-btn" aria-label="Return to hub view" title="Hub view">
+          <span>&#9670;</span>
+        </button>
+        <button class="zoom-btn" id="zoom-fit-btn" aria-label="Fit all" title="Fit all">
+          <span>&#9635;</span>
+        </button>
+      </div>
+
+      <!-- Back to hub button (legacy, now hidden — replaced by zoom controls) -->
+      <button id="back-to-hub" class="back-to-hub" style="display:none" aria-hidden="true"></button>
     </div>
 
     <!-- STATUS BAR -->
@@ -1235,15 +1209,6 @@ const layoutData = JSON.stringify({ organisms, junctions });
   .rhizome-world.has-focus .tendril:not(.focused) {
     opacity: 0.05;
   }
-  .rhizome-world.has-focus .junction-group:not(.focused) {
-    opacity: 0.1;
-  }
-
-  /* --- Junction diamonds --- */
-  .junction-group {
-    transition: opacity 0.3s;
-  }
-
   /* --- Legend --- */
   .rhizome-legend {
     display: flex;
@@ -1501,6 +1466,268 @@ const layoutData = JSON.stringify({ organisms, junctions });
     line-height: 1.4;
     color: var(--text);
   }
+
+  /* ========== SERIES INDICATORS ========== */
+  /* Zero-sized anchor at the Bezier point; children positioned absolutely */
+  .series-indicator {
+    position: absolute;
+    z-index: 5;
+    width: 0;
+    height: 0;
+    overflow: visible;
+    border: none;
+    background: none;
+    padding: 0;
+    cursor: pointer;
+    transition: opacity 0.3s;
+    font-family: var(--font-mono);
+  }
+
+  /* Invisible hit area */
+  .series-indicator::before {
+    content: '';
+    position: absolute;
+    width: 60px;
+    height: 60px;
+    top: -30px;
+    left: -30px;
+    border-radius: 50%;
+  }
+
+  .indicator-ring {
+    position: absolute;
+    box-sizing: border-box;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    border: 1.5px solid var(--ind-color);
+    top: 0;
+    left: 0;
+    transform: translate(-50%, -50%);
+    opacity: 0.5;
+    pointer-events: none;
+    animation: indicator-pulse 2.5s ease-in-out infinite;
+  }
+
+  @keyframes indicator-pulse {
+    0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 0.5; }
+    50% { transform: translate(-50%, -50%) scale(1.3); opacity: 0.15; }
+  }
+
+  .indicator-dot {
+    position: absolute;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    top: 0;
+    left: 0;
+    transform: translate(-50%, -50%);
+    background: var(--ind-color);
+    opacity: 0.85;
+    box-shadow: 0 0 10px color-mix(in srgb, var(--ind-color) 60%, transparent);
+    pointer-events: none;
+    transition: transform 0.2s, opacity 0.2s;
+  }
+
+  .indicator-name {
+    position: absolute;
+    top: 12px;
+    left: 0;
+    transform: translateX(-50%);
+    font-size: 0.6rem;
+    font-weight: 600;
+    color: var(--ind-color);
+    white-space: nowrap;
+    pointer-events: none;
+    text-shadow: 0 0 10px color-mix(in srgb, var(--ind-color) 40%, transparent);
+  }
+
+  .indicator-count {
+    position: absolute;
+    top: 24px;
+    left: 0;
+    transform: translateX(-50%);
+    font-size: 0.5rem;
+    color: var(--ind-color);
+    opacity: 0.5;
+    white-space: nowrap;
+    pointer-events: none;
+  }
+
+  .series-indicator:hover .indicator-ring {
+    opacity: 0.8;
+    animation-play-state: paused;
+  }
+
+  .series-indicator:hover .indicator-dot {
+    opacity: 1;
+    transform: translate(-50%, -50%) scale(1.4);
+  }
+
+  .series-indicator:hover .indicator-name {
+    text-shadow: 0 0 14px color-mix(in srgb, var(--ind-color) 60%, transparent);
+  }
+
+  .rhizome-world.zoomed-out .series-indicator {
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  /* ========== HUB WAYPOINT (on-tendril back button) ========== */
+  .hub-waypoint {
+    position: absolute;
+    z-index: 6;
+    width: 0;
+    height: 0;
+    overflow: visible;
+    cursor: pointer;
+    font-family: var(--font-mono);
+  }
+
+  .hub-waypoint::before {
+    content: '';
+    position: absolute;
+    width: 48px;
+    height: 48px;
+    top: -24px;
+    left: -24px;
+    border-radius: 50%;
+  }
+
+  .hub-waypoint-ring {
+    position: absolute;
+    box-sizing: border-box;
+    width: 32px;
+    height: 32px;
+    border-radius: 50%;
+    border: 1.5px solid #60a5fa;
+    top: 0;
+    left: 0;
+    transform: translate(-50%, -50%);
+    opacity: 0.4;
+    pointer-events: none;
+    animation: hub-waypoint-pulse 2.5s ease-in-out infinite;
+  }
+
+  @keyframes hub-waypoint-pulse {
+    0%, 100% { transform: translate(-50%, -50%) scale(1); opacity: 0.4; }
+    50% { transform: translate(-50%, -50%) scale(1.25); opacity: 0.15; }
+  }
+
+  .hub-waypoint-dot {
+    position: absolute;
+    top: 0;
+    left: 0;
+    transform: translate(-50%, -50%);
+    font-size: 0.65rem;
+    color: #60a5fa;
+    text-shadow: 0 0 8px rgba(96, 165, 250, 0.6);
+    pointer-events: none;
+    line-height: 1;
+  }
+
+  .hub-waypoint-label {
+    position: absolute;
+    top: 14px;
+    left: 0;
+    transform: translateX(-50%);
+    font-size: 0.5rem;
+    font-weight: 600;
+    color: #60a5fa;
+    white-space: nowrap;
+    pointer-events: none;
+    opacity: 0.7;
+  }
+
+  .hub-waypoint:hover .hub-waypoint-ring {
+    opacity: 0.8;
+    animation-play-state: paused;
+  }
+
+  .hub-waypoint:hover .hub-waypoint-dot {
+    text-shadow: 0 0 14px rgba(96, 165, 250, 0.9);
+  }
+
+  .hub-waypoint:hover .hub-waypoint-label {
+    opacity: 1;
+  }
+
+  /* ========== BACK TO HUB BUTTON (legacy hidden) ========== */
+  .back-to-hub {
+    display: none !important;
+  }
+
+  /* ========== ZOOM CONTROLS ========== */
+  .zoom-controls {
+    position: absolute;
+    top: 12px;
+    left: 12px;
+    z-index: 15;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    background: rgba(13, 17, 23, 0.85);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    padding: 3px;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.4);
+  }
+
+  .zoom-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    border: none;
+    border-radius: 5px;
+    background: transparent;
+    color: var(--text-muted);
+    font-family: var(--font-mono);
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.12s, color 0.12s;
+    line-height: 1;
+  }
+
+  .zoom-btn:hover {
+    background: rgba(96, 165, 250, 0.15);
+    color: var(--accent);
+  }
+
+  .zoom-btn:active {
+    background: rgba(96, 165, 250, 0.25);
+  }
+
+  /* Hub button gets accent highlight */
+  #zoom-hub-btn {
+    font-size: 0.7rem;
+  }
+
+  /* Fit button uses a slightly smaller icon */
+  #zoom-fit-btn {
+    font-size: 0.8rem;
+  }
+
+  /* Separator between +/- and hub/fit */
+  #zoom-hub-btn::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 20%;
+    right: 20%;
+    height: 1px;
+    background: rgba(255, 255, 255, 0.08);
+  }
+
+  #zoom-hub-btn {
+    position: relative;
+    margin-top: 2px;
+    padding-top: 1px;
+  }
 </style>
 
 <script>
@@ -1552,7 +1779,7 @@ const layoutData = JSON.stringify({ organisms, junctions });
           shape: SporeShape;
         }[];
       }[];
-      junctions: { cx: number; cy: number; tag: string; fromSeries: string[] }[];
+      hubWaypoints: { seriesId: string; cx: number; cy: number }[];
     } = JSON.parse(layoutEl.textContent || '{}');
 
     // Build baseName → full spore data map
@@ -1563,23 +1790,24 @@ const layoutData = JSON.stringify({ organisms, junctions });
       }
     }
 
-    // Init pan-zoom (start zoomed out to see overview)
+    // Init pan-zoom (start zoomed in on hub)
+    const INITIAL_SCALE = 1.6;
+    const HUB_CX = 600;
+    const HUB_CY = 470; // ROOT_CY + 20 to center on visual mass (hub + label below)
     const pz = initPanZoom(viewport, world, {
       minScale: 0.3,
       maxScale: 2.5,
-      scale: 0.75,
+      scale: INITIAL_SCALE,
       hint: true,
     });
 
     // Center on the hub after init
     requestAnimationFrame(() => {
       const vpRect = viewport.getBoundingClientRect();
-      const cx = 600 * 0.75;  // ROOT_CX * scale
-      const cy = 450 * 0.75;  // ROOT_CY * scale
       pz.setState({
-        x: vpRect.width / 2 - cx,
-        y: vpRect.height / 2 - cy,
-        scale: 0.75,
+        x: vpRect.width / 2 - HUB_CX * INITIAL_SCALE,
+        y: vpRect.height / 2 - HUB_CY * INITIAL_SCALE,
+        scale: INITIAL_SCALE,
       }, false);
     });
 
@@ -1617,7 +1845,6 @@ const layoutData = JSON.stringify({ organisms, junctions });
     const allSpores = world.querySelectorAll<HTMLElement>('.spore-node');
     const allOrganisms = world.querySelectorAll<HTMLElement>('.organism');
     const allTendrils = world.querySelectorAll<SVGPathElement>('.tendril');
-    const allJunctions = world.querySelectorAll<SVGGElement>('.junction-group');
     let selectedIndex = -1;
 
     // --- Card functions ---
@@ -1713,17 +1940,12 @@ const layoutData = JSON.stringify({ organisms, junctions });
       allSpores.forEach(s => s.classList.remove('focused', 'dimmed'));
       allOrganisms.forEach(el => el.classList.remove('focused'));
       allTendrils.forEach(el => el.classList.remove('focused'));
-      allJunctions.forEach(el => el.classList.remove('focused'));
     }
 
     function highlightSeries(seriesId: string) {
       world.classList.add('has-focus');
       allOrganisms.forEach(el => el.classList.toggle('focused', el.dataset.series === seriesId));
       allTendrils.forEach(el => el.classList.toggle('focused', el.dataset.series === seriesId));
-      allJunctions.forEach(el => {
-        const ids = (el.dataset.seriesIds || '').split(',');
-        el.classList.toggle('focused', ids.includes(seriesId));
-      });
     }
 
     function focusSpore(baseName: string) {
@@ -1742,7 +1964,92 @@ const layoutData = JSON.stringify({ organisms, junctions });
       clearCatalogSync();
       clearRhizomeSync();
       selectedBaseName = null;
+      focusedSeriesId = null;
       hideCard();
+      hideHubWaypoint();
+    }
+
+    // --- Hub view state ---
+    const backBtn = document.getElementById('back-to-hub');
+    let isHubView = true;
+    let focusedSeriesId: string | null = null;
+
+    function showBackButton() {
+      if (backBtn) backBtn.style.display = '';
+    }
+
+    function hideBackButton() {
+      if (backBtn) backBtn.style.display = 'none';
+    }
+
+    // --- Hub waypoint (on-tendril back-to-hub) ---
+    const hubWaypointEl = document.getElementById('hub-waypoint');
+
+    function showHubWaypoint(seriesId: string) {
+      if (!hubWaypointEl) return;
+      const wp = layout.hubWaypoints.find(w => w.seriesId === seriesId);
+      if (!wp) return;
+      hubWaypointEl.style.left = `${wp.cx}px`;
+      hubWaypointEl.style.top = `${wp.cy}px`;
+      hubWaypointEl.style.display = '';
+    }
+
+    function hideHubWaypoint() {
+      if (hubWaypointEl) hubWaypointEl.style.display = 'none';
+    }
+
+    // Hub waypoint click → zoom back to hub
+    if (hubWaypointEl) {
+      hubWaypointEl.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        zoomToHub();
+      });
+    }
+
+    function computeSeriesFit(seriesId: string): { x: number; y: number; scale: number } | undefined {
+      const org = layout.organisms.find(o => o.id === seriesId);
+      if (!org) return;
+
+      let minX = org.cx, maxX = org.cx, minY = org.cy, maxY = org.cy;
+      for (const exp of org.experiments) {
+        minX = Math.min(minX, exp.cx - exp.size);
+        maxX = Math.max(maxX, exp.cx + exp.size);
+        minY = Math.min(minY, exp.cy - exp.size);
+        maxY = Math.max(maxY, exp.cy + exp.size);
+      }
+
+      const pad = 60;
+      minX -= pad; maxX += pad; minY -= pad; maxY += pad;
+
+      const bboxW = maxX - minX;
+      const bboxH = maxY - minY;
+      const vpRect = viewport.getBoundingClientRect();
+
+      const fitScale = Math.min(vpRect.width / bboxW, vpRect.height / bboxH, 2.5);
+      const centerX = (minX + maxX) / 2;
+      const centerY = (minY + maxY) / 2;
+
+      return {
+        x: vpRect.width / 2 - centerX * fitScale,
+        y: vpRect.height / 2 - centerY * fitScale,
+        scale: fitScale,
+      };
+    }
+
+    function zoomToHub() {
+      const vpRect = viewport.getBoundingClientRect();
+      pz.setState({
+        x: vpRect.width / 2 - HUB_CX * INITIAL_SCALE,
+        y: vpRect.height / 2 - HUB_CY * INITIAL_SCALE,
+        scale: INITIAL_SCALE,
+      }, true);
+      isHubView = true;
+      focusedSeriesId = null;
+      world.classList.remove('zoomed-out');
+      hideBackButton();
+      hideHubWaypoint();
+      clearAllSync();
     }
 
     // --- Catalog → Rhizome sync ---
@@ -1866,18 +2173,157 @@ const layoutData = JSON.stringify({ organisms, junctions });
       });
     });
 
+    // --- Series indicator click handlers (first click zooms, second navigates) ---
+    const indicators = world.querySelectorAll<HTMLElement>('.series-indicator');
+    indicators.forEach(ind => {
+      ind.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const seriesId = ind.dataset.series;
+        if (!seriesId) return;
+
+        // Second click on same series → navigate to series page
+        if (focusedSeriesId === seriesId) {
+          const orgLink = world.querySelector<HTMLAnchorElement>(`.organism[data-series="${seriesId}"]`);
+          if (orgLink) window.location.href = orgLink.href;
+          return;
+        }
+
+        const fit = computeSeriesFit(seriesId);
+        if (!fit) return;
+        pz.setState(fit, true);
+        highlightSeries(seriesId);
+        focusedSeriesId = seriesId;
+        isHubView = false;
+        world.classList.add('zoomed-out');
+        showBackButton();
+        showHubWaypoint(seriesId);
+      });
+    });
+
+    // --- Zoom controls ---
+    function zoomToFit() {
+      // Compute bounding box of all organisms + their experiments
+      let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+      for (const org of layout.organisms) {
+        minX = Math.min(minX, org.cx - 50);
+        maxX = Math.max(maxX, org.cx + 50);
+        minY = Math.min(minY, org.cy - 50);
+        maxY = Math.max(maxY, org.cy + 50);
+        for (const exp of org.experiments) {
+          minX = Math.min(minX, exp.cx - exp.size);
+          maxX = Math.max(maxX, exp.cx + exp.size);
+          minY = Math.min(minY, exp.cy - exp.size);
+          maxY = Math.max(maxY, exp.cy + exp.size);
+        }
+      }
+      // Include hub
+      minX = Math.min(minX, HUB_CX - 80);
+      maxX = Math.max(maxX, HUB_CX + 80);
+      minY = Math.min(minY, HUB_CY - 80);
+      maxY = Math.max(maxY, HUB_CY + 80);
+
+      const pad = 40;
+      minX -= pad; maxX += pad; minY -= pad; maxY += pad;
+
+      const vpRect = viewport.getBoundingClientRect();
+      const fitScale = Math.min(vpRect.width / (maxX - minX), vpRect.height / (maxY - minY), 2.5);
+      const centerX = (minX + maxX) / 2;
+      const centerY = (minY + maxY) / 2;
+
+      pz.setState({
+        x: vpRect.width / 2 - centerX * fitScale,
+        y: vpRect.height / 2 - centerY * fitScale,
+        scale: fitScale,
+      }, true);
+
+      isHubView = false;
+      focusedSeriesId = null;
+      world.classList.add('zoomed-out');
+      hideHubWaypoint();
+      clearAllSync();
+    }
+
+    const zoomInBtn = document.getElementById('zoom-in-btn');
+    const zoomOutBtn = document.getElementById('zoom-out-btn');
+    const zoomHubBtn = document.getElementById('zoom-hub-btn');
+    const zoomFitBtn = document.getElementById('zoom-fit-btn');
+
+    zoomInBtn?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const st = pz.getState();
+      const vpRect = viewport.getBoundingClientRect();
+      const cx = vpRect.width / 2;
+      const cy = vpRect.height / 2;
+      const newScale = Math.min(st.scale * 1.4, 2.5);
+      const ratio = newScale / st.scale;
+      pz.setState({
+        x: cx - ratio * (cx - st.x),
+        y: cy - ratio * (cy - st.y),
+        scale: newScale,
+      }, true);
+    });
+
+    zoomOutBtn?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const st = pz.getState();
+      const vpRect = viewport.getBoundingClientRect();
+      const cx = vpRect.width / 2;
+      const cy = vpRect.height / 2;
+      const newScale = Math.max(st.scale / 1.4, 0.3);
+      const ratio = newScale / st.scale;
+      pz.setState({
+        x: cx - ratio * (cx - st.x),
+        y: cy - ratio * (cy - st.y),
+        scale: newScale,
+      }, true);
+      // Transition to zoomed-out if below threshold
+      if (newScale < 1.2 && isHubView) {
+        isHubView = false;
+        world.classList.add('zoomed-out');
+      }
+    });
+
+    zoomHubBtn?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      zoomToHub();
+    });
+
+    zoomFitBtn?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      zoomToFit();
+    });
+
+    // --- Back to hub button (legacy) ---
+    if (backBtn) {
+      backBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        zoomToHub();
+      });
+    }
+
     // --- Dismiss on wheel (zoom) ---
     viewport.addEventListener('wheel', () => {
       if (cardVisible || selectedBaseName) {
         clearAllSync();
         selectedIndex = -1;
       }
+      // If user manually zooms below 1.2x from hub view, transition to zoomed-out
+      if (isHubView) {
+        const currentScale = pz.getState().scale;
+        if (currentScale < 1.2) {
+          isHubView = false;
+          world.classList.add('zoomed-out');
+          showBackButton();
+        }
+      }
     }, { passive: true });
 
     // --- Dismiss on background click ---
     viewport.addEventListener('pointerdown', (e: PointerEvent) => {
       const target = e.target as HTMLElement;
-      if (target.closest('.spore-node') || target.closest('.organism')) return;
+      if (target.closest('.spore-node') || target.closest('.organism') || target.closest('.series-indicator')) return;
       if (cardVisible || selectedBaseName) {
         clearAllSync();
         selectedIndex = -1;
@@ -1906,8 +2352,13 @@ const layoutData = JSON.stringify({ organisms, junctions });
         e.preventDefault();
         window.location.href = catalogRows[selectedIndex].href;
       } else if (e.key === 'Escape') {
-        clearAllSync();
-        selectedIndex = -1;
+        if (!isHubView) {
+          e.preventDefault();
+          zoomToHub();
+        } else {
+          clearAllSync();
+          selectedIndex = -1;
+        }
       }
     });
 
