@@ -38,6 +38,7 @@ metadata:
 provisioner: pd.csi.storage.gke.io
 parameters:
   type: hyperdisk-balanced
+  use-allowed-disk-topology: "true"
 volumeBindingMode: WaitForFirstConsumer
 allowVolumeExpansion: true
 reclaimPolicy: Delete
