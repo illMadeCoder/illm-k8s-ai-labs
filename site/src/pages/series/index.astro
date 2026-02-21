@@ -1,6 +1,5 @@
 ---
 import Base from '../../layouts/Base.astro';
-import Breadcrumb from '../../components/Breadcrumb.astro';
 import { loadAllExperiments, groupBySeries, groupExperiments, getAllTags, getDisplayTitle } from '../../lib/experiments';
 import { loadSeries } from '../../lib/series';
 import type { ExperimentGroup } from '../../lib/experiments';
@@ -200,6 +199,27 @@ for (const [tag, data] of Object.entries(tagToSeries)) {
   });
 }
 
+// Root node tendrils (organism → center)
+const ROOT_CX = CANVAS_W / 2;
+const ROOT_CY = CANVAS_H / 2;
+const rootTendrils: TendrilData[] = [];
+for (const org of organisms) {
+  const dx = ROOT_CX - org.cx;
+  const dy = ROOT_CY - org.cy;
+  const rngR = seededRandom(org.id.length * 3137 + 42);
+  const perpX = -dy * 0.2 * (rngR() - 0.5);
+  const perpY = dx * 0.2 * (rngR() - 0.5);
+  const cp1x = Math.round(org.cx + dx * 0.35 + perpX);
+  const cp1y = Math.round(org.cy + dy * 0.35 + perpY);
+  const cp2x = Math.round(org.cx + dx * 0.65 - perpX * 0.5);
+  const cp2y = Math.round(org.cy + dy * 0.65 - perpY * 0.5);
+  rootTendrils.push({
+    seriesId: org.id,
+    color: org.color,
+    path: `M ${org.cx} ${org.cy} C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${ROOT_CX} ${ROOT_CY}`,
+  });
+}
+
 // Junction tendrils
 const junctionTendrils: TendrilData[] = [];
 for (const junction of junctions) {
@@ -231,14 +251,6 @@ const layoutData = JSON.stringify({ organisms, junctions });
 ---
 
 <Base title="Series — K8s Cloud TestBed">
-  <Breadcrumb
-    crumbs={[
-      { label: 'Home', href: base },
-      { label: 'Series' },
-    ]}
-    slot="breadcrumb"
-  />
-
   <!-- Mobile: tab-based layout -->
   <div class="hybrid-mobile" id="hybrid-mobile">
     <div class="mobile-tabs" id="mobile-tabs">
@@ -320,6 +332,12 @@ const layoutData = JSON.stringify({ organisms, junctions });
   <div class="hybrid-container" id="hybrid-container">
     <!-- LEFT: Catalog pane -->
     <div class="catalog-pane" id="catalog-pane">
+      <!-- Arcade root node -->
+      <div class="catalog-root">
+        <span class="root-icon">&#9670;</span>
+        <span class="root-title">TESTBED UI</span>
+      </div>
+      <div class="root-connector">&#9482;</div>
       <div class="catalog-scroll" id="catalog-scroll">
         {seriesEntries.map(({ series, experiments: exps }) => (
           <div class="tree-series" data-series-id={series.id}>
@@ -418,6 +436,17 @@ const layoutData = JSON.stringify({ organisms, junctions });
                   <feMergeNode in="SourceGraphic" />
                 </feMerge>
               </filter>
+              <filter id="glow-root" x="-50%" y="-50%" width="200%" height="200%">
+                <feGaussianBlur stdDeviation="14" result="blur" />
+                <feMerge>
+                  <feMergeNode in="blur" />
+                  <feMergeNode in="SourceGraphic" />
+                </feMerge>
+              </filter>
+              <radialGradient id="root-haze" cx="50%" cy="50%" r="50%">
+                <stop offset="0%" stop-color="#60a5fa" stop-opacity="0.5" />
+                <stop offset="100%" stop-color="#60a5fa" stop-opacity="0" />
+              </radialGradient>
             </defs>
 
             <!-- Tendrils -->
@@ -480,7 +509,52 @@ const layoutData = JSON.stringify({ organisms, junctions });
                 </text>
               </g>
             ))}
+
+            <!-- Root tendrils (organism → center) -->
+            {rootTendrils.map((t, i) => (
+              <path
+                class="tendril root-tendril"
+                d={t.path}
+                stroke={t.color}
+                stroke-width="1.8"
+                fill="none"
+                opacity="0.35"
+                stroke-dasharray="6 4"
+                data-series={t.seriesId}
+                style={`--tendril-delay: ${(tendrils.length + junctionTendrils.length + i) * 0.08}s`}
+              />
+            ))}
+
+            <!-- Root hub -->
+            <g class="root-hub-group">
+              <!-- Outer orbital ring -->
+              <circle cx={ROOT_CX} cy={ROOT_CY} r="77"
+                fill="none" stroke="#60a5fa" stroke-width="0.7"
+                stroke-dasharray="5 7" opacity="0.3"
+                class="root-orbit" />
+              <!-- Background haze — adds visual MASS -->
+              <circle cx={ROOT_CX} cy={ROOT_CY} r="62"
+                fill="url(#root-haze)" opacity="0.18" />
+              <!-- Middle ring -->
+              <circle cx={ROOT_CX} cy={ROOT_CY} r="58"
+                fill="none" stroke="#60a5fa" stroke-width="2"
+                opacity="0.55" filter="url(#glow-root)" />
+              <!-- Core diamond -->
+              <rect x={ROOT_CX - 26} y={ROOT_CY - 26} width="52" height="52"
+                rx="4" fill="#60a5fa" opacity="0.75"
+                transform={`rotate(45, ${ROOT_CX}, ${ROOT_CY})`}
+                filter="url(#glow-root)" />
+              <!-- Inner glow -->
+              <circle cx={ROOT_CX} cy={ROOT_CY} r="31"
+                fill="#60a5fa" opacity="0.18"
+                class="root-core-pulse" />
+            </g>
           </svg>
+
+          <!-- Root node label -->
+          <div class="root-graph-node" style={`left:${ROOT_CX}px;top:${ROOT_CY}px`}>
+            <span class="root-graph-label">TESTBED UI</span>
+          </div>
 
           <!-- Organisms -->
           {organisms.map((org) => (
@@ -577,6 +651,37 @@ const layoutData = JSON.stringify({ organisms, junctions });
 </Base>
 
 <style>
+  /* ========== IMMERSIVE MODE: full-viewport takeover ========== */
+  /* !important needed to beat Tailwind utility classes (.py-8, .max-w-6xl, .mx-auto, .px-3)
+     which have class specificity (0,1,0) vs our type-only selectors (0,0,2) */
+  :global(body) {
+    height: 100dvh !important;
+    min-height: 100dvh !important;
+    overflow: hidden !important;
+  }
+
+  :global(body > header) {
+    display: none !important;
+  }
+
+  :global(body > nav[aria-label="Breadcrumb"]) {
+    display: none !important;
+  }
+
+  :global(body > main) {
+    padding: 0 !important;
+    margin: 0 !important;
+    max-width: none !important;
+    width: 100% !important;
+    flex: 1 !important;
+    min-height: 0 !important;
+    overflow: hidden !important;
+  }
+
+  :global(body > footer) {
+    display: none !important;
+  }
+
   /* ========== MOBILE: tab-based ========== */
   .hybrid-mobile {
     display: block;
@@ -635,10 +740,8 @@ const layoutData = JSON.stringify({ organisms, junctions });
       display: none;
     }
     .hybrid-container {
-      /* Break out of max-w-6xl parent */
-      margin-left: calc(-50vw + 50%);
-      width: 100vw;
-      height: calc(100vh - 120px);
+      width: 100%;
+      height: calc(100dvh - var(--toolbar-height, 0px));
       display: grid;
       grid-template-columns: var(--catalog-width, clamp(260px, 30%, 400px)) 6px 1fr;
       grid-template-rows: 1fr auto;
@@ -698,6 +801,99 @@ const layoutData = JSON.stringify({ organisms, junctions });
 
   .catalog-scroll::-webkit-scrollbar-thumb {
     background: var(--border);
+  }
+
+  /* ========== ARCADE ROOT NODE ========== */
+  .catalog-root {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.6rem 0.6rem 0.15rem;
+    user-select: none;
+    position: relative;
+    z-index: 1;
+  }
+
+  .root-icon {
+    font-size: 1.15rem;
+    color: var(--accent);
+    text-shadow:
+      0 0 6px var(--accent),
+      0 0 14px rgba(96, 165, 250, 0.4);
+    animation: arcade-pulse 2.5s ease-in-out infinite;
+  }
+
+  .root-title {
+    font-size: 0.85rem;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text);
+    text-shadow:
+      0 0 8px rgba(96, 165, 250, 0.35),
+      0 0 20px rgba(96, 165, 250, 0.15);
+  }
+
+  .root-connector {
+    padding: 0 0.85rem;
+    line-height: 1;
+    font-size: 0.8rem;
+    color: var(--accent);
+    opacity: 0.4;
+    user-select: none;
+  }
+
+  @keyframes arcade-pulse {
+    0%, 100% { opacity: 1; text-shadow: 0 0 6px var(--accent), 0 0 14px rgba(96, 165, 250, 0.4); }
+    50% { opacity: 0.85; text-shadow: 0 0 3px var(--accent), 0 0 8px rgba(96, 165, 250, 0.25); }
+  }
+
+  /* ========== ROOT GRAPH NODE ========== */
+  .root-graph-node {
+    position: absolute;
+    transform: translate(-50%, -50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    z-index: 4;
+    pointer-events: none;
+  }
+
+  .root-graph-label {
+    font-size: 0.85rem;
+    font-weight: 800;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: #e2e8f0;
+    text-shadow:
+      0 0 8px rgba(96, 165, 250, 0.5),
+      0 0 20px rgba(96, 165, 250, 0.25);
+    margin-top: 86px;
+    white-space: nowrap;
+    padding: 0.15rem 0.6rem;
+    background: rgba(13, 17, 23, 0.7);
+    border: 1px solid rgba(96, 165, 250, 0.2);
+    border-radius: 4px;
+  }
+
+  /* Hub animations */
+  .root-orbit {
+    transform-origin: center;
+    animation: root-orbit-spin 30s linear infinite;
+  }
+
+  .root-core-pulse {
+    animation: root-core-breathe 2.5s ease-in-out infinite;
+  }
+
+  @keyframes root-orbit-spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+
+  @keyframes root-core-breathe {
+    0%, 100% { opacity: 0.18; r: 31; }
+    50% { opacity: 0.08; r: 38; }
   }
 
   /* ========== TREE STYLES (shared catalog + mobile) ========== */
@@ -950,6 +1146,10 @@ const layoutData = JSON.stringify({ organisms, junctions });
     text-shadow: 0 0 12px color-mix(in srgb, var(--org-color) 50%, transparent);
     white-space: nowrap;
     pointer-events: none;
+    padding: 0.1rem 0.45rem;
+    background: rgba(13, 17, 23, 0.5);
+    border: 1px solid color-mix(in srgb, var(--org-color) 20%, transparent);
+    border-radius: 3px;
   }
 
   .organism-soon {
@@ -1367,8 +1567,20 @@ const layoutData = JSON.stringify({ organisms, junctions });
     const pz = initPanZoom(viewport, world, {
       minScale: 0.3,
       maxScale: 2.5,
-      scale: 0.65,
+      scale: 0.75,
       hint: true,
+    });
+
+    // Center on the hub after init
+    requestAnimationFrame(() => {
+      const vpRect = viewport.getBoundingClientRect();
+      const cx = 600 * 0.75;  // ROOT_CX * scale
+      const cy = 450 * 0.75;  // ROOT_CY * scale
+      pz.setState({
+        x: vpRect.width / 2 - cx,
+        y: vpRect.height / 2 - cy,
+        scale: 0.75,
+      }, false);
     });
 
     // --- Floating card refs ---
@@ -1750,6 +1962,17 @@ const layoutData = JSON.stringify({ organisms, junctions });
       document.addEventListener('touchmove', onDivDrag, { passive: false });
       document.addEventListener('mouseup', endDivDrag);
       document.addEventListener('touchend', endDivDrag);
+    }
+
+    // --- Sync with AI toolbar height ---
+    const convPanel = document.querySelector<HTMLElement>('.conv-panel');
+    const hybridEl = document.getElementById('hybrid-container');
+    if (convPanel && hybridEl) {
+      const observer = new ResizeObserver(() => {
+        const toolbarH = convPanel.getBoundingClientRect().height;
+        hybridEl.style.setProperty('--toolbar-height', `${toolbarH}px`);
+      });
+      observer.observe(convPanel);
     }
   });
 </script>

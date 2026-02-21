@@ -69,6 +69,8 @@ export function initPanZoom(
   // --- Mouse drag ---
   function onPointerDown(e: PointerEvent) {
     if (e.button !== 0) return;
+    const target = e.target as HTMLElement;
+    if (target.closest('a, button, [data-no-pan]')) return;
     isDragging = true;
     startX = e.clientX;
     startY = e.clientY;
