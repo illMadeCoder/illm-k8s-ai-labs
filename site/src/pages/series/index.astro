@@ -318,7 +318,7 @@ const layoutData = JSON.stringify({ organisms, hubWaypoints });
     <!-- LEFT: Catalog pane -->
     <div class="catalog-pane" id="catalog-pane">
       <!-- Arcade root node -->
-      <div class="catalog-root">
+      <div class="catalog-root" id="catalog-root">
         <span class="root-icon">&#9670;</span>
         <span class="root-title">TESTBED UI</span>
       </div>
@@ -2258,6 +2258,13 @@ const layoutData = JSON.stringify({ organisms, hubWaypoints });
         zoomToSeries(seriesId);
       });
     });
+
+    // --- Catalog root click → zoom to hub ---
+    const catalogRoot = document.getElementById('catalog-root');
+    if (catalogRoot) {
+      catalogRoot.style.cursor = 'pointer';
+      catalogRoot.addEventListener('click', () => zoomToHub());
+    }
 
     // --- Zoom controls ---
     function zoomToFit() {
