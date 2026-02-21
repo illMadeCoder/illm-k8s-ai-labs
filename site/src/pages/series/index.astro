@@ -2212,6 +2212,20 @@ const layoutData = JSON.stringify({ organisms, hubWaypoints });
       });
     });
 
+    // --- Zoom to series (shared by indicators + catalog headers) ---
+    function zoomToSeries(seriesId: string) {
+      const fit = computeSeriesFit(seriesId);
+      if (!fit) return;
+      clearAllSync();
+      pz.setState(fit, true);
+      highlightSeries(seriesId);
+      focusedSeriesId = seriesId;
+      isHubView = false;
+      world.classList.add('zoomed-out');
+      showBackButton();
+      showHubWaypoint(seriesId);
+    }
+
     // --- Series indicator click handlers (first click zooms, second navigates) ---
     const indicators = world.querySelectorAll<HTMLElement>('.series-indicator');
     indicators.forEach(ind => {
@@ -2228,15 +2242,20 @@ const layoutData = JSON.stringify({ organisms, hubWaypoints });
           return;
         }
 
-        const fit = computeSeriesFit(seriesId);
-        if (!fit) return;
-        pz.setState(fit, true);
-        highlightSeries(seriesId);
-        focusedSeriesId = seriesId;
-        isHubView = false;
-        world.classList.add('zoomed-out');
-        showBackButton();
-        showHubWaypoint(seriesId);
+        zoomToSeries(seriesId);
+      });
+    });
+
+    // --- Catalog series name click → zoom to series ---
+    const catalogSeriesNames = document.querySelectorAll<HTMLElement>('#catalog-scroll .tree-series-name');
+    catalogSeriesNames.forEach(nameEl => {
+      nameEl.style.cursor = 'pointer';
+      nameEl.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const seriesEl = nameEl.closest<HTMLElement>('.tree-series');
+        const seriesId = seriesEl?.dataset.seriesId;
+        if (!seriesId || seriesId === '_unsorted') return;
+        zoomToSeries(seriesId);
       });
     });
 
