@@ -1184,18 +1184,18 @@ const layoutData = JSON.stringify({ organisms, hubWaypoints });
     transform: translateX(-50%);
     margin-top: 4px;
     font-family: var(--font-mono);
-    font-size: 0.45rem;
+    font-size: 0.4rem;
     font-weight: 500;
     color: var(--spore-color);
     opacity: 0.3;
-    white-space: nowrap;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    max-width: 80px;
+    white-space: normal;
+    overflow-wrap: break-word;
+    word-break: keep-all;
+    width: 90px;
     text-align: center;
     pointer-events: none;
-    line-height: 1.2;
-    letter-spacing: 0.01em;
+    line-height: 1.25;
+    letter-spacing: -0.01em;
     transition: opacity 0.2s;
   }
 
