@@ -884,6 +884,7 @@ const layoutData = JSON.stringify({ organisms, rootTendrils: rootTendrilData, da
           <span class="scard-count"></span>
         </div>
         <div class="scard-body"></div>
+        <div class="scard-covers"></div>
         <div class="scard-sources"></div>
         <div class="scard-experiments"></div>
       </div>
@@ -1968,7 +1969,8 @@ const layoutData = JSON.stringify({ organisms, rootTendrils: rootTendrilData, da
     position: absolute;
     z-index: 21;
     display: none;
-    width: min(640px, 80vw);
+    width: min-content;
+    max-width: min(640px, 80vw);
     padding: 0.85rem 1rem;
     overflow: hidden;
     background: rgba(13, 17, 23, 0.88);
@@ -2061,11 +2063,72 @@ const layoutData = JSON.stringify({ organisms, rootTendrils: rootTendrilData, da
     margin-bottom: 0.5rem;
   }
 
+  .scard-covers {
+    display: flex;
+    gap: 0.6rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .scard-covers:empty {
+    display: none;
+  }
+
+  .scard-covers :global(.scard-cover-item) {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.25rem;
+    text-decoration: none;
+  }
+
+  .scard-covers :global(.scard-cover-item img) {
+    width: 56px;
+    border-radius: 3px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    transition: border-color 0.15s;
+  }
+
+  .scard-covers :global(.scard-cover-item:hover img) {
+    border-color: var(--scard-color, var(--accent));
+  }
+
+  .scard-covers :global(.scard-cover-title) {
+    font-size: 0.5rem;
+    color: var(--text-muted);
+    text-align: center;
+    max-width: 64px;
+    line-height: 1.2;
+    transition: color 0.15s;
+  }
+
+  .scard-covers :global(.scard-cover-item:hover .scard-cover-title) {
+    color: var(--text);
+  }
+
+  .scard-covers :global(.scard-cover-placeholder) {
+    width: 56px;
+    aspect-ratio: 0.72;
+    border-radius: 3px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: border-color 0.15s;
+  }
+
+  .scard-covers :global(.scard-cover-item:hover .scard-cover-placeholder) {
+    border-color: var(--scard-color, var(--accent));
+  }
+
+  .scard-covers :global(.scard-cover-placeholder svg) {
+    width: 24px;
+    height: 24px;
+  }
+
   .scard-sources {
     display: flex;
     flex-wrap: wrap;
-    gap: 0.6rem;
-    align-items: flex-start;
+    gap: 0.35rem;
     margin-bottom: 0.5rem;
   }
 
@@ -2073,62 +2136,29 @@ const layoutData = JSON.stringify({ organisms, rootTendrils: rootTendrilData, da
     display: none;
   }
 
-  .scard-source {
-    display: flex;
-    flex-direction: column;
+  .scard-sources :global(.scard-src) {
+    display: inline-flex;
     align-items: center;
     gap: 0.3rem;
+    padding: 0.2rem 0.45rem;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 3px;
     text-decoration: none;
-    flex-shrink: 0;
-  }
-
-  .scard-source img {
-    width: 48px;
-    height: 64px;
-    border-radius: 3px;
-    object-fit: cover;
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    transition: border-color 0.15s;
-  }
-
-  .scard-source:hover img {
-    border-color: var(--scard-color, var(--accent));
-  }
-
-  .scard-source-icon {
-    width: 48px;
-    height: 64px;
-    border-radius: 3px;
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    background: rgba(255, 255, 255, 0.03);
-    transition: border-color 0.15s;
-  }
-
-  .scard-source:hover .scard-source-icon {
-    border-color: var(--scard-color, var(--accent));
-  }
-
-  .scard-source-icon svg {
-    width: 18px;
-    height: 18px;
     color: var(--text-muted);
-    opacity: 0.5;
+    font-size: 0.6rem;
+    line-height: 1;
+    transition: border-color 0.15s, color 0.15s;
   }
 
-  .scard-source-title {
-    font-size: 0.55rem;
-    color: var(--text-muted);
-    text-align: center;
-    max-width: 64px;
-    line-height: 1.3;
-    transition: color 0.15s;
-  }
-
-  .scard-source:hover .scard-source-title {
+  .scard-sources :global(.scard-src:hover) {
+    border-color: var(--scard-color, var(--accent));
     color: var(--text);
+  }
+
+  .scard-sources :global(.scard-src svg) {
+    width: 12px;
+    height: 12px;
+    flex-shrink: 0;
   }
 
   .scard-experiments {
@@ -2139,7 +2169,7 @@ const layoutData = JSON.stringify({ organisms, rootTendrils: rootTendrilData, da
     gap: 0.3rem;
   }
 
-  .scard-exp {
+  .scard-experiments :global(.scard-exp) {
     font-size: 0.6rem;
     padding: 0.1rem 0.4rem;
     border: 1px solid rgba(255, 255, 255, 0.08);
@@ -2147,14 +2177,21 @@ const layoutData = JSON.stringify({ organisms, rootTendrils: rootTendrilData, da
     color: var(--text-muted);
     text-decoration: none;
     transition: color 0.1s, border-color 0.1s;
+    white-space: nowrap;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
-  .scard-exp:hover {
+  .scard-experiments :global(.scard-exp:hover) {
     color: var(--text);
     border-color: var(--scard-color, var(--accent));
   }
 
   @media (max-width: 767px) {
+    .scard-covers {
+      display: none !important;
+    }
     .scard-sources {
       display: none !important;
     }
@@ -2964,8 +3001,32 @@ const layoutData = JSON.stringify({ organisms, rootTendrils: rootTendrilData, da
     const scardName = scard.querySelector<HTMLElement>('.scard-name')!;
     const scardCount = scard.querySelector<HTMLElement>('.scard-count')!;
     const scardBody = scard.querySelector<HTMLElement>('.scard-body')!;
+    const scardCovers = scard.querySelector<HTMLElement>('.scard-covers')!;
     const scardSources = scard.querySelector<HTMLElement>('.scard-sources')!;
     const scardExperiments = scard.querySelector<HTMLElement>('.scard-experiments')!;
+
+    // Platform icon SVGs (12×12, inline)
+    const srcIcons: Record<string, string> = {
+      youtube: `<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" style="color:#f00"><path d="M23.5 6.19a3.02 3.02 0 0 0-2.12-2.14C19.5 3.5 12 3.5 12 3.5s-7.5 0-9.38.55A3.02 3.02 0 0 0 .5 6.19 31.6 31.6 0 0 0 0 12a31.6 31.6 0 0 0 .5 5.81 3.02 3.02 0 0 0 2.12 2.14c1.88.55 9.38.55 9.38.55s7.5 0 9.38-.55a3.02 3.02 0 0 0 2.12-2.14A31.6 31.6 0 0 0 24 12a31.6 31.6 0 0 0-.5-5.81zM9.75 15.02V8.98L15.5 12l-5.75 3.02z"/></svg>`,
+      udemy: `<svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" style="color:#a435f0"><path d="M12 0L5.81 3.57v3.82L12 3.82l6.19 3.57V3.57zm0 7.64L5.81 11.2v8.23c0 2.53 2.77 4.57 6.19 4.57s6.19-2.04 6.19-4.57V11.2z"/></svg>`,
+      book: `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg>`,
+      link: `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>`,
+    };
+
+    function srcIcon(url: string, hasImage: boolean): string {
+      if (hasImage) return srcIcons.book;
+      if (url.includes('youtube.com') || url.includes('youtu.be')) return srcIcons.youtube;
+      if (url.includes('udemy.com')) return srcIcons.udemy;
+      return srcIcons.link;
+    }
+
+    function platformTile(url: string): { icon: string; bg: string } {
+      if (url.includes('youtube.com') || url.includes('youtu.be'))
+        return { icon: srcIcons.youtube, bg: 'rgba(255,0,0,0.12)' };
+      if (url.includes('udemy.com'))
+        return { icon: srcIcons.udemy, bg: 'rgba(164,53,240,0.12)' };
+      return { icon: srcIcons.link, bg: 'rgba(255,255,255,0.06)' };
+    }
 
     let seriesCardVisible = false;
     let selectedSeriesId: string | null = null;
@@ -3158,18 +3219,27 @@ const layoutData = JSON.stringify({ organisms, rootTendrils: rootTendrilData, da
       // Body
       scardBody.textContent = data.body;
 
-      // Sources (linked book covers / references)
+      // Sources — all rendered as cover-item tiles in one row
       if (data.sources.length > 0) {
-        const linkIcon = `<div class="scard-source-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></div>`;
-        scardSources.innerHTML = data.sources.map(src => {
-          const visual = src.image
-            ? `<img src="${layout.base}${src.image}" alt="${src.title}" />`
-            : linkIcon;
-          return `<a class="scard-source" href="${src.url}" target="_blank" rel="noopener" style="--scard-color:${data.color}">${visual}<span class="scard-source-title">${src.title}</span></a>`;
+        const base = import.meta.env.BASE_URL;
+        scardCovers.innerHTML = data.sources.map(src => {
+          const label = src.title.replace(/\s*\((?:YouTube|Udemy|Web)\)\s*$/, '');
+          if (src.image) {
+            return `<a class="scard-cover-item" href="${src.url}" target="_blank" rel="noopener" style="--scard-color:${data.color}">` +
+              `<img src="${base}${src.image}" alt="${label}" />` +
+              `<span class="scard-cover-title">${label}</span>` +
+            `</a>`;
+          }
+          const tile = platformTile(src.url);
+          return `<a class="scard-cover-item" href="${src.url}" target="_blank" rel="noopener" style="--scard-color:${data.color}">` +
+            `<div class="scard-cover-placeholder" style="background:${tile.bg}">${tile.icon}</div>` +
+            `<span class="scard-cover-title">${label}</span>` +
+          `</a>`;
         }).join('');
       } else {
-        scardSources.innerHTML = '';
+        scardCovers.innerHTML = '';
       }
+      scardSources.innerHTML = '';
 
       // Experiment list
       if (data.experiments.length > 0) {
