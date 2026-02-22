@@ -6,4 +6,9 @@ export default defineConfig({
   base: '/k8s-ai-cloud-testbed/',
   trailingSlash: 'always',
   integrations: [tailwind()],
+  vite: {
+    optimizeDeps: {
+      include: ['mermaid', 'vega-embed'],
+    },
+  },
 });
