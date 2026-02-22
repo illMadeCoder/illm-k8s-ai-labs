@@ -4,6 +4,7 @@
       "id": "this-lab",
       "name": "This Lab",
       "description": "Building and benchmarking the lab itself — operator lifecycle, observability stack, CI/CD, site publishing",
+      "body": "A Kubernetes experiment operator that provisions ephemeral cloud clusters, deploys competing technology stacks, runs standardized workloads, and publishes AI-analyzed results. Each experiment is idempotent and reproducible — infrastructure as code from hub to teardown.",
       "color": "#a78bfa",
       "shape": "circle"
     },
@@ -11,6 +12,7 @@
       "id": "ecosystem-comparisons",
       "name": "Ecosystem Venn Diagram",
       "description": "Head-to-head comparisons of CNCF and commercial tools across ingress, service mesh, and more",
+      "body": "Systematic side-by-side benchmarks of overlapping CNCF and commercial tools. Each comparison deploys identical workloads on identical clusters, measures latency, throughput, resource consumption, and operational complexity, then lets AI distill the trade-offs.",
       "color": "#34d399",
       "shape": "diamond"
     },
@@ -18,7 +20,32 @@
       "id": "cloud-database-internals",
       "name": "Cloud Database Internals",
       "description": "Benchmarking cloud-native databases — NewSQL, distributed KV, time-series, and object storage",
+      "body": "Hands-on exploration of cloud-native database engines — from foundational concepts like flash vs. magnetic storage to distributed consensus and storage tiering.",
+      "sources": [
+        {
+          "title": "Designing Data-Intensive Applications",
+          "url": "https://dataintensive.net/",
+          "image": "images/series/ddia.jpg"
+        },
+        {
+          "title": "Database Internals",
+          "url": "https://www.databass.dev/",
+          "image": "images/series/database-internals.jpg"
+        },
+        {
+          "title": "Database Engineering (YouTube)",
+          "url": "https://www.youtube.com/playlist?list=PLQnljOFTspQXjD0HOzN7P2tgzu7scWpl2"
+        },
+        {
+          "title": "Fundamentals of Database Engineering (Udemy)",
+          "url": "https://www.udemy.com/course/database-engines-crash-course/"
+        }
+      ],
       "order": ["db-fvm", "db-dsc", "db-st"],
+      "dag": {
+        "db-fvm": ["db-dsc"],
+        "db-dsc": ["db-st"]
+      },
       "color": "#f97316",
       "shape": "hexagon"
     },
@@ -26,6 +53,7 @@
       "id": "messages-and-streams",
       "name": "Messages and Streams",
       "description": "Evaluating message brokers and streaming platforms — Kafka, NATS, Pulsar, RabbitMQ, and beyond",
+      "body": "A tour of event-driven architectures and messaging systems. From simple pub/sub to partitioned logs and exactly-once semantics — each experiment benchmarks real throughput, latency percentiles, and failure recovery across competing platforms.",
       "color": "#38bdf8",
       "shape": "triangle"
     },
@@ -33,6 +61,7 @@
       "id": "identity",
       "name": "Identity & Access",
       "description": "From separate passwords to SSO — a hands-on journey through authentication, LDAP, SAML, and OIDC",
+      "body": "A progressive journey from standalone passwords through LDAP, SAML 2.0, and OpenID Connect. Each step builds on the last, demonstrating why federated identity exists and how modern SSO protocols work under the hood.",
       "order": ["id-101", "id-102", "id-103", "id-104"],
       "color": "#e879f9",
       "shape": "square"

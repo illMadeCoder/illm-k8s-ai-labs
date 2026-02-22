@@ -10,5 +10,8 @@ export default defineConfig({
     optimizeDeps: {
       include: ['mermaid', 'vega-embed'],
     },
+    server: {
+      allowedHosts: true,
+    },
   },
 });
