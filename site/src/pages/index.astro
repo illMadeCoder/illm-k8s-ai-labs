@@ -1141,6 +1141,82 @@ const layoutData = JSON.stringify({ organisms, rootTendrils: rootTendrilData, da
     color: var(--text-muted);
   }
 
+  /* Series expand card needs more height for covers + experiment list */
+  :global(.tree-expand-series.open) {
+    max-height: 600px;
+  }
+
+  #mobile-catalog :global(.tree-header.previewing) {
+    background: color-mix(in srgb, var(--accent) 12%, transparent);
+  }
+
+  :global(.sxp-shape) {
+    display: inline-block;
+    flex-shrink: 0;
+    width: 10px;
+    height: 10px;
+  }
+  :global(.sxp-shape[data-shape="circle"]) { border-radius: 50%; }
+  :global(.sxp-shape[data-shape="diamond"]) { transform: rotate(45deg); }
+  :global(.sxp-shape[data-shape="hexagon"]) { clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%); }
+  :global(.sxp-shape[data-shape="triangle"]) { clip-path: polygon(50% 0%, 100% 100%, 0% 100%); }
+
+  :global(.sxp-name) {
+    font-size: 0.9rem;
+    font-weight: 700;
+    line-height: 1.2;
+  }
+
+  :global(.sxp-covers) {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+  :global(.sxp-cover) {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.2rem;
+    text-decoration: none;
+    flex-shrink: 0;
+  }
+  :global(.sxp-cover img) {
+    width: 52px;
+    border-radius: 3px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    transition: border-color 0.15s;
+  }
+  :global(.sxp-cover:hover img),
+  :global(.sxp-cover:active img) {
+    border-color: var(--expand-color, var(--accent));
+  }
+  :global(.sxp-cover-ph) {
+    width: 52px;
+    aspect-ratio: 0.72;
+    border-radius: 3px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: border-color 0.15s;
+  }
+  :global(.sxp-cover:hover .sxp-cover-ph),
+  :global(.sxp-cover:active .sxp-cover-ph) {
+    border-color: var(--expand-color, var(--accent));
+  }
+  :global(.sxp-cover-label) {
+    font-size: 0.48rem;
+    color: var(--text-muted);
+    text-align: center;
+    max-width: 60px;
+    line-height: 1.2;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
   /* --- Mobile rhizome (reuses desktop hybrid-container) --- */
   .hybrid-container.mobile-rhizome-active {
     display: block !important;
@@ -2153,10 +2229,7 @@ const layoutData = JSON.stringify({ organisms, rootTendrils: rootTendrilData, da
 
   @media (max-width: 767px) {
     .scard-covers {
-      display: none !important;
-    }
-    .scard-sources {
-      display: none !important;
+      flex-wrap: wrap;
     }
   }
 
@@ -2711,8 +2784,30 @@ const layoutData = JSON.stringify({ organisms, rootTendrils: rootTendrilData, da
       }
     }
 
+    // Build seriesId → series info map (used by mobile expand)
+    interface MobileSeriesData {
+      id: string; name: string; description: string; body: string;
+      color: string; shape: string; image: string | null;
+      sources: { title: string; url: string; image?: string }[];
+      cx: number; cy: number; expCount: number;
+    }
+    const mobileSeriesMap: Record<string, MobileSeriesData> = {};
+    for (const org of layout.organisms) {
+      mobileSeriesMap[org.id] = {
+        id: org.id, name: org.name,
+        description: org.description,
+        body: org.body || org.description,
+        color: org.color, shape: org.shape || 'circle',
+        image: org.image || null,
+        sources: org.sources || [],
+        cx: org.cx, cy: org.cy,
+        expCount: org.experiments.length,
+      };
+    }
+
     // --- Mobile state ---
     let mobileSelectedBaseName: string | null = null;
+    let mobileSelectedSeriesId: string | null = null;
 
     // --- Mobile tab switching ---
     const mobileTabs = document.querySelectorAll<HTMLButtonElement>('#mobile-tabs .mobile-tab');
@@ -2724,8 +2819,9 @@ const layoutData = JSON.stringify({ organisms, rootTendrils: rootTendrilData, da
       pz: ReturnType<typeof initPanZoom> | null;
       hubCx: number; hubCy: number;
       selectSpore: ((baseName: string) => void) | null;
+      selectSeries: ((seriesId: string) => void) | null;
     } = {
-      pz: null, hubCx: 600, hubCy: 470, selectSpore: null,
+      pz: null, hubCx: 600, hubCy: 470, selectSpore: null, selectSeries: null,
     };
 
     mobileTabs.forEach(tab => {
@@ -2738,13 +2834,14 @@ const layoutData = JSON.stringify({ organisms, rootTendrils: rootTendrilData, da
           if (mobileCatalog) mobileCatalog.style.display = 'none';
           if (mobileHybrid) {
             mobileHybrid.classList.add('mobile-rhizome-active');
-            // Center on selected experiment, or fall back to hub overview
+            // Center on selected experiment/series, or fall back to hub overview
             requestAnimationFrame(() => {
               const vp = document.getElementById('rhizome-viewport');
               if (vp && pzState.pz) {
                 const vpRect = vp.getBoundingClientRect();
                 if (vpRect.width > 0) {
                   const selected = mobileSelectedBaseName ? sporeDataMap[mobileSelectedBaseName] : null;
+                  const selectedSeries = mobileSelectedSeriesId ? mobileSeriesMap[mobileSelectedSeriesId] : null;
                   if (selected) {
                     // Zoom to selected experiment + highlight it in rhizome
                     const focusScale = 1.4;
@@ -2754,6 +2851,15 @@ const layoutData = JSON.stringify({ organisms, rootTendrils: rootTendrilData, da
                       scale: focusScale,
                     }, false);
                     if (pzState.selectSpore) pzState.selectSpore(mobileSelectedBaseName!);
+                  } else if (selectedSeries) {
+                    // Zoom to selected series organism + show series card
+                    const focusScale = 1.2;
+                    pzState.pz.setState({
+                      x: vpRect.width / 2 - selectedSeries.cx * focusScale,
+                      y: vpRect.height / 2 - selectedSeries.cy * focusScale,
+                      scale: focusScale,
+                    }, false);
+                    if (pzState.selectSeries) pzState.selectSeries(mobileSelectedSeriesId!);
                   } else {
                     // No selection — show full graph overview
                     pzState.pz.setState({
@@ -2802,6 +2908,46 @@ const layoutData = JSON.stringify({ organisms, rootTendrils: rootTendrilData, da
       return wrap;
     }
 
+    function buildSeriesExpandCard(data: MobileSeriesData): HTMLElement {
+      const wrap = document.createElement('div');
+      wrap.className = 'tree-expand tree-expand-series';
+      const base = layout.base;
+      // Source cover tiles
+      let coversHtml = '';
+      if (data.sources.length > 0) {
+        coversHtml = '<div class="sxp-covers">' + data.sources.map(src => {
+          const label = src.title.replace(/\s*\((?:YouTube|Udemy|Web)\)\s*$/, '');
+          if (src.image) {
+            return `<a class="sxp-cover" href="${src.url}" target="_blank" rel="noopener" style="--expand-color:${data.color}">` +
+              `<img src="${base}${src.image}" alt="${label}" />` +
+              `<span class="sxp-cover-label">${label}</span></a>`;
+          }
+          let bg = 'rgba(255,255,255,0.06)';
+          let icon = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>`;
+          if (src.url.includes('youtube.com') || src.url.includes('youtu.be')) {
+            bg = 'rgba(255,0,0,0.12)';
+            icon = `<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="color:#f00"><path d="M23.5 6.19a3.02 3.02 0 0 0-2.12-2.14C19.5 3.5 12 3.5 12 3.5s-7.5 0-9.38.55A3.02 3.02 0 0 0 .5 6.19 31.6 31.6 0 0 0 0 12a31.6 31.6 0 0 0 .5 5.81 3.02 3.02 0 0 0 2.12 2.14c1.88.55 9.38.55 9.38.55s7.5 0 9.38-.55a3.02 3.02 0 0 0 2.12-2.14A31.6 31.6 0 0 0 24 12a31.6 31.6 0 0 0-.5-5.81zM9.75 15.02V8.98L15.5 12l-5.75 3.02z"/></svg>`;
+          } else if (src.url.includes('udemy.com')) {
+            bg = 'rgba(164,53,240,0.12)';
+            icon = `<svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" style="color:#a435f0"><path d="M12 0L5.81 3.57v3.82L12 3.82l6.19 3.57V3.57zm0 7.64L5.81 11.2v8.23c0 2.53 2.77 4.57 6.19 4.57s6.19-2.04 6.19-4.57V11.2z"/></svg>`;
+          }
+          return `<a class="sxp-cover" href="${src.url}" target="_blank" rel="noopener" style="--expand-color:${data.color}">` +
+            `<div class="sxp-cover-ph" style="background:${bg}">${icon}</div>` +
+            `<span class="sxp-cover-label">${label}</span></a>`;
+        }).join('') + '</div>';
+      }
+      wrap.innerHTML = `<div class="tree-expand-card" style="--expand-color:${data.color}">
+        <div class="card-header">
+          <span class="sxp-shape" data-shape="${data.shape}" style="background:${data.color}"></span>
+          <span class="sxp-name" style="color:${data.color}">${data.name}</span>
+          <span class="card-runs">${data.expCount} experiment${data.expCount !== 1 ? 's' : ''}</span>
+        </div>
+        <p class="card-desc">${data.body}</p>
+        ${coversHtml}
+      </div>`;
+      return wrap;
+    }
+
     function collapseActive() {
       if (activeExpand) {
         activeExpand.classList.remove('open');
@@ -2811,6 +2957,9 @@ const layoutData = JSON.stringify({ organisms, rootTendrils: rootTendrilData, da
         activeExpand = null;
       }
       mobileCatalogRows.forEach(r => r.classList.remove('previewing'));
+      document.querySelectorAll('#mobile-catalog .tree-header.previewing').forEach(h => h.classList.remove('previewing'));
+      mobileSelectedBaseName = null;
+      mobileSelectedSeriesId = null;
     }
 
     mobileCatalogRows.forEach(row => {
@@ -2844,6 +2993,43 @@ const layoutData = JSON.stringify({ organisms, rootTendrils: rootTendrilData, da
           card.classList.add('open');
           // Scroll the row + card into view
           row.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        });
+      });
+    });
+
+    // --- Mobile catalog series header tap-to-expand ---
+    const mobileSeriesHeaders = Array.from(
+      document.querySelectorAll<HTMLElement>('#mobile-catalog .catalog-scroll .tree-header')
+    );
+    mobileSeriesHeaders.forEach(header => {
+      header.addEventListener('click', () => {
+        const seriesBlock = header.closest<HTMLElement>('.tree-series');
+        const seriesId = seriesBlock?.dataset.seriesId;
+        if (!seriesId) return;
+
+        if (mobileSelectedSeriesId === seriesId) {
+          // Second tap → collapse
+          collapseActive();
+          return;
+        }
+
+        // Collapse previous
+        collapseActive();
+
+        mobileSelectedSeriesId = seriesId;
+        header.classList.add('previewing');
+
+        const data = mobileSeriesMap[seriesId];
+        if (!data) return;
+
+        // Insert series expand card after the header
+        const card = buildSeriesExpandCard(data);
+        header.after(card);
+        activeExpand = card;
+
+        requestAnimationFrame(() => {
+          card.classList.add('open');
+          header.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         });
       });
     });
@@ -3422,13 +3608,18 @@ const layoutData = JSON.stringify({ organisms, rootTendrils: rootTendrilData, da
       }
     }
 
-    // --- Expose spore selection for mobile tab switch ---
+    // --- Expose spore/series selection for mobile tab switch ---
     pzState.selectSpore = (baseName: string) => {
       focusSpore(baseName);
       selectedBaseName = baseName;
       const data = sporeDataMap[baseName];
       if (data) highlightSeries(data.seriesId);
       showCard(baseName);
+    };
+
+    pzState.selectSeries = (seriesId: string) => {
+      selectedSeriesId = seriesId;
+      showSeriesCard(seriesId);
     };
 
     // --- Catalog hover/click events ---
