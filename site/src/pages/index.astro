@@ -2567,10 +2567,10 @@ const layoutData = JSON.stringify({ organisms, rootTendrils: rootTendrilData });
 
     function clearRhizomeSync() {
       world.classList.remove('has-focus');
-      allSpores.forEach(s => s.classList.remove('focused', 'dimmed'));
-      allOrganisms.forEach(el => el.classList.remove('focused'));
-      allTendrils.forEach(el => el.classList.remove('focused'));
-      indicators.forEach(el => el.removeAttribute('data-focused'));
+      allSpores.forEach(s => s.classList.remove('focused', 'dimmed', 'hovered'));
+      allOrganisms.forEach(el => el.classList.remove('focused', 'hovered'));
+      allTendrils.forEach(el => el.classList.remove('focused', 'hovered'));
+      indicators.forEach(el => { el.removeAttribute('data-focused'); el.classList.remove('hovered'); });
     }
 
     function highlightSeries(seriesId: string) {
@@ -2923,8 +2923,12 @@ const layoutData = JSON.stringify({ organisms, rootTendrils: rootTendrilData });
     });
 
     // --- Cross-highlight: hovering any series element lights up the whole series ---
+    function clearHovered() {
+      world.querySelectorAll('.hovered').forEach(el => el.classList.remove('hovered'));
+    }
     function highlightSeries(seriesId: string | undefined) {
       if (!seriesId) return;
+      clearHovered();
       world.querySelector<HTMLElement>(`.series-indicator[data-series="${seriesId}"]`)?.classList.add('hovered');
       world.querySelector<HTMLElement>(`.organism[data-series="${seriesId}"]`)?.classList.add('hovered');
       world.querySelector<SVGGElement>(`.root-tendril-group[data-series="${seriesId}"]`)?.classList.add('hovered');
@@ -2971,14 +2975,18 @@ const layoutData = JSON.stringify({ organisms, rootTendrils: rootTendrilData });
       spore.addEventListener('mouseleave', () => unhighlightSeries(spore.dataset.series));
     });
 
-    // --- Catalog series name click → zoom to series ---
+    // --- Catalog series name hover → cross-highlight + click → zoom ---
     const catalogSeriesNames = document.querySelectorAll<HTMLElement>('#catalog-scroll .tree-series-name');
     catalogSeriesNames.forEach(nameEl => {
+      const seriesEl = nameEl.closest<HTMLElement>('.tree-series');
+      const seriesId = seriesEl?.dataset.seriesId;
+      if (!seriesId || seriesId === '_unsorted') return;
+
+      nameEl.addEventListener('mouseenter', () => highlightSeries(seriesId));
+      nameEl.addEventListener('mouseleave', () => unhighlightSeries(seriesId));
+
       nameEl.addEventListener('click', (e) => {
         e.stopPropagation();
-        const seriesEl = nameEl.closest<HTMLElement>('.tree-series');
-        const seriesId = seriesEl?.dataset.seriesId;
-        if (!seriesId || seriesId === '_unsorted') return;
         zoomToSeries(seriesId);
       });
     });
