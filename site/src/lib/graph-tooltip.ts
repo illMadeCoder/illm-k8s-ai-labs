@@ -9,6 +9,8 @@ export interface TooltipOptions {
   offset?: number;
   /** Additional CSS class for the tooltip element */
   className?: string;
+  /** Return true to suppress tooltip for a given target element */
+  shouldSuppress?: (target: HTMLElement) => boolean;
 }
 
 export function initTooltip(
@@ -31,6 +33,8 @@ export function initTooltip(
   let visible = false;
 
   function show(target: HTMLElement, e: MouseEvent) {
+    if (opts.shouldSuppress?.(target)) { hide(); return; }
+
     // Build content from data-tooltip-* attributes
     const attrs = target.dataset;
     const title = attrs.tooltipTitle;
@@ -103,6 +107,7 @@ export function initTooltip(
     if (visible) {
       const target = (e.target as HTMLElement).closest(selector) as HTMLElement | null;
       if (target) {
+        if (opts.shouldSuppress?.(target)) { hide(); return; }
         positionTip(e);
       } else {
         hide();

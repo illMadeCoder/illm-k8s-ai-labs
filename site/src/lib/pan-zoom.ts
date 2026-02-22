@@ -23,7 +23,7 @@ export function initPanZoom(
   viewport: HTMLElement,
   world: HTMLElement,
   opts: PanZoomOptions = {},
-): { cleanup: () => void; getState: () => PanZoomState; reset: () => void } {
+): { cleanup: () => void; getState: () => PanZoomState; reset: () => void; setState: (newState: Partial<PanZoomState>, animate?: boolean) => void } {
   const minScale = opts.minScale ?? 0.3;
   const maxScale = opts.maxScale ?? 3;
   const state: PanZoomState = { x: 0, y: 0, scale: opts.scale ?? 1 };
@@ -69,6 +69,8 @@ export function initPanZoom(
   // --- Mouse drag ---
   function onPointerDown(e: PointerEvent) {
     if (e.button !== 0) return;
+    const target = e.target as HTMLElement;
+    if (target.closest('a, button, [data-no-pan]')) return;
     isDragging = true;
     startX = e.clientX;
     startY = e.clientY;
@@ -183,5 +185,19 @@ export function initPanZoom(
     applyTransform();
   }
 
-  return { cleanup, getState: () => ({ ...state }), reset };
+  function setState(newState: Partial<PanZoomState>, animate = false) {
+    if (newState.x !== undefined) state.x = newState.x;
+    if (newState.y !== undefined) state.y = newState.y;
+    if (newState.scale !== undefined) state.scale = clampScale(newState.scale);
+    if (animate) {
+      world.style.transition = 'transform 0.5s cubic-bezier(0.4, 0, 0.2, 1)';
+      applyTransform();
+      const onEnd = () => { world.style.transition = ''; world.removeEventListener('transitionend', onEnd); };
+      world.addEventListener('transitionend', onEnd);
+    } else {
+      applyTransform();
+    }
+  }
+
+  return { cleanup, getState: () => ({ ...state }), reset, setState };
 }
