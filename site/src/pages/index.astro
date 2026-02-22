@@ -1,9 +1,9 @@
 ---
 import Base from '../layouts/Base.astro';
 import { loadAllExperiments, groupBySeries, groupExperiments, getAllTags, getDisplayTitle } from '../lib/experiments';
-import { loadSeries } from '../lib/series';
+import { loadSeries, resolveSeriesDag } from '../lib/series';
 import type { ExperimentGroup } from '../lib/experiments';
-import type { Series } from '../lib/series';
+import type { Series, ResolvedDag } from '../lib/series';
 import { formatDate, formatDuration, formatCost } from '../lib/format';
 
 const experiments = loadAllExperiments();
@@ -110,6 +110,9 @@ interface OrganismData {
   id: string;
   name: string;
   description: string;
+  body?: string;
+  image?: string;
+  sources?: { title: string; url: string; image?: string }[];
   color: string;
   shape: SporeShape;
   cx: number;
@@ -153,14 +156,12 @@ allSeries.forEach((s, i) => {
   const isEmpty = exps.length === 0;
 
   const rng = seededRandom(s.id.length * 1000 + i * 7919);
-  const sporeExps = exps.map((group, j) => {
-    const angle = ((2 * Math.PI) / Math.max(exps.length, 1)) * j + rng() * 0.4 - 0.2;
-    const dist = 120 + rng() * 80 + j * 25;
-    const cx = center.x + Math.cos(angle) * dist;
-    const cy = center.y + Math.sin(angle) * dist;
+  const dag = resolveSeriesDag(s.id);
+
+  // Helper: build a spore data object from a group + position
+  function buildSpore(group: ExperimentGroup, cx: number, cy: number) {
     const runCount = group.runs.length;
     const size = Math.max(20, Math.min(30, 16 + runCount * 0.6));
-
     return {
       baseName: group.baseName,
       title: getDisplayTitle(group),
@@ -179,12 +180,88 @@ allSeries.forEach((s, i) => {
       seriesColor: color,
       shape,
     };
-  });
+  }
+
+  // Map baseName → ExperimentGroup for quick lookup
+  const expByName = new Map(exps.map(g => [g.baseName, g]));
+
+  let sporeExps: ReturnType<typeof buildSpore>[];
+
+  if (dag) {
+    // DAG-aware positioning: place roots radially around organism, children chain outward
+    const positioned = new Map<string, { cx: number; cy: number }>();
+    sporeExps = [];
+
+    // Position roots radially around organism center
+    const rootAngleStep = (2 * Math.PI) / Math.max(dag.roots.length, 1);
+    dag.roots.forEach((rootName, ri) => {
+      const angle = rootAngleStep * ri + rng() * 0.3 - 0.15;
+      const dist = 120 + rng() * 60;
+      const cx = center.x + Math.cos(angle) * dist;
+      const cy = center.y + Math.sin(angle) * dist;
+      positioned.set(rootName, { cx, cy });
+
+      const group = expByName.get(rootName);
+      if (group) sporeExps.push(buildSpore(group, cx, cy));
+    });
+
+    // BFS from roots to position children chaining outward from parent
+    const queue = [...dag.roots];
+    const visited = new Set(dag.roots);
+    while (queue.length > 0) {
+      const parentName = queue.shift()!;
+      const parentPos = positioned.get(parentName)!;
+      const children = dag.childrenOf[parentName] ?? [];
+      // Inherit parent's angle direction from organism center
+      const parentAngle = Math.atan2(parentPos.cy - center.y, parentPos.cx - center.x);
+      const fanSpread = 0.6; // radians spread for siblings
+      const fanStart = parentAngle - (fanSpread * (children.length - 1)) / 2;
+
+      children.forEach((childName, ci) => {
+        if (visited.has(childName)) return;
+        visited.add(childName);
+        const childAngle = children.length === 1 ? parentAngle : fanStart + fanSpread * ci;
+        const dist = 80 + rng() * 40;
+        const cx = parentPos.cx + Math.cos(childAngle) * dist;
+        const cy = parentPos.cy + Math.sin(childAngle) * dist;
+        positioned.set(childName, { cx, cy });
+
+        const group = expByName.get(childName);
+        if (group) sporeExps.push(buildSpore(group, cx, cy));
+        queue.push(childName);
+      });
+    }
+
+    // Position experiments that are in this series but not in the DAG (unlinked)
+    const dagNodes = new Set(dag.allNodes);
+    const unlinked = exps.filter(g => !dagNodes.has(g.baseName));
+    const unlinkStartAngle = rng() * 2 * Math.PI;
+    unlinked.forEach((group, j) => {
+      const angle = unlinkStartAngle + ((2 * Math.PI) / Math.max(unlinked.length, 1)) * j + rng() * 0.4 - 0.2;
+      const dist = 120 + rng() * 80 + j * 25;
+      const cx = center.x + Math.cos(angle) * dist;
+      const cy = center.y + Math.sin(angle) * dist;
+      positioned.set(group.baseName, { cx, cy });
+      sporeExps.push(buildSpore(group, cx, cy));
+    });
+  } else {
+    // Original radial positioning (no DAG)
+    sporeExps = exps.map((group, j) => {
+      const angle = ((2 * Math.PI) / Math.max(exps.length, 1)) * j + rng() * 0.4 - 0.2;
+      const dist = 120 + rng() * 80 + j * 25;
+      const cx = center.x + Math.cos(angle) * dist;
+      const cy = center.y + Math.sin(angle) * dist;
+      return buildSpore(group, cx, cy);
+    });
+  }
 
   organisms.push({
     id: s.id,
     name: s.name,
     description: s.description,
+    body: s.body,
+    image: s.image,
+    sources: s.sources,
     color,
     shape,
     cx: center.x,
@@ -193,21 +270,38 @@ allSeries.forEach((s, i) => {
     isEmpty,
   });
 
+  // Tendril generation: parent→child for DAG nodes, organism→spore for others
+  const sporeByName = new Map(sporeExps.map(sp => [sp.baseName, sp]));
+
   for (const spore of sporeExps) {
-    const dx = spore.cx - center.x;
-    const dy = spore.cy - center.y;
+    // Determine tendril origin: parent position (if DAG) or organism center
+    let originX = center.x;
+    let originY = center.y;
+    if (dag) {
+      const parentName = dag.parentOf[spore.baseName];
+      if (parentName) {
+        const parentSpore = sporeByName.get(parentName);
+        if (parentSpore) {
+          originX = parentSpore.cx;
+          originY = parentSpore.cy;
+        }
+      }
+    }
+
+    const dx = spore.cx - originX;
+    const dy = spore.cy - originY;
     const perpX = -dy * 0.25 * (rng() - 0.5);
     const perpY = dx * 0.25 * (rng() - 0.5);
-    const cp1x = Math.round(center.x + dx * 0.3 + perpX);
-    const cp1y = Math.round(center.y + dy * 0.3 + perpY);
-    const cp2x = Math.round(center.x + dx * 0.7 - perpX * 0.5);
-    const cp2y = Math.round(center.y + dy * 0.7 - perpY * 0.5);
+    const cp1x = Math.round(originX + dx * 0.3 + perpX);
+    const cp1y = Math.round(originY + dy * 0.3 + perpY);
+    const cp2x = Math.round(originX + dx * 0.7 - perpX * 0.5);
+    const cp2y = Math.round(originY + dy * 0.7 - perpY * 0.5);
 
     tendrils.push({
       seriesId: s.id,
       baseName: spore.baseName,
       color,
-      path: `M ${center.x} ${center.y} C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${spore.cx} ${spore.cy}`,
+      path: `M ${originX} ${originY} C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${spore.cx} ${spore.cy}`,
     });
   }
 });
@@ -288,8 +382,15 @@ for (const org of organisms) {
   });
 }
 
+// Build DAG parent maps for client-side ancestor chain highlighting
+const dagMaps: Record<string, Record<string, string | null>> = {};
+for (const s of allSeries) {
+  const dag = resolveSeriesDag(s.id);
+  if (dag) dagMaps[s.id] = dag.parentOf;
+}
+
 // Serialize for client-side sync
-const layoutData = JSON.stringify({ organisms, rootTendrils: rootTendrilData });
+const layoutData = JSON.stringify({ organisms, rootTendrils: rootTendrilData, dagMaps, base });
 ---
 
 <Base title="Series — K8s Cloud TestBed">
@@ -414,13 +515,14 @@ const layoutData = JSON.stringify({ organisms, rootTendrils: rootTendrilData });
     </div>
   </div>
 
-  <!-- Mobile: tab-based layout -->
-  <div class="hybrid-mobile" id="hybrid-mobile">
-    <div class="mobile-tabs" id="mobile-tabs">
-      <button class="mobile-tab active" data-target="catalog">Catalog</button>
-      <button class="mobile-tab" data-target="rhizome">Rhizome</button>
-    </div>
-    <div class="mobile-pane mobile-catalog" id="mobile-catalog">
+  <!-- Mobile tabs (visible < 768px only) -->
+  <div class="mobile-tabs" id="mobile-tabs">
+    <button class="mobile-tab active" data-target="catalog">Catalog</button>
+    <button class="mobile-tab" data-target="rhizome">Rhizome</button>
+  </div>
+
+  <!-- Mobile catalog content -->
+  <div class="mobile-catalog" id="mobile-catalog">
       <div class="catalog-scroll">
         {seriesEntries.map(({ series, experiments: exps }) => (
           <div class="tree-series" data-series-id={series.id}>
@@ -482,10 +584,6 @@ const layoutData = JSON.stringify({ organisms, rootTendrils: rootTendrilData });
           </div>
         )}
       </div>
-    </div>
-    <div class="mobile-pane mobile-rhizome" id="mobile-rhizome" style="display:none">
-      <p class="mobile-rhizome-hint">Rhizome view is best experienced on desktop.</p>
-    </div>
   </div>
 
   <!-- Desktop: split-pane hybrid -->
@@ -778,6 +876,18 @@ const layoutData = JSON.stringify({ organisms, rootTendrils: rootTendrilData });
         </div>
       </div>
 
+      <!-- Floating series card -->
+      <div id="series-card" class="series-card" aria-hidden="true">
+        <div class="scard-header">
+          <span class="scard-shape"></span>
+          <span class="scard-name"></span>
+          <span class="scard-count"></span>
+        </div>
+        <div class="scard-body"></div>
+        <div class="scard-sources"></div>
+        <div class="scard-experiments"></div>
+      </div>
+
       <!-- Zoom controls -->
       <div class="zoom-controls" id="zoom-controls">
         <button class="zoom-btn" id="zoom-hub-btn" aria-label="Return to hub view" title="Hub view">
@@ -881,9 +991,6 @@ const layoutData = JSON.stringify({ organisms, rootTendrils: rootTendrilData });
   }
 
   /* ========== MOBILE: tab-based ========== */
-  .hybrid-mobile {
-    display: block;
-  }
   .hybrid-container {
     display: none;
   }
@@ -917,24 +1024,145 @@ const layoutData = JSON.stringify({ organisms, rootTendrils: rootTendrilData });
     color: var(--accent);
   }
 
-  .mobile-pane {
+  .mobile-catalog {
     border: 1px solid var(--border);
     border-top: none;
-    min-height: 60vh;
+    /* 37px tab bar + 60px voice chat panel at bottom */
+    height: calc(100dvh - 37px - 60px);
     overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
   }
 
-  .mobile-rhizome-hint {
-    padding: 2rem 1rem;
-    text-align: center;
-    color: var(--text-muted);
-    font-size: 0.8rem;
+  /* --- Inline expand card (accordion inside tree) --- */
+  /* :global() needed — these elements are created dynamically by JS,
+     so Astro scoped selectors (data-astro-cid-*) won't match them. */
+  #mobile-catalog :global(.tree-row.previewing) {
+    background: color-mix(in srgb, var(--accent) 12%, transparent);
+    border-left: 2px solid var(--accent);
+  }
+
+  :global(.tree-expand) {
+    overflow: hidden;
+    max-height: 0;
+    transition: max-height 0.25s ease-out;
+  }
+  :global(.tree-expand.open) {
+    max-height: 400px;
+    transition: max-height 0.3s ease-in;
+  }
+
+  :global(.tree-expand-card) {
+    margin: 0.35rem 0.5rem 0.5rem 1.25rem;
+    padding: 0.75rem 1rem;
+    background: rgba(13, 17, 23, 0.88);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-left: 3px solid var(--expand-color, var(--accent));
+    border-radius: 6px;
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.5),
+                0 0 40px color-mix(in srgb, var(--expand-color, var(--accent)) 15%, transparent);
     font-family: var(--font-mono);
+    font-size: 0.75rem;
+    color: var(--text);
+  }
+
+  :global(.tree-expand-card .card-header) {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+  }
+  :global(.tree-expand-card .card-phase) {
+    font-size: 0.6rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    padding: 0.1rem 0.4rem;
+    border-radius: 3px;
+  }
+  :global(.tree-expand-card .card-runs) {
+    font-size: 0.6rem;
+    font-weight: 600;
+    color: #3fb950;
+    padding: 0.1rem 0.4rem;
+    background: rgba(63, 185, 80, 0.12);
+    border-radius: 3px;
+  }
+  :global(.tree-expand-card .card-date) {
+    font-size: 0.65rem;
+    color: var(--text-muted);
+    margin-left: auto;
+  }
+  :global(.tree-expand-card .card-title) {
+    display: block;
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--accent);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    line-height: 1.3;
+    margin-bottom: 0.25rem;
+  }
+  :global(.tree-expand-card .card-title:hover) {
+    color: var(--text);
+  }
+  :global(.tree-expand-card .card-series) {
+    font-size: 0.65rem;
+    color: var(--text-muted);
+    margin: 0 0 0.4rem;
+  }
+  :global(.tree-expand-card .card-desc) {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    line-height: 1.4;
+    margin: 0 0 0.4rem;
+  }
+  :global(.tree-expand-card .card-tags) {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+    margin-bottom: 0.4rem;
+  }
+  :global(.tree-expand-card .card-tag) {
+    font-size: 0.6rem;
+    padding: 0.05rem 0.35rem;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    color: var(--text-muted);
+  }
+  :global(.tree-expand-card .card-footer) {
+    display: flex;
+    gap: 1rem;
+    padding-top: 0.4rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    font-size: 0.65rem;
+    color: var(--text-muted);
+  }
+
+  /* --- Mobile rhizome (reuses desktop hybrid-container) --- */
+  .hybrid-container.mobile-rhizome-active {
+    display: block !important;
+    width: 100%;
+    /* 37px tab bar + 60px voice chat panel */
+    height: calc(100dvh - 37px - 60px);
+  }
+  .hybrid-container.mobile-rhizome-active .catalog-pane,
+  .hybrid-container.mobile-rhizome-active .hybrid-divider,
+  .hybrid-container.mobile-rhizome-active .hybrid-status {
+    display: none !important;
+  }
+  .hybrid-container.mobile-rhizome-active .rhizome-pane {
+    width: 100%;
+    height: 100%;
   }
 
   /* ========== DESKTOP: split-pane ========== */
   @media (min-width: 768px) {
-    .hybrid-mobile {
+    .mobile-tabs {
+      display: none;
+    }
+    .mobile-catalog {
       display: none;
     }
     .hybrid-container {
@@ -1280,6 +1508,7 @@ const layoutData = JSON.stringify({ organisms, rootTendrils: rootTendrilData });
     flex: 1;
     overflow: hidden;
     background: radial-gradient(ellipse at 40% 40%, #1a1e3a 0%, #0d1117 60%, #080b12 100%);
+    touch-action: none;  /* let pan-zoom JS handle all touch gestures */
   }
 
   .rhizome-world {
@@ -1626,27 +1855,27 @@ const layoutData = JSON.stringify({ organisms, rootTendrils: rootTendrilData });
     border-radius: 3px;
   }
 
-  .phase-complete {
+  :global(.phase-complete) {
     color: #3fb950;
     background: rgba(63, 185, 80, 0.1);
   }
 
-  .phase-failed {
+  :global(.phase-failed) {
     color: #f85149;
     background: rgba(248, 81, 73, 0.1);
   }
 
-  .phase-running {
+  :global(.phase-running) {
     color: #58a6ff;
     background: rgba(88, 166, 255, 0.1);
   }
 
-  .phase-pending {
+  :global(.phase-pending) {
     color: #d29922;
     background: rgba(210, 153, 34, 0.1);
   }
 
-  .phase-unknown {
+  :global(.phase-unknown) {
     color: var(--text-muted);
     background: rgba(139, 148, 158, 0.1);
   }
@@ -1732,6 +1961,203 @@ const layoutData = JSON.stringify({ organisms, rootTendrils: rootTendrilData });
     border-top: 1px solid rgba(255, 255, 255, 0.06);
     font-size: 0.65rem;
     color: var(--text-muted);
+  }
+
+  /* ========== FLOATING SERIES CARD ========== */
+  .series-card {
+    position: absolute;
+    z-index: 21;
+    display: none;
+    width: min(640px, 80vw);
+    padding: 0.85rem 1rem;
+    overflow: hidden;
+    background: rgba(13, 17, 23, 0.88);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-left: 4px solid var(--scard-color, var(--accent));
+    border-radius: 6px;
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.5),
+                0 0 40px color-mix(in srgb, var(--scard-color, var(--accent)) 15%, transparent);
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    color: var(--text);
+    opacity: 0;
+    transition: opacity 0.15s ease;
+    pointer-events: auto;
+  }
+
+  .series-card.visible {
+    opacity: 1;
+  }
+
+  .scard-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .scard-shape {
+    display: inline-block;
+    flex-shrink: 0;
+    width: 10px;
+    height: 10px;
+    background: var(--scard-color, var(--accent));
+  }
+
+  .scard-shape[data-shape="circle"] {
+    border-radius: 50%;
+  }
+
+  .scard-shape[data-shape="diamond"] {
+    width: 9px;
+    height: 9px;
+    border-radius: 0;
+    transform: rotate(45deg);
+  }
+
+  .scard-shape[data-shape="hexagon"] {
+    clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%);
+    width: 11px;
+    height: 10px;
+    border-radius: 0;
+  }
+
+  .scard-shape[data-shape="triangle"] {
+    clip-path: polygon(50% 0%, 100% 100%, 0% 100%);
+    width: 10px;
+    height: 10px;
+    border-radius: 0;
+  }
+
+  .scard-shape[data-shape="square"] {
+    border-radius: 2px;
+    width: 9px;
+    height: 9px;
+  }
+
+  .scard-name {
+    font-size: 0.95rem;
+    font-weight: 700;
+    line-height: 1.2;
+    color: var(--scard-color, var(--accent));
+  }
+
+  .scard-count {
+    font-size: 0.6rem;
+    font-weight: 600;
+    color: var(--text-muted);
+    padding: 0.1rem 0.4rem;
+    background: rgba(255, 255, 255, 0.06);
+    border-radius: 3px;
+    margin-left: auto;
+  }
+
+  .scard-body {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    line-height: 1.5;
+    margin-bottom: 0.5rem;
+  }
+
+  .scard-sources {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+    align-items: flex-start;
+    margin-bottom: 0.5rem;
+  }
+
+  .scard-sources:empty {
+    display: none;
+  }
+
+  .scard-source {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 0.3rem;
+    text-decoration: none;
+    flex-shrink: 0;
+  }
+
+  .scard-source img {
+    width: 48px;
+    height: 64px;
+    border-radius: 3px;
+    object-fit: cover;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    transition: border-color 0.15s;
+  }
+
+  .scard-source:hover img {
+    border-color: var(--scard-color, var(--accent));
+  }
+
+  .scard-source-icon {
+    width: 48px;
+    height: 64px;
+    border-radius: 3px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    background: rgba(255, 255, 255, 0.03);
+    transition: border-color 0.15s;
+  }
+
+  .scard-source:hover .scard-source-icon {
+    border-color: var(--scard-color, var(--accent));
+  }
+
+  .scard-source-icon svg {
+    width: 18px;
+    height: 18px;
+    color: var(--text-muted);
+    opacity: 0.5;
+  }
+
+  .scard-source-title {
+    font-size: 0.55rem;
+    color: var(--text-muted);
+    text-align: center;
+    max-width: 64px;
+    line-height: 1.3;
+    transition: color 0.15s;
+  }
+
+  .scard-source:hover .scard-source-title {
+    color: var(--text);
+  }
+
+  .scard-experiments {
+    padding-top: 0.4rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.3rem;
+  }
+
+  .scard-exp {
+    font-size: 0.6rem;
+    padding: 0.1rem 0.4rem;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 3px;
+    color: var(--text-muted);
+    text-decoration: none;
+    transition: color 0.1s, border-color 0.1s;
+  }
+
+  .scard-exp:hover {
+    color: var(--text);
+    border-color: var(--scard-color, var(--accent));
+  }
+
+  @media (max-width: 767px) {
+    .scard-sources {
+      display: none !important;
+    }
   }
 
   /* ========== STATUS BAR ========== */
@@ -2245,18 +2671,179 @@ const layoutData = JSON.stringify({ organisms, rootTendrils: rootTendrilData });
   import { initPanZoom } from '../lib/pan-zoom';
 
   document.addEventListener('DOMContentLoaded', () => {
+    // --- Parse layout data (shared by mobile + desktop) ---
+    const layoutEl = document.getElementById('rhizome-layout-data');
+    if (!layoutEl) return;
+
+    type SporeShape = 'circle' | 'diamond' | 'hexagon' | 'triangle';
+
+    interface SporeData {
+      baseName: string; title: string; runCount: number; tags: string[];
+      cx: number; cy: number; size: number; href: string; seriesId: string;
+      description: string; phase: string; date: string;
+      duration: string; cost: string; seriesName: string; seriesColor: string;
+      shape: SporeShape;
+    }
+
+    const layout: {
+      organisms: {
+        id: string; name: string; description: string; body?: string; image?: string;
+        sources?: { title: string; url: string; image?: string }[];
+        cx: number; cy: number; color: string; shape: SporeShape; isEmpty: boolean;
+        experiments: {
+          baseName: string; cx: number; cy: number; size: number;
+          title: string; runCount: number; tags: string[]; href: string;
+          description: string; phase: string; date: string;
+          duration: string; cost: string; seriesName: string; seriesColor: string;
+          shape: SporeShape;
+        }[];
+      }[];
+      rootTendrils: { seriesId: string; p0x: number; p0y: number; p1x: number; p1y: number; p2x: number; p2y: number; p3x: number; p3y: number }[];
+      dagMaps: Record<string, Record<string, string | null>>;
+      base: string;
+    } = JSON.parse(layoutEl.textContent || '{}');
+
+    // Build baseName → full spore data map
+    const sporeDataMap: Record<string, SporeData> = {};
+    for (const org of layout.organisms) {
+      for (const exp of org.experiments) {
+        sporeDataMap[exp.baseName] = { ...exp, seriesId: org.id };
+      }
+    }
+
+    // --- Mobile state ---
+    let mobileSelectedBaseName: string | null = null;
+
     // --- Mobile tab switching ---
     const mobileTabs = document.querySelectorAll<HTMLButtonElement>('#mobile-tabs .mobile-tab');
     const mobileCatalog = document.getElementById('mobile-catalog');
-    const mobileRhizome = document.getElementById('mobile-rhizome');
+    const mobileHybrid = document.getElementById('hybrid-container');
+
+    // Shared state populated later (after viewport guard); used by mobile tab handlers
+    const pzState: {
+      pz: ReturnType<typeof initPanZoom> | null;
+      hubCx: number; hubCy: number;
+      selectSpore: ((baseName: string) => void) | null;
+    } = {
+      pz: null, hubCx: 600, hubCy: 470, selectSpore: null,
+    };
 
     mobileTabs.forEach(tab => {
       tab.addEventListener('click', () => {
         mobileTabs.forEach(t => t.classList.remove('active'));
         tab.classList.add('active');
         const target = tab.dataset.target;
-        if (mobileCatalog) mobileCatalog.style.display = target === 'catalog' ? '' : 'none';
-        if (mobileRhizome) mobileRhizome.style.display = target === 'rhizome' ? '' : 'none';
+
+        if (target === 'rhizome') {
+          if (mobileCatalog) mobileCatalog.style.display = 'none';
+          if (mobileHybrid) {
+            mobileHybrid.classList.add('mobile-rhizome-active');
+            // Center on selected experiment, or fall back to hub overview
+            requestAnimationFrame(() => {
+              const vp = document.getElementById('rhizome-viewport');
+              if (vp && pzState.pz) {
+                const vpRect = vp.getBoundingClientRect();
+                if (vpRect.width > 0) {
+                  const selected = mobileSelectedBaseName ? sporeDataMap[mobileSelectedBaseName] : null;
+                  if (selected) {
+                    // Zoom to selected experiment + highlight it in rhizome
+                    const focusScale = 1.4;
+                    pzState.pz.setState({
+                      x: vpRect.width / 2 - selected.cx * focusScale,
+                      y: vpRect.height / 2 - selected.cy * focusScale,
+                      scale: focusScale,
+                    }, false);
+                    if (pzState.selectSpore) pzState.selectSpore(mobileSelectedBaseName!);
+                  } else {
+                    // No selection — show full graph overview
+                    pzState.pz.setState({
+                      x: vpRect.width / 2 - pzState.hubCx * 0.7,
+                      y: vpRect.height / 2 - pzState.hubCy * 0.7,
+                      scale: 0.7,
+                    }, false);
+                  }
+                }
+              }
+            });
+          }
+        } else {
+          if (mobileCatalog) mobileCatalog.style.display = '';
+          if (mobileHybrid) mobileHybrid.classList.remove('mobile-rhizome-active');
+        }
+      });
+    });
+
+    // --- Mobile catalog tap-to-expand ---
+    const mobileCatalogRows = Array.from(
+      document.querySelectorAll<HTMLAnchorElement>('#mobile-catalog .catalog-scroll a.tree-row')
+    );
+    let activeExpand: HTMLElement | null = null;
+
+    function buildExpandCard(data: SporeData): HTMLElement {
+      const wrap = document.createElement('div');
+      wrap.className = 'tree-expand';
+      const phaseClass = 'phase-' + (data.phase || 'unknown').toLowerCase().replace(/\s+/g, '-');
+      wrap.innerHTML = `<div class="tree-expand-card" style="--expand-color:${data.seriesColor}">
+        <div class="card-header">
+          <span class="card-phase ${phaseClass}">${data.phase || 'Unknown'}</span>
+          <span class="card-runs">${data.runCount} run${data.runCount !== 1 ? 's' : ''}</span>
+          <span class="card-date">${data.date}</span>
+        </div>
+        <a class="card-title" href="${data.href}">${data.title}</a>
+        <p class="card-series"><span style="color:${data.seriesColor};font-weight:600">${data.seriesName}</span> Series</p>
+        <p class="card-desc">${data.description}</p>
+        <div class="card-tags">${data.tags.map((t: string) => `<span class="card-tag">${t}</span>`).join('')}</div>
+        <div class="card-footer">
+          ${data.duration ? `<span>Duration: ${data.duration}</span>` : ''}
+          ${data.cost ? `<span>Cost: ${data.cost}</span>` : ''}
+        </div>
+      </div>`;
+      return wrap;
+    }
+
+    function collapseActive() {
+      if (activeExpand) {
+        activeExpand.classList.remove('open');
+        const el = activeExpand;
+        // Remove after transition
+        el.addEventListener('transitionend', () => el.remove(), { once: true });
+        activeExpand = null;
+      }
+      mobileCatalogRows.forEach(r => r.classList.remove('previewing'));
+    }
+
+    mobileCatalogRows.forEach(row => {
+      row.addEventListener('click', (e) => {
+        const baseName = row.dataset.baseName;
+        if (!baseName) return;
+
+        if (mobileSelectedBaseName === baseName) {
+          // Second tap on same experiment → navigate
+          return;
+        }
+
+        e.preventDefault();
+
+        // Collapse previous
+        collapseActive();
+
+        mobileSelectedBaseName = baseName;
+        row.classList.add('previewing');
+
+        const data = sporeDataMap[baseName];
+        if (!data) return;
+
+        // Insert expand card after this row
+        const card = buildExpandCard(data);
+        row.after(card);
+        activeExpand = card;
+
+        // Trigger open transition on next frame
+        requestAnimationFrame(() => {
+          card.classList.add('open');
+          // Scroll the row + card into view
+          row.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        });
       });
     });
 
@@ -2296,40 +2883,35 @@ const layoutData = JSON.stringify({ organisms, rootTendrils: rootTendrilData });
     const world = document.getElementById('rhizome-world');
     if (!viewport || !world) return;
 
-    // Parse layout data
-    const layoutEl = document.getElementById('rhizome-layout-data');
-    if (!layoutEl) return;
-
-    type SporeShape = 'circle' | 'diamond' | 'hexagon' | 'triangle';
-
-    interface SporeData {
-      baseName: string; title: string; runCount: number; tags: string[];
-      cx: number; cy: number; size: number; href: string; seriesId: string;
-      description: string; phase: string; date: string;
-      duration: string; cost: string; seriesName: string; seriesColor: string;
-      shape: SporeShape;
+    // Build seriesId → series card data map
+    interface SeriesSource { title: string; url: string; image?: string; }
+    interface SeriesCardData {
+      id: string; name: string; description: string; body: string;
+      color: string; shape: string; image: string | null;
+      sources: SeriesSource[];
+      cx: number; cy: number; expCount: number;
+      experiments: { title: string; href: string; phase: string }[];
     }
-
-    const layout: {
-      organisms: {
-        id: string; cx: number; cy: number; color: string;
-        experiments: {
-          baseName: string; cx: number; cy: number; size: number;
-          title: string; runCount: number; tags: string[]; href: string;
-          description: string; phase: string; date: string;
-          duration: string; cost: string; seriesName: string; seriesColor: string;
-          shape: SporeShape;
-        }[];
-      }[];
-      rootTendrils: { seriesId: string; p0x: number; p0y: number; p1x: number; p1y: number; p2x: number; p2y: number; p3x: number; p3y: number }[];
-    } = JSON.parse(layoutEl.textContent || '{}');
-
-    // Build baseName → full spore data map
-    const sporeDataMap: Record<string, SporeData> = {};
+    const seriesDataMap: Record<string, SeriesCardData> = {};
     for (const org of layout.organisms) {
-      for (const exp of org.experiments) {
-        sporeDataMap[exp.baseName] = { ...exp, seriesId: org.id };
-      }
+      seriesDataMap[org.id] = {
+        id: org.id,
+        name: org.name,
+        description: org.description,
+        body: org.body || org.description,
+        color: org.color,
+        shape: org.shape || 'circle',
+        image: org.image || null,
+        sources: org.sources || [],
+        cx: org.cx,
+        cy: org.cy,
+        expCount: org.experiments.length,
+        experiments: org.experiments.map(exp => ({
+          title: exp.title,
+          href: exp.href,
+          phase: exp.phase,
+        })),
+      };
     }
 
     // Init pan-zoom (start zoomed in on hub)
@@ -2342,6 +2924,11 @@ const layoutData = JSON.stringify({ organisms, rootTendrils: rootTendrilData });
       scale: INITIAL_SCALE,
       hint: true,
     });
+
+    // Populate shared state for mobile rhizome tab handler
+    pzState.pz = pz;
+    pzState.hubCx = HUB_CX;
+    pzState.hubCy = HUB_CY;
 
     // Center on the hub after init
     requestAnimationFrame(() => {
@@ -2371,6 +2958,19 @@ const layoutData = JSON.stringify({ organisms, rootTendrils: rootTendrilData });
     let hoverBaseName: string | null = null;   // tracks transient hover-preview over sticky selection
     let hideTimer: ReturnType<typeof setTimeout> | null = null;
 
+    // --- Series card refs ---
+    const scard = document.getElementById('series-card')!;
+    const scardShape = scard.querySelector<HTMLElement>('.scard-shape')!;
+    const scardName = scard.querySelector<HTMLElement>('.scard-name')!;
+    const scardCount = scard.querySelector<HTMLElement>('.scard-count')!;
+    const scardBody = scard.querySelector<HTMLElement>('.scard-body')!;
+    const scardSources = scard.querySelector<HTMLElement>('.scard-sources')!;
+    const scardExperiments = scard.querySelector<HTMLElement>('.scard-experiments')!;
+
+    let seriesCardVisible = false;
+    let selectedSeriesId: string | null = null;
+    let seriesHideTimer: ReturnType<typeof setTimeout> | null = null;
+
     // Keep card alive when mouse moves from spore → card
     card.addEventListener('mouseenter', () => {
       if (hideTimer) { clearTimeout(hideTimer); hideTimer = null; }
@@ -2381,6 +2981,15 @@ const layoutData = JSON.stringify({ organisms, rootTendrils: rootTendrilData });
       clearCatalogSync();
       clearRhizomeSync();
       hideCard();
+    });
+
+    // Keep series card alive when mouse moves from organism → card
+    scard.addEventListener('mouseenter', () => {
+      if (seriesHideTimer) { clearTimeout(seriesHideTimer); seriesHideTimer = null; }
+    });
+    scard.addEventListener('mouseleave', () => {
+      if (selectedSeriesId) return;
+      hideSeriesCard();
     });
 
     // DOM refs
@@ -2442,6 +3051,10 @@ const layoutData = JSON.stringify({ organisms, rootTendrils: rootTendrilData });
       const data = sporeDataMap[baseName];
       if (!data) return;
 
+      // Mutual exclusivity: hide series card
+      hideSeriesCard();
+      selectedSeriesId = null;
+
       // Populate content
       cardPhase.textContent = data.phase || 'Unknown';
       cardPhase.className = 'card-phase phase-' + (data.phase || 'unknown').toLowerCase().replace(/\s+/g, '-');
@@ -2481,6 +3094,115 @@ const layoutData = JSON.stringify({ organisms, rootTendrils: rootTendrilData });
       }, 200);
     }
 
+    // --- Series card functions ---
+
+    function positionSeriesCard(data: SeriesCardData, pzOverride?: { x: number; y: number; scale: number }) {
+      const st = pzOverride || pz.getState();
+      const vpRect = viewport.getBoundingClientRect();
+      const paneRect = scard.parentElement!.getBoundingClientRect();
+
+      // Organism position in viewport coords
+      const orgVpX = data.cx * st.scale + st.x;
+      const orgVpY = data.cy * st.scale + st.y;
+
+      // Convert to pane-relative coords
+      const offsetX = vpRect.left - paneRect.left;
+      const offsetY = vpRect.top - paneRect.top;
+      const orgLeft = orgVpX + offsetX;
+      const orgTop = orgVpY + offsetY;
+
+      const cardW = Math.min(640, paneRect.width * 0.8);
+      const cardH = scard.offsetHeight || 280;
+      const gap = 20;
+      const paneW = paneRect.width;
+      const visibleH = vpRect.bottom - paneRect.top;
+
+      const minLeft = 8;
+      const maxTop = visibleH - cardH - 8;
+
+      // Default: card to the right of organism
+      let left = orgLeft + 40 * st.scale + gap;
+      let top = orgTop - cardH / 2;
+
+      // Flip left if near right edge
+      if (left + cardW > paneW - 16) {
+        left = orgLeft - 40 * st.scale - gap - cardW;
+      }
+
+      // Clamp within visible bounds
+      left = Math.max(minLeft, Math.min(left, paneW - cardW - 8));
+      top = Math.max(8, Math.min(top, maxTop));
+
+      scard.style.left = `${Math.round(left)}px`;
+      scard.style.top = `${Math.round(top)}px`;
+    }
+
+    function showSeriesCard(seriesId: string, pzOverride?: { x: number; y: number; scale: number }) {
+      const data = seriesDataMap[seriesId];
+      if (!data) return;
+
+      // Mutual exclusivity: hide experiment card
+      hideCard();
+      selectedBaseName = null;
+      hoverBaseName = null;
+
+      // Populate header
+      scardShape.dataset.shape = data.shape;
+      scardShape.style.background = data.color;
+      scardName.textContent = data.name;
+      scardName.style.color = data.color;
+      scardCount.textContent = data.expCount > 0
+        ? `${data.expCount} experiment${data.expCount !== 1 ? 's' : ''}`
+        : 'coming soon';
+
+      // Body
+      scardBody.textContent = data.body;
+
+      // Sources (linked book covers / references)
+      if (data.sources.length > 0) {
+        const linkIcon = `<div class="scard-source-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg></div>`;
+        scardSources.innerHTML = data.sources.map(src => {
+          const visual = src.image
+            ? `<img src="${layout.base}${src.image}" alt="${src.title}" />`
+            : linkIcon;
+          return `<a class="scard-source" href="${src.url}" target="_blank" rel="noopener" style="--scard-color:${data.color}">${visual}<span class="scard-source-title">${src.title}</span></a>`;
+        }).join('');
+      } else {
+        scardSources.innerHTML = '';
+      }
+
+      // Experiment list
+      if (data.experiments.length > 0) {
+        scardExperiments.innerHTML = data.experiments.map(exp =>
+          `<a class="scard-exp" href="${exp.href}" style="--scard-color:${data.color}">${exp.title}</a>`
+        ).join('');
+        scardExperiments.style.display = '';
+      } else {
+        scardExperiments.style.display = 'none';
+      }
+
+      // Color accent
+      scard.style.setProperty('--scard-color', data.color);
+      scard.style.borderLeftColor = data.color;
+
+      // Position and show
+      scard.style.display = 'block';
+      positionSeriesCard(data, pzOverride);
+      void scard.offsetHeight;
+      scard.classList.add('visible');
+      scard.setAttribute('aria-hidden', 'false');
+      seriesCardVisible = true;
+    }
+
+    function hideSeriesCard() {
+      scard.classList.remove('visible');
+      scard.setAttribute('aria-hidden', 'true');
+      seriesCardVisible = false;
+      setTimeout(() => {
+        if (!seriesCardVisible) scard.style.display = 'none';
+      }, 200);
+    }
+
     // --- Helpers ---
 
     function clearCatalogSync() {
@@ -2510,7 +3232,9 @@ const layoutData = JSON.stringify({ organisms, rootTendrils: rootTendrilData });
       selectedBaseName = null;
       hoverBaseName = null;
       focusedSeriesId = null;
+      selectedSeriesId = null;
       hideCard();
+      hideSeriesCard();
       hideHubWaypoint();
     }
 
@@ -2677,6 +3401,15 @@ const layoutData = JSON.stringify({ organisms, rootTendrils: rootTendrilData });
       }
     }
 
+    // --- Expose spore selection for mobile tab switch ---
+    pzState.selectSpore = (baseName: string) => {
+      focusSpore(baseName);
+      selectedBaseName = baseName;
+      const data = sporeDataMap[baseName];
+      if (data) highlightSeries(data.seriesId);
+      showCard(baseName);
+    };
+
     // --- Catalog hover/click events ---
 
     catalogRows.forEach((row, i) => {
@@ -2827,7 +3560,7 @@ const layoutData = JSON.stringify({ organisms, rootTendrils: rootTendrilData });
       showHubWaypoint(seriesId);
     }
 
-    // --- Series indicator click handlers (click zooms to series) ---
+    // --- Series indicator click/hover handlers ---
     const indicators = world.querySelectorAll<HTMLElement>('.series-indicator');
     indicators.forEach(ind => {
       ind.addEventListener('click', (e) => {
@@ -2840,17 +3573,61 @@ const layoutData = JSON.stringify({ organisms, rootTendrils: rootTendrilData });
         if (focusedSeriesId === seriesId) return;
 
         zoomToSeries(seriesId);
+        // Show sticky series card after zoom
+        selectedSeriesId = seriesId;
+        const fit = computeSeriesFit(seriesId);
+        showSeriesCard(seriesId, fit);
+      });
+
+      ind.addEventListener('mouseenter', () => {
+        if (seriesHideTimer) { clearTimeout(seriesHideTimer); seriesHideTimer = null; }
+        const seriesId = ind.dataset.series;
+        if (!seriesId || selectedSeriesId === seriesId) return;
+        showSeriesCard(seriesId);
+      });
+
+      ind.addEventListener('mouseleave', () => {
+        if (selectedSeriesId) return;
+        seriesHideTimer = setTimeout(() => {
+          seriesHideTimer = null;
+          hideSeriesCard();
+        }, 150);
       });
     });
 
-    // --- Organism click → zoom to series ---
+    // --- Organism click/hover → zoom + series card ---
     allOrganisms.forEach(org => {
       org.addEventListener('click', (e) => {
         e.preventDefault();
         e.stopPropagation();
         const seriesId = org.dataset.series;
         if (!seriesId) return;
+
+        if (selectedSeriesId === seriesId) {
+          // Second click: navigate to series page
+          window.location.href = layout.base + 'series/' + seriesId + '/';
+          return;
+        }
+
         zoomToSeries(seriesId);
+        selectedSeriesId = seriesId;
+        const fit = computeSeriesFit(seriesId);
+        showSeriesCard(seriesId, fit);
+      });
+
+      org.addEventListener('mouseenter', () => {
+        if (seriesHideTimer) { clearTimeout(seriesHideTimer); seriesHideTimer = null; }
+        const seriesId = org.dataset.series;
+        if (!seriesId || selectedSeriesId === seriesId) return;
+        showSeriesCard(seriesId);
+      });
+
+      org.addEventListener('mouseleave', () => {
+        if (selectedSeriesId) return;
+        seriesHideTimer = setTimeout(() => {
+          seriesHideTimer = null;
+          hideSeriesCard();
+        }, 150);
       });
     });
 
@@ -2883,9 +3660,22 @@ const layoutData = JSON.stringify({ organisms, rootTendrils: rootTendrilData });
       world.querySelector<HTMLElement>(`.organism[data-series="${seriesId}"]`)?.classList.add('hovered');
       world.querySelector<SVGGElement>(`.root-tendril-group[data-series="${seriesId}"]`)?.classList.add('hovered');
       if (baseName) {
-        // Ancestor-only: highlight just the tendril + spore for this specific node
-        world.querySelector<SVGGElement>(`.tendril-group[data-base-name="${baseName}"]`)?.classList.add('hovered');
-        world.querySelector<HTMLElement>(`.spore-node[data-base-name="${baseName}"]`)?.classList.add('hovered');
+        // Walk ancestor chain if DAG exists for this series
+        const dagParentOf = layout.dagMaps?.[seriesId];
+        if (dagParentOf && baseName in dagParentOf) {
+          let current: string | null = baseName;
+          const visited = new Set<string>();
+          while (current != null && !visited.has(current)) {
+            visited.add(current);
+            world.querySelector<SVGGElement>(`.tendril-group[data-base-name="${current}"]`)?.classList.add('hovered');
+            world.querySelector<HTMLElement>(`.spore-node[data-base-name="${current}"]`)?.classList.add('hovered');
+            current = dagParentOf[current] ?? null;
+          }
+        } else {
+          // Single-hop highlight (no DAG or node not in DAG)
+          world.querySelector<SVGGElement>(`.tendril-group[data-base-name="${baseName}"]`)?.classList.add('hovered');
+          world.querySelector<HTMLElement>(`.spore-node[data-base-name="${baseName}"]`)?.classList.add('hovered');
+        }
       } else {
         // Full series: highlight all tendrils + spores
         world.querySelectorAll<SVGGElement>(`.tendril-group[data-series="${seriesId}"]`).forEach(g => g.classList.add('hovered'));
@@ -2934,8 +3724,19 @@ const layoutData = JSON.stringify({ organisms, rootTendrils: rootTendrilData });
       const seriesId = seriesEl?.dataset.seriesId;
       if (!seriesId || seriesId === '_unsorted') return;
 
-      nameEl.addEventListener('mouseenter', () => highlightSeries(seriesId));
-      nameEl.addEventListener('mouseleave', () => unhighlightSeries(seriesId));
+      nameEl.addEventListener('mouseenter', () => {
+        highlightSeries(seriesId);
+        if (seriesHideTimer) { clearTimeout(seriesHideTimer); seriesHideTimer = null; }
+        if (selectedSeriesId !== seriesId) showSeriesCard(seriesId);
+      });
+      nameEl.addEventListener('mouseleave', () => {
+        unhighlightSeries(seriesId);
+        if (selectedSeriesId) return;
+        seriesHideTimer = setTimeout(() => {
+          seriesHideTimer = null;
+          hideSeriesCard();
+        }, 150);
+      });
 
       nameEl.addEventListener('click', (e) => {
         e.stopPropagation();
@@ -3053,7 +3854,7 @@ const layoutData = JSON.stringify({ organisms, rootTendrils: rootTendrilData });
 
     // --- Dismiss on wheel (zoom) ---
     viewport.addEventListener('wheel', () => {
-      if (cardVisible || selectedBaseName) {
+      if (cardVisible || selectedBaseName || seriesCardVisible || selectedSeriesId) {
         clearAllSync();
         selectedIndex = -1;
       }
@@ -3072,7 +3873,7 @@ const layoutData = JSON.stringify({ organisms, rootTendrils: rootTendrilData });
     viewport.addEventListener('pointerdown', (e: PointerEvent) => {
       const target = e.target as HTMLElement;
       if (target.closest('.spore-node') || target.closest('.organism') || target.closest('.series-indicator') || target.closest('.root-tendril-hit')) return;
-      if (cardVisible || selectedBaseName) {
+      if (cardVisible || selectedBaseName || seriesCardVisible || selectedSeriesId) {
         clearAllSync();
         selectedIndex = -1;
       }
