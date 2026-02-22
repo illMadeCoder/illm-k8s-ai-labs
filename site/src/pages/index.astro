@@ -2718,25 +2718,31 @@ const layoutData = JSON.stringify({ organisms, rootTendrils: rootTendrilData, da
   .hero-modal-arch .arch-here .arch-name { color: var(--accent); font-size: 0.8rem; }
   .hero-modal-arch .arch-here .arch-icon { color: var(--accent); }
 
-  /* --- Mobile: single column, hide arch --- */
+  /* --- Mobile: single column, show arch below intro --- */
   @media (max-width: 767px) {
     .hero-modal {
       padding: 1.5rem;
       width: 92vw;
+      max-height: 88vh;
+      overflow-y: auto;
     }
 
     .hero-modal-grid {
       grid-template-columns: 1fr;
-      gap: 0;
-    }
-
-    .hero-modal-arch {
-      display: none;
+      gap: 1.5rem;
     }
 
     .hero-modal-title {
       font-size: 1.5rem;
     }
+
+    /* Tighten arch diagram for narrow screens */
+    .hero-modal-arch .arch-name { font-size: 0.8rem; }
+    .hero-modal-arch .arch-detail { font-size: 0.65rem; }
+    .hero-modal-arch .arch-node { padding: 0.4rem 0.75rem; }
+    .hero-modal-arch .arch-hub { width: 90%; }
+    .hero-modal-arch .arch-ai { width: 65%; }
+    .hero-modal-arch .conn-label { font-size: 0.6rem; }
   }
 </style>
 
