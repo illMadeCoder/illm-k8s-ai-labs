@@ -128,6 +128,7 @@ interface OrganismData {
     href: string;
     description: string;
     phase: string;
+    verdict: string;
     date: string;
     duration: string;
     cost: string;
@@ -173,6 +174,7 @@ allSeries.forEach((s, i) => {
       href: `${base}experiments/${group.baseName}/`,
       description: group.latest.description || '',
       phase: group.latest.phase || '',
+      verdict: group.latest.analysis?.hypothesisVerdict || '',
       date: group.latest.createdAt ? formatDate(group.latest.createdAt) : '',
       duration: group.latest.durationSeconds ? formatDuration(group.latest.durationSeconds) : '',
       cost: group.latest.costEstimate?.totalUSD != null ? formatCost(group.latest.costEstimate.totalUSD) : '',
@@ -881,12 +883,10 @@ const layoutData = JSON.stringify({ organisms, rootTendrils: rootTendrilData, da
         <div class="scard-header">
           <span class="scard-shape"></span>
           <span class="scard-name"></span>
-          <span class="scard-count"></span>
         </div>
         <div class="scard-body"></div>
         <div class="scard-covers"></div>
         <div class="scard-sources"></div>
-        <div class="scard-experiments"></div>
       </div>
 
       <!-- Zoom controls -->
@@ -1856,27 +1856,26 @@ const layoutData = JSON.stringify({ organisms, rootTendrils: rootTendrilData, da
     border-radius: 3px;
   }
 
-  :global(.phase-complete) {
+  :global(.verdict-validated) {
     color: #3fb950;
     background: rgba(63, 185, 80, 0.1);
   }
 
-  :global(.phase-failed) {
+  :global(.verdict-invalidated) {
     color: #f85149;
     background: rgba(248, 81, 73, 0.1);
   }
 
-  :global(.phase-running) {
-    color: #58a6ff;
-    background: rgba(88, 166, 255, 0.1);
-  }
-
-  :global(.phase-pending) {
+  :global(.verdict-insufficient) {
     color: #d29922;
     background: rgba(210, 153, 34, 0.1);
   }
 
-  :global(.phase-unknown) {
+  :global(.verdict-complete),
+  :global(.verdict-failed),
+  :global(.verdict-running),
+  :global(.verdict-pending),
+  :global(.verdict-unknown) {
     color: var(--text-muted);
     background: rgba(139, 148, 158, 0.1);
   }
@@ -1970,6 +1969,7 @@ const layoutData = JSON.stringify({ organisms, rootTendrils: rootTendrilData, da
     z-index: 21;
     display: none;
     width: min-content;
+    min-width: 340px;
     max-width: min(640px, 80vw);
     padding: 0.85rem 1rem;
     overflow: hidden;
@@ -2044,16 +2044,6 @@ const layoutData = JSON.stringify({ organisms, rootTendrils: rootTendrilData, da
     font-weight: 700;
     line-height: 1.2;
     color: var(--scard-color, var(--accent));
-  }
-
-  .scard-count {
-    font-size: 0.6rem;
-    font-weight: 600;
-    color: var(--text-muted);
-    padding: 0.1rem 0.4rem;
-    background: rgba(255, 255, 255, 0.06);
-    border-radius: 3px;
-    margin-left: auto;
   }
 
   .scard-body {
@@ -2159,33 +2149,6 @@ const layoutData = JSON.stringify({ organisms, rootTendrils: rootTendrilData, da
     width: 12px;
     height: 12px;
     flex-shrink: 0;
-  }
-
-  .scard-experiments {
-    padding-top: 0.4rem;
-    border-top: 1px solid rgba(255, 255, 255, 0.06);
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.3rem;
-  }
-
-  .scard-experiments :global(.scard-exp) {
-    font-size: 0.6rem;
-    padding: 0.1rem 0.4rem;
-    border: 1px solid rgba(255, 255, 255, 0.08);
-    border-radius: 3px;
-    color: var(--text-muted);
-    text-decoration: none;
-    transition: color 0.1s, border-color 0.1s;
-    white-space: nowrap;
-    max-width: 100%;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-
-  .scard-experiments :global(.scard-exp:hover) {
-    color: var(--text);
-    border-color: var(--scard-color, var(--accent));
   }
 
   @media (max-width: 767px) {
@@ -2717,7 +2680,7 @@ const layoutData = JSON.stringify({ organisms, rootTendrils: rootTendrilData, da
     interface SporeData {
       baseName: string; title: string; runCount: number; tags: string[];
       cx: number; cy: number; size: number; href: string; seriesId: string;
-      description: string; phase: string; date: string;
+      description: string; phase: string; verdict: string; date: string;
       duration: string; cost: string; seriesName: string; seriesColor: string;
       shape: SporeShape;
     }
@@ -2730,7 +2693,7 @@ const layoutData = JSON.stringify({ organisms, rootTendrils: rootTendrilData, da
         experiments: {
           baseName: string; cx: number; cy: number; size: number;
           title: string; runCount: number; tags: string[]; href: string;
-          description: string; phase: string; date: string;
+          description: string; phase: string; verdict: string; date: string;
           duration: string; cost: string; seriesName: string; seriesColor: string;
           shape: SporeShape;
         }[];
@@ -2819,10 +2782,11 @@ const layoutData = JSON.stringify({ organisms, rootTendrils: rootTendrilData, da
     function buildExpandCard(data: SporeData): HTMLElement {
       const wrap = document.createElement('div');
       wrap.className = 'tree-expand';
-      const phaseClass = 'phase-' + (data.phase || 'unknown').toLowerCase().replace(/\s+/g, '-');
+      const expandVerdict = data.verdict || data.phase || 'Unknown';
+      const verdictClass = 'verdict-' + expandVerdict.toLowerCase().replace(/\s+/g, '-');
       wrap.innerHTML = `<div class="tree-expand-card" style="--expand-color:${data.seriesColor}">
         <div class="card-header">
-          <span class="card-phase ${phaseClass}">${data.phase || 'Unknown'}</span>
+          <span class="card-phase ${verdictClass}">${expandVerdict}</span>
           <span class="card-runs">${data.runCount} run${data.runCount !== 1 ? 's' : ''}</span>
           <span class="card-date">${data.date}</span>
         </div>
@@ -2999,11 +2963,10 @@ const layoutData = JSON.stringify({ organisms, rootTendrils: rootTendrilData, da
     const scard = document.getElementById('series-card')!;
     const scardShape = scard.querySelector<HTMLElement>('.scard-shape')!;
     const scardName = scard.querySelector<HTMLElement>('.scard-name')!;
-    const scardCount = scard.querySelector<HTMLElement>('.scard-count')!;
     const scardBody = scard.querySelector<HTMLElement>('.scard-body')!;
     const scardCovers = scard.querySelector<HTMLElement>('.scard-covers')!;
     const scardSources = scard.querySelector<HTMLElement>('.scard-sources')!;
-    const scardExperiments = scard.querySelector<HTMLElement>('.scard-experiments')!;
+
 
     // Platform icon SVGs (12×12, inline)
     const srcIcons: Record<string, string> = {
@@ -3117,8 +3080,9 @@ const layoutData = JSON.stringify({ organisms, rootTendrils: rootTendrilData, da
       selectedSeriesId = null;
 
       // Populate content
-      cardPhase.textContent = data.phase || 'Unknown';
-      cardPhase.className = 'card-phase phase-' + (data.phase || 'unknown').toLowerCase().replace(/\s+/g, '-');
+      const verdict = data.verdict || data.phase || 'Unknown';
+      cardPhase.textContent = verdict;
+      cardPhase.className = 'card-phase verdict-' + verdict.toLowerCase().replace(/\s+/g, '-');
       cardRuns.textContent = `${data.runCount} run${data.runCount !== 1 ? 's' : ''}`;
       cardDate.textContent = data.date;
       cardTitle.textContent = data.title;
@@ -3172,9 +3136,9 @@ const layoutData = JSON.stringify({ organisms, rootTendrils: rootTendrilData, da
       const orgLeft = orgVpX + offsetX;
       const orgTop = orgVpY + offsetY;
 
-      const cardW = Math.min(640, paneRect.width * 0.8);
+      const cardW = scard.offsetWidth || 280;
       const cardH = scard.offsetHeight || 280;
-      const gap = 20;
+      const gap = 16;
       const paneW = paneRect.width;
       const visibleH = vpRect.bottom - paneRect.top;
 
@@ -3212,9 +3176,6 @@ const layoutData = JSON.stringify({ organisms, rootTendrils: rootTendrilData, da
       scardShape.style.background = data.color;
       scardName.textContent = data.name;
       scardName.style.color = data.color;
-      scardCount.textContent = data.expCount > 0
-        ? `${data.expCount} experiment${data.expCount !== 1 ? 's' : ''}`
-        : 'coming soon';
 
       // Body
       scardBody.textContent = data.body;
@@ -3240,16 +3201,6 @@ const layoutData = JSON.stringify({ organisms, rootTendrils: rootTendrilData, da
         scardCovers.innerHTML = '';
       }
       scardSources.innerHTML = '';
-
-      // Experiment list
-      if (data.experiments.length > 0) {
-        scardExperiments.innerHTML = data.experiments.map(exp =>
-          `<a class="scard-exp" href="${exp.href}" style="--scard-color:${data.color}">${exp.title}</a>`
-        ).join('');
-        scardExperiments.style.display = '';
-      } else {
-        scardExperiments.style.display = 'none';
-      }
 
       // Color accent
       scard.style.setProperty('--scard-color', data.color);
@@ -3811,6 +3762,9 @@ const layoutData = JSON.stringify({ organisms, rootTendrils: rootTendrilData, da
       nameEl.addEventListener('click', (e) => {
         e.stopPropagation();
         zoomToSeries(seriesId);
+        selectedSeriesId = seriesId;
+        const fit = computeSeriesFit(seriesId);
+        showSeriesCard(seriesId, fit);
       });
     });
 
