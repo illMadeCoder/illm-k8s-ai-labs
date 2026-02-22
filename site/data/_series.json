@@ -1,10 +1,17 @@
 {
   "series": [
     {
-      "id": "this-lab",
-      "name": "This Lab",
-      "description": "Building and benchmarking the lab itself — operator lifecycle, observability stack, CI/CD, site publishing",
-      "body": "A Kubernetes experiment operator that provisions ephemeral cloud clusters, deploys competing technology stacks, runs standardized workloads, and publishes AI-analyzed results. Each experiment is idempotent and reproducible — infrastructure as code from hub to teardown.",
+      "id": "observability",
+      "name": "Observability",
+      "description": "Benchmarking logging, metrics, and tracing stacks — Loki vs Elasticsearch, Prometheus vs VictoriaMetrics, and more",
+      "body": "Head-to-head comparisons of cloud-native observability tools. Each experiment deploys competing stacks on identical clusters, measures ingestion throughput, query latency, resource consumption, and storage efficiency under realistic workloads.",
+      "sources": [
+        {
+          "title": "Observability Engineering",
+          "url": "https://www.oreilly.com/library/view/observability-engineering/9781492076438/",
+          "image": "images/series/observability-engineering.jpg"
+        }
+      ],
       "color": "#a78bfa",
       "shape": "circle"
     },

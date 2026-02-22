@@ -11,7 +11,7 @@
     "observability",
     "metrics"
   ],
-  "series": "this-lab",
+  "series": "observability",
   "targets": [
     {
       "name": "app",
