@@ -1,211 +1,2210 @@
 ---
 import Base from '../layouts/Base.astro';
-import Hero from '../components/Hero.astro';
-import ExperimentGroupCard from '../components/ExperimentGroupCard.astro';
-import SeriesCard from '../components/SeriesCard.astro';
-import {
-  loadAllExperiments,
-  groupExperiments,
-} from '../lib/experiments';
+import { loadAllExperiments, groupBySeries, groupExperiments, getAllTags, getDisplayTitle } from '../lib/experiments';
+import { loadSeries } from '../lib/series';
+import type { ExperimentGroup } from '../lib/experiments';
+import type { Series } from '../lib/series';
+import { formatDate, formatDuration, formatCost } from '../lib/format';
 
 const experiments = loadAllExperiments();
-const groups = groupExperiments(experiments);
-const recentGroups = groups.slice(0, 6);
+const seriesGroups = groupBySeries(experiments);
+const allSeries = loadSeries();
+const allGroups = groupExperiments(experiments);
+const tags = getAllTags(experiments);
+const base = import.meta.env.BASE_URL;
+
+// --- Catalog tree data (from zettel-index) ---
+interface SeriesEntry {
+  series: Series;
+  experiments: ExperimentGroup[];
+}
+
+const seriesEntries: SeriesEntry[] = allSeries.map(s => ({
+  series: s,
+  experiments: seriesGroups[s.id] ?? [],
+}));
+
+const seriesExpNames = new Set<string>();
+for (const groups of Object.values(seriesGroups)) {
+  for (const g of groups) {
+    seriesExpNames.add(g.baseName);
+  }
+}
+const unsorted = allGroups.filter(g => !seriesExpNames.has(g.baseName));
+
+// --- Rhizome layout data (from zettel-rhizome) ---
+const CANVAS_W = 1200;
+const CANVAS_H = 900;
+
+// Radial layout: places organisms on concentric elliptical rings
+// Ring 1 (diagonals): NW, NE, SE, SW — up to 4 series
+// Ring 2 (cardinals): N, E, S, W — series 5-8
+// Ring 3+: bisect existing angles — series 9+
+function generateOrganismPositions(count: number): { x: number; y: number }[] {
+  const cx = CANVAS_W / 2;
+  const cy = CANVAS_H / 2;
+  const DEG = Math.PI / 180;
+
+  // Elliptical radii per ring (wider X for 4:3 canvas)
+  const RX_BASE = 310, RY_BASE = 225;
+  const RX_STEP = 50,  RY_STEP = 40;
+
+  // Ring 1: diagonals (NW, NE, SE, SW) — clock convention: 0°=N, clockwise
+  const ring1 = [315, 45, 135, 225];
+  // Ring 2: cardinals (N, E, S, W)
+  const ring2 = [0, 90, 180, 270];
+
+  // Build slot list: ring1 first, then ring2, then bisect for ring3+
+  const slots: { angle: number; ring: number }[] = [];
+  for (const a of ring1) slots.push({ angle: a, ring: 0 });
+  for (const a of ring2) slots.push({ angle: a, ring: 1 });
+
+  // Ring 3+: bisect all previous angles sorted, expanding outward
+  if (count > 8) {
+    const existingAngles = [...ring1, ...ring2].sort((a, b) => a - b);
+    let ring = 2;
+    let available = existingAngles;
+    while (slots.length < count) {
+      const bisected: number[] = [];
+      for (let i = 0; i < available.length; i++) {
+        const a1 = available[i];
+        const a2 = available[(i + 1) % available.length];
+        const mid = a1 < a2 ? (a1 + a2) / 2 : ((a1 + a2 + 360) / 2) % 360;
+        bisected.push(mid);
+        slots.push({ angle: mid, ring });
+        if (slots.length >= count) break;
+      }
+      available = [...available, ...bisected].sort((a, b) => a - b);
+      ring++;
+    }
+  }
+
+  const positions: { x: number; y: number }[] = [];
+  for (let i = 0; i < count; i++) {
+    const { angle, ring } = slots[i];
+    const rad = angle * DEG;
+    const rx = RX_BASE + ring * RX_STEP;
+    const ry = RY_BASE + ring * RY_STEP;
+    positions.push({
+      x: Math.round(cx + rx * Math.sin(rad)),
+      y: Math.round(cy - ry * Math.cos(rad)),
+    });
+  }
+  return positions;
+}
+
+const organismPositions = generateOrganismPositions(allSeries.length);
+
+function seededRandom(seed: number) {
+  let s = seed;
+  return () => {
+    s = (s * 16807 + 0) % 2147483647;
+    return (s - 1) / 2147483646;
+  };
+}
+
+const SERIES_SHAPES = ['circle', 'diamond', 'hexagon', 'triangle', 'square'] as const;
+type SporeShape = typeof SERIES_SHAPES[number];
+
+interface OrganismData {
+  id: string;
+  name: string;
+  description: string;
+  color: string;
+  shape: SporeShape;
+  cx: number;
+  cy: number;
+  experiments: {
+    baseName: string;
+    title: string;
+    runCount: number;
+    tags: string[];
+    cx: number;
+    cy: number;
+    size: number;
+    href: string;
+    description: string;
+    phase: string;
+    date: string;
+    duration: string;
+    cost: string;
+    seriesName: string;
+    seriesColor: string;
+    shape: SporeShape;
+  }[];
+  isEmpty: boolean;
+}
+
+interface TendrilData {
+  seriesId: string;
+  color: string;
+  path: string;
+}
+
+const organisms: OrganismData[] = [];
+const tendrils: TendrilData[] = [];
+
+allSeries.forEach((s, i) => {
+  const center = organismPositions[i];
+  const exps = seriesGroups[s.id] ?? [];
+  const color = s.color || '#60a5fa';
+  const shape = (s.shape || SERIES_SHAPES[i % SERIES_SHAPES.length]) as SporeShape;
+  const isEmpty = exps.length === 0;
+
+  const rng = seededRandom(s.id.length * 1000 + i * 7919);
+  const sporeExps = exps.map((group, j) => {
+    const angle = ((2 * Math.PI) / Math.max(exps.length, 1)) * j + rng() * 0.4 - 0.2;
+    const dist = 120 + rng() * 80 + j * 25;
+    const cx = center.x + Math.cos(angle) * dist;
+    const cy = center.y + Math.sin(angle) * dist;
+    const runCount = group.runs.length;
+    const size = Math.max(20, Math.min(30, 16 + runCount * 0.6));
+
+    return {
+      baseName: group.baseName,
+      title: getDisplayTitle(group),
+      runCount,
+      tags: group.tags,
+      cx: Math.round(cx),
+      cy: Math.round(cy),
+      size: Math.round(size),
+      href: `${base}experiments/${group.baseName}/`,
+      description: group.latest.description || '',
+      phase: group.latest.phase || '',
+      date: group.latest.createdAt ? formatDate(group.latest.createdAt) : '',
+      duration: group.latest.durationSeconds ? formatDuration(group.latest.durationSeconds) : '',
+      cost: group.latest.costEstimate?.totalUSD != null ? formatCost(group.latest.costEstimate.totalUSD) : '',
+      seriesName: s.name,
+      seriesColor: color,
+      shape,
+    };
+  });
+
+  organisms.push({
+    id: s.id,
+    name: s.name,
+    description: s.description,
+    color,
+    shape,
+    cx: center.x,
+    cy: center.y,
+    experiments: sporeExps,
+    isEmpty,
+  });
+
+  for (const spore of sporeExps) {
+    const dx = spore.cx - center.x;
+    const dy = spore.cy - center.y;
+    const perpX = -dy * 0.25 * (rng() - 0.5);
+    const perpY = dx * 0.25 * (rng() - 0.5);
+    const cp1x = Math.round(center.x + dx * 0.3 + perpX);
+    const cp1y = Math.round(center.y + dy * 0.3 + perpY);
+    const cp2x = Math.round(center.x + dx * 0.7 - perpX * 0.5);
+    const cp2y = Math.round(center.y + dy * 0.7 - perpY * 0.5);
+
+    tendrils.push({
+      seriesId: s.id,
+      color,
+      path: `M ${center.x} ${center.y} C ${cp1x} ${cp1y}, ${cp2x} ${cp2y}, ${spore.cx} ${spore.cy}`,
+    });
+  }
+});
+
+// Root node tendrils (organism → center) + indicator waypoints on the Bezier
+const ROOT_CX = CANVAS_W / 2;
+const ROOT_CY = CANVAS_H / 2;
+const rootTendrils: TendrilData[] = [];
+
+interface IndicatorData {
+  seriesId: string;
+  name: string;
+  color: string;
+  expCount: number;
+  cx: number;
+  cy: number;
+}
+const indicatorPoints: IndicatorData[] = [];
+
+for (const org of organisms) {
+  const dx = ROOT_CX - org.cx;
+  const dy = ROOT_CY - org.cy;
+  const rngR = seededRandom(org.id.length * 3137 + 42);
+  const perpX = -dy * 0.2 * (rngR() - 0.5);
+  const perpY = dx * 0.2 * (rngR() - 0.5);
+  const cp1x = Math.round(org.cx + dx * 0.35 + perpX);
+  const cp1y = Math.round(org.cy + dy * 0.35 + perpY);
+  const cp2x = Math.round(org.cx + dx * 0.65 - perpX * 0.5);
+  const cp2y = Math.round(org.cy + dy * 0.65 - perpY * 0.5);
+  rootTendrils.push({
+    seriesId: org.id,
+    color: org.color,
+    path: `M ${ROOT_CX} ${ROOT_CY} C ${cp2x} ${cp2y}, ${cp1x} ${cp1y}, ${org.cx} ${org.cy}`,
+  });
+
+  // Compute indicator position on the actual cubic Bezier at t=0.55
+  // Path: P0=hub, P1=cp2, P2=cp1, P3=org
+  const t = 0.55;
+  const mt = 1 - t;
+  const bx = mt*mt*mt*ROOT_CX + 3*mt*mt*t*cp2x + 3*mt*t*t*cp1x + t*t*t*org.cx;
+  const by = mt*mt*mt*ROOT_CY + 3*mt*mt*t*cp2y + 3*mt*t*t*cp1y + t*t*t*org.cy;
+  indicatorPoints.push({
+    seriesId: org.id,
+    name: org.name,
+    color: org.color,
+    expCount: org.experiments.length,
+    cx: Math.round(bx),
+    cy: Math.round(by),
+  });
+}
+
+// Root tendril Bezier data for runtime evaluation
+// Path: P0=hub, P1=cp2, P2=cp1, P3=org (toward hub → t=0, toward org → t=1)
+interface RootTendrilData {
+  seriesId: string;
+  p0x: number; p0y: number; // hub
+  p1x: number; p1y: number; // cp2
+  p2x: number; p2y: number; // cp1
+  p3x: number; p3y: number; // org
+}
+const rootTendrilData: RootTendrilData[] = [];
+for (const org of organisms) {
+  const dx = ROOT_CX - org.cx;
+  const dy = ROOT_CY - org.cy;
+  const rngR = seededRandom(org.id.length * 3137 + 42);
+  const perpX = -dy * 0.2 * (rngR() - 0.5);
+  const perpY = dx * 0.2 * (rngR() - 0.5);
+  const cp1x = Math.round(org.cx + dx * 0.35 + perpX);
+  const cp1y = Math.round(org.cy + dy * 0.35 + perpY);
+  const cp2x = Math.round(org.cx + dx * 0.65 - perpX * 0.5);
+  const cp2y = Math.round(org.cy + dy * 0.65 - perpY * 0.5);
+  rootTendrilData.push({
+    seriesId: org.id,
+    p0x: ROOT_CX, p0y: ROOT_CY,
+    p1x: cp2x, p1y: cp2y,
+    p2x: cp1x, p2y: cp1y,
+    p3x: org.cx, p3y: org.cy,
+  });
+}
+
+// Serialize for client-side sync
+const layoutData = JSON.stringify({ organisms, rootTendrils: rootTendrilData });
 ---
 
-<Base title="K8s Cloud TestBed — Automated Kubernetes Benchmarks">
-  <Hero>
-    <Fragment slot="intro">
-      <h1 class="text-3xl md:text-4xl font-bold font-mono mb-4">
-        Cloud Testbed
-      </h1>
-      <p class="text-lg text-text-muted max-w-2xl leading-relaxed mb-4">
-        A custom Kubernetes operator provisions production cloud clusters, deploys competing
-        technology stacks, runs standardized workloads, and publishes AI-analyzed
-        results. All automated, all reproducible.
-      </p>
-      <div class="hero-tech-badges">
-        <span class="hero-tech-badge">Talos</span>
-        <span class="hero-tech-badge">GKE</span>
-        <span class="hero-tech-badge">EKS</span>
-        <span class="hero-tech-badge">AKS</span>
-        <span class="hero-tech-badge">Crossplane</span>
-        <span class="hero-tech-badge">ArgoCD</span>
-        <span class="hero-tech-badge">Argo Workflows</span>
-        <span class="hero-tech-badge">VictoriaMetrics</span>
-      </div>
-      <a href="https://github.com/illMadeCoder/k8s-ai-cloud-testbed" class="hero-repo-link" target="_blank" rel="noopener">
-        <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
-          <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/>
-        </svg>
-        <span>View source on GitHub</span>
-      </a>
-    </Fragment>
-    <div class="arch">
-      <div class="arch-node arch-hub">
-        <div class="arch-icon-row">
-          <svg class="arch-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/>
-            <circle cx="6" cy="6" r="1" fill="currentColor"/><circle cx="6" cy="18" r="1" fill="currentColor"/>
-          </svg>
-          <div class="arch-name">On-Prem Talos Hub</div>
-        </div>
-        <div class="arch-detail">Experiment CRs · ArgoCD · Crossplane</div>
-      </div>
-      <div class="conn-fan-out">
-        <div class="conn-v-center"></div>
-        <div class="conn-label">idempotent ephemeral experiment</div>
-        <div class="conn-h"></div>
-        <div class="conn-fan-out-stems">
-          <div class="conn-cell"><div class="conn-v-short"></div><div class="conn-arrow"></div></div>
-          <div class="conn-cell"><div class="conn-v-short"></div><div class="conn-arrow"></div></div>
-          <div class="conn-cell"><div class="conn-v-short"></div><div class="conn-arrow"></div></div>
-        </div>
-      </div>
-      <div class="arch-row">
-        <div class="arch-node">
-          <div class="arch-icon-row">
-            <svg class="arch-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/>
-            </svg>
-            <div class="arch-name">GKE</div>
+<Base title="Series — K8s Cloud TestBed">
+  <!-- Hero modal (first-visit welcome) -->
+  <div id="hero-modal-backdrop" class="hero-modal-backdrop" style="display:none">
+    <div id="hero-modal" class="hero-modal" role="dialog" aria-label="Welcome to Cloud Testbed">
+      <div class="hero-modal-grid">
+        <div class="hero-modal-intro">
+          <h1 class="hero-modal-title">Cloud Testbed</h1>
+          <p class="hero-modal-desc">
+            A custom Kubernetes operator provisions production cloud clusters, deploys competing
+            technology stacks, runs standardized workloads, and publishes AI-analyzed
+            results. All automated, all reproducible.
+          </p>
+          <div class="hero-modal-badges">
+            <span class="hero-badge">Talos</span>
+            <span class="hero-badge">GKE</span>
+            <span class="hero-badge">EKS</span>
+            <span class="hero-badge">AKS</span>
+            <span class="hero-badge">Crossplane</span>
+            <span class="hero-badge">ArgoCD</span>
+            <span class="hero-badge">Argo Workflows</span>
+            <span class="hero-badge">VictoriaMetrics</span>
           </div>
-          <div class="arch-detail">Google Cloud</div>
-        </div>
-        <div class="arch-node">
-          <div class="arch-icon-row">
-            <svg class="arch-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/>
+          <a href="https://github.com/illMadeCoder/k8s-ai-cloud-testbed" class="hero-modal-repo" target="_blank" rel="noopener">
+            <svg viewBox="0 0 24 24" fill="currentColor" width="16" height="16">
+              <path d="M12 0C5.37 0 0 5.37 0 12c0 5.31 3.435 9.795 8.205 11.385.6.105.825-.255.825-.57 0-.285-.015-1.23-.015-2.235-3.015.555-3.795-.735-4.035-1.41-.135-.345-.72-1.41-1.23-1.695-.42-.225-1.02-.78-.015-.795.945-.015 1.62.87 1.845 1.23 1.08 1.815 2.805 1.305 3.495.99.105-.78.42-1.305.765-1.605-2.67-.3-5.46-1.335-5.46-5.925 0-1.305.465-2.385 1.23-3.225-.12-.3-.54-1.53.12-3.18 0 0 1.005-.315 3.3 1.23.96-.27 1.98-.405 3-.405s2.04.135 3 .405c2.295-1.56 3.3-1.23 3.3-1.23.66 1.65.24 2.88.12 3.18.765.84 1.23 1.905 1.23 3.225 0 4.605-2.805 5.625-5.475 5.925.435.375.81 1.095.81 2.22 0 1.605-.015 2.895-.015 3.3 0 .315.225.69.825.57A12.02 12.02 0 0024 12c0-6.63-5.37-12-12-12z"/>
             </svg>
-            <div class="arch-name">EKS</div>
+            <span>View source on GitHub</span>
+          </a>
+          <button id="hero-modal-dismiss" class="hero-modal-cta">Enter the Lab</button>
+        </div>
+        <div class="hero-modal-arch">
+          <div class="arch">
+            <div class="arch-node arch-hub">
+              <div class="arch-icon-row">
+                <svg class="arch-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="2" y="2" width="20" height="8" rx="2"/><rect x="2" y="14" width="20" height="8" rx="2"/>
+                  <circle cx="6" cy="6" r="1" fill="currentColor"/><circle cx="6" cy="18" r="1" fill="currentColor"/>
+                </svg>
+                <div class="arch-name">On-Prem Talos Hub</div>
+              </div>
+              <div class="arch-detail">Experiment CRs · ArgoCD · Crossplane</div>
+            </div>
+            <div class="conn-fan-out">
+              <div class="conn-v-center"></div>
+              <div class="conn-label">idempotent ephemeral experiment</div>
+              <div class="conn-h"></div>
+              <div class="conn-fan-out-stems">
+                <div class="conn-cell"><div class="conn-v-short"></div><div class="conn-arrow"></div></div>
+                <div class="conn-cell"><div class="conn-v-short"></div><div class="conn-arrow"></div></div>
+                <div class="conn-cell"><div class="conn-v-short"></div><div class="conn-arrow"></div></div>
+              </div>
+            </div>
+            <div class="arch-row">
+              <div class="arch-node">
+                <div class="arch-icon-row">
+                  <svg class="arch-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/>
+                  </svg>
+                  <div class="arch-name">GKE</div>
+                </div>
+                <div class="arch-detail">Google Cloud</div>
+              </div>
+              <div class="arch-node">
+                <div class="arch-icon-row">
+                  <svg class="arch-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/>
+                  </svg>
+                  <div class="arch-name">EKS</div>
+                </div>
+                <div class="arch-detail">AWS</div>
+              </div>
+              <div class="arch-node">
+                <div class="arch-icon-row">
+                  <svg class="arch-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                    <path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/>
+                  </svg>
+                  <div class="arch-name">AKS</div>
+                </div>
+                <div class="arch-detail">Azure</div>
+              </div>
+            </div>
+            <div class="conn-merge">
+              <div class="conn-merge-stems">
+                <div class="conn-cell"><div class="conn-v-short"></div></div>
+                <div class="conn-cell"><div class="conn-v-short"></div></div>
+                <div class="conn-cell"><div class="conn-v-short"></div></div>
+              </div>
+              <div class="conn-h"></div>
+              <div class="conn-label">metrics, logs, traces</div>
+              <div class="conn-v-center"></div>
+              <div class="conn-arrow"></div>
+            </div>
+            <div class="arch-node arch-ai">
+              <div class="arch-icon-row">
+                <svg class="arch-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M12 2l2.09 6.26L20 10l-5.91 1.74L12 18l-2.09-6.26L4 10l5.91-1.74L12 2z"/>
+                  <path d="M18 14l1.18 3.54L23 19l-3.82 1.46L18 24l-1.18-3.54L13 19l3.82-1.46L18 14z" opacity="0.6"/>
+                </svg>
+                <div class="arch-name">AI Analysis</div>
+              </div>
+              <div class="arch-detail">Argo Workflows · Rootless Agentic</div>
+            </div>
+            <div class="conn-single">
+              <div class="conn-v-center"></div>
+              <div class="conn-label">CI/CD publish</div>
+              <div class="conn-v-center"></div>
+              <div class="conn-arrow"></div>
+            </div>
+            <div class="arch-node arch-here">
+              <div class="arch-icon-row">
+                <svg class="arch-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>
+                </svg>
+                <div class="arch-name">You are here</div>
+              </div>
+            </div>
           </div>
-          <div class="arch-detail">AWS</div>
-        </div>
-        <div class="arch-node">
-          <div class="arch-icon-row">
-            <svg class="arch-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M18 10h-1.26A8 8 0 1 0 9 20h9a5 5 0 0 0 0-10z"/>
-            </svg>
-            <div class="arch-name">AKS</div>
-          </div>
-          <div class="arch-detail">Azure</div>
-        </div>
-      </div>
-      <div class="conn-merge">
-        <div class="conn-merge-stems">
-          <div class="conn-cell"><div class="conn-v-short"></div></div>
-          <div class="conn-cell"><div class="conn-v-short"></div></div>
-          <div class="conn-cell"><div class="conn-v-short"></div></div>
-        </div>
-        <div class="conn-h"></div>
-        <div class="conn-label">metrics, logs, traces</div>
-        <div class="conn-v-center"></div>
-        <div class="conn-arrow"></div>
-      </div>
-      <div class="arch-node arch-ai">
-        <div class="arch-icon-row">
-          <svg class="arch-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M12 2l2.09 6.26L20 10l-5.91 1.74L12 18l-2.09-6.26L4 10l5.91-1.74L12 2z"/>
-            <path d="M18 14l1.18 3.54L23 19l-3.82 1.46L18 24l-1.18-3.54L13 19l3.82-1.46L18 14z" opacity="0.6"/>
-          </svg>
-          <div class="arch-name">AI Analysis</div>
-        </div>
-        <div class="arch-detail">Argo Workflows · Rootless Agentic</div>
-      </div>
-      <div class="conn-single">
-        <div class="conn-v-center"></div>
-        <div class="conn-label">CI/CD publish</div>
-        <div class="conn-v-center"></div>
-        <div class="conn-arrow"></div>
-      </div>
-      <div class="arch-node arch-here">
-        <div class="arch-icon-row">
-          <svg class="arch-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/>
-          </svg>
-          <div class="arch-name">You are here</div>
         </div>
       </div>
     </div>
-  </Hero>
+  </div>
 
-  <section class="mb-12">
-    <h2 class="text-xl font-semibold mb-4">Recent Experiments</h2>
-    {recentGroups.length === 0 ? (
-      <div class="text-center py-16 text-text-muted">
-        <p class="text-lg mb-2">No experiments yet</p>
-        <p class="text-sm">
-          Experiments will appear here once the operator publishes results to
-          <code class="text-xs bg-bg-surface px-1.5 py-0.5 rounded">site/data/</code>
-        </p>
-      </div>
-    ) : (
-      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-        {recentGroups.map((group) => (
-          <ExperimentGroupCard group={group} />
+  <!-- Mobile: tab-based layout -->
+  <div class="hybrid-mobile" id="hybrid-mobile">
+    <div class="mobile-tabs" id="mobile-tabs">
+      <button class="mobile-tab active" data-target="catalog">Catalog</button>
+      <button class="mobile-tab" data-target="rhizome">Rhizome</button>
+    </div>
+    <div class="mobile-pane mobile-catalog" id="mobile-catalog">
+      <div class="catalog-scroll">
+        {seriesEntries.map(({ series, experiments: exps }) => (
+          <div class="tree-series" data-series-id={series.id}>
+            <div class="tree-header" style={`border-color: ${series.color || 'var(--border)'}`}>
+              <span class="tree-branch" style={`color: ${series.color || 'var(--text-muted)'}`}>&#9484;&#9472;</span>
+              <span class="tree-shape" data-shape={series.shape || 'circle'} style={`--shape-color: ${series.color || 'var(--text-muted)'}`}></span>
+              <span class="tree-series-name" style={`color: ${series.color || 'var(--text)'}`}>{series.name}</span>
+              <span class="tree-series-line" style={`border-color: ${series.color || 'var(--border)'}`}></span>
+            </div>
+            {exps.length === 0 ? (
+              <div class="tree-row tree-empty">
+                <span class="tree-branch" style={`color: ${series.color || 'var(--text-muted)'}`}>&#9492;&#9472;&#9472;</span>
+                <span class="tree-exp-name muted">(coming soon)</span>
+              </div>
+            ) : (
+              exps.map((group, i) => {
+                const isLast = i === exps.length - 1;
+                const branch = isLast ? '\u2514\u2500\u2500' : '\u251C\u2500\u2500';
+                const title = getDisplayTitle(group);
+                return (
+                  <a
+                    href={`${base}experiments/${group.baseName}/`}
+                    class="tree-row"
+                    data-base-name={group.baseName}
+                  >
+                    <span class="tree-branch" style={`color: ${series.color || 'var(--text-muted)'}`}>{branch}</span>
+                    <span class="tree-exp-name">{title}</span>
+                    <span class="tree-dots"></span>
+                    <span class="tree-runs">{group.latest.createdAt ? formatDate(group.latest.createdAt) : ''}</span>
+                  </a>
+                );
+              })
+            )}
+            <div class="tree-spacer"></div>
+          </div>
         ))}
+        {unsorted.length > 0 && (
+          <div class="tree-series" data-series-id="_unsorted">
+            <div class="tree-header" style="border-color: var(--text-muted)">
+              <span class="tree-branch" style="color: var(--text-muted)">&#9484;&#9472;</span>
+              <span class="tree-series-name" style="color: var(--text-muted)">Unsorted</span>
+              <span class="tree-series-line" style="border-color: var(--text-muted)"></span>
+            </div>
+            {unsorted.map((group, i) => {
+              const isLast = i === unsorted.length - 1;
+              const branch = isLast ? '\u2514\u2500\u2500' : '\u251C\u2500\u2500';
+              const title = getDisplayTitle(group);
+              return (
+                <a
+                  href={`${base}experiments/${group.baseName}/`}
+                  class="tree-row"
+                  data-base-name={group.baseName}
+                >
+                  <span class="tree-branch" style="color: var(--text-muted)">{branch}</span>
+                  <span class="tree-exp-name">{title}</span>
+                  <span class="tree-dots"></span>
+                  <span class="tree-runs">{group.latest.createdAt ? formatDate(group.latest.createdAt) : ''}</span>
+                </a>
+              );
+            })}
+          </div>
+        )}
       </div>
-    )}
-  </section>
+    </div>
+    <div class="mobile-pane mobile-rhizome" id="mobile-rhizome" style="display:none">
+      <p class="mobile-rhizome-hint">Rhizome view is best experienced on desktop.</p>
+    </div>
+  </div>
 
+  <!-- Desktop: split-pane hybrid -->
+  <div class="hybrid-container" id="hybrid-container">
+    <!-- LEFT: Catalog pane -->
+    <div class="catalog-pane" id="catalog-pane">
+      <!-- Arcade root node -->
+      <div class="catalog-root" id="catalog-root">
+        <svg class="root-icon" viewBox="0 0 16 20" width="14" height="17" fill="currentColor">
+          <rect x="0" y="0" width="16" height="20" rx="2" opacity="0.3" />
+          <rect x="2" y="1.5" width="12" height="4.5" rx="1" />
+          <circle cx="12" cy="3.75" r="1" opacity="0.4" />
+          <rect x="2" y="7.75" width="12" height="4.5" rx="1" />
+          <circle cx="12" cy="10" r="1" opacity="0.4" />
+          <rect x="2" y="14" width="12" height="4.5" rx="1" />
+          <circle cx="12" cy="16.25" r="1" opacity="0.4" />
+        </svg>
+        <span class="root-title">TESTBED UI</span>
+      </div>
+      <div class="root-connector">&#9482;</div>
+      <div class="catalog-scroll" id="catalog-scroll">
+        {seriesEntries.map(({ series, experiments: exps }) => (
+          <div class="tree-series" data-series-id={series.id}>
+            <div class="tree-header" style={`border-color: ${series.color || 'var(--border)'}`}>
+              <span class="tree-branch" style={`color: ${series.color || 'var(--text-muted)'}`}>&#9484;&#9472;</span>
+              <span class="tree-shape" data-shape={series.shape || 'circle'} style={`--shape-color: ${series.color || 'var(--text-muted)'}`}></span>
+              <span class="tree-series-name" style={`color: ${series.color || 'var(--text)'}`}>{series.name}</span>
+              <span class="tree-series-line" style={`border-color: ${series.color || 'var(--border)'}`}></span>
+            </div>
+            {exps.length === 0 ? (
+              <div class="tree-row tree-empty">
+                <span class="tree-branch" style={`color: ${series.color || 'var(--text-muted)'}`}>&#9492;&#9472;&#9472;</span>
+                <span class="tree-exp-name muted">(coming soon)</span>
+              </div>
+            ) : (
+              exps.map((group, i) => {
+                const isLast = i === exps.length - 1;
+                const branch = isLast ? '\u2514\u2500\u2500' : '\u251C\u2500\u2500';
+                const title = getDisplayTitle(group);
+                return (
+                  <a
+                    href={`${base}experiments/${group.baseName}/`}
+                    class="tree-row"
+                    data-base-name={group.baseName}
+                  >
+                    <span class="tree-branch" style={`color: ${series.color || 'var(--text-muted)'}`}>{branch}</span>
+                    <span class="tree-exp-name">{title}</span>
+                    <span class="tree-dots"></span>
+                    <span class="tree-runs">{group.latest.createdAt ? formatDate(group.latest.createdAt) : ''}</span>
+                  </a>
+                );
+              })
+            )}
+            <div class="tree-spacer"></div>
+          </div>
+        ))}
+
+        {unsorted.length > 0 && (
+          <div class="tree-series" data-series-id="_unsorted">
+            <div class="tree-header" style="border-color: var(--text-muted)">
+              <span class="tree-branch" style="color: var(--text-muted)">&#9484;&#9472;</span>
+              <span class="tree-series-name" style="color: var(--text-muted)">Unsorted</span>
+              <span class="tree-series-line" style="border-color: var(--text-muted)"></span>
+            </div>
+            {unsorted.map((group, i) => {
+              const isLast = i === unsorted.length - 1;
+              const branch = isLast ? '\u2514\u2500\u2500' : '\u251C\u2500\u2500';
+              const title = getDisplayTitle(group);
+              return (
+                <a
+                  href={`${base}experiments/${group.baseName}/`}
+                  class="tree-row"
+                  data-base-name={group.baseName}
+                >
+                  <span class="tree-branch" style="color: var(--text-muted)">{branch}</span>
+                  <span class="tree-exp-name">{title}</span>
+                  <span class="tree-dots"></span>
+                  <span class="tree-runs">{group.latest.createdAt ? formatDate(group.latest.createdAt) : ''}</span>
+                </a>
+              );
+            })}
+          </div>
+        )}
+      </div>
+    </div>
+
+    <!-- DIVIDER -->
+    <div class="hybrid-divider"></div>
+
+    <!-- RIGHT: Rhizome pane -->
+    <div class="rhizome-pane" id="rhizome-pane">
+      <div id="rhizome-viewport" class="rhizome-viewport">
+        <div id="rhizome-world" class="rhizome-world" style={`width:${CANVAS_W}px;height:${CANVAS_H}px`}>
+          <svg
+            class="rhizome-svg"
+            viewBox={`0 0 ${CANVAS_W} ${CANVAS_H}`}
+            width={CANVAS_W}
+            height={CANVAS_H}
+            xmlns="http://www.w3.org/2000/svg"
+          >
+            <defs>
+              {organisms.map(org => (
+                <filter id={`glow-${org.id}`} x="-50%" y="-50%" width="200%" height="200%">
+                  <feGaussianBlur stdDeviation="6" result="blur" />
+                  <feMerge>
+                    <feMergeNode in="blur" />
+                    <feMergeNode in="SourceGraphic" />
+                  </feMerge>
+                </filter>
+              ))}
+              <filter id="glow-root" x="-50%" y="-50%" width="200%" height="200%">
+                <feGaussianBlur stdDeviation="14" result="blur" />
+                <feMerge>
+                  <feMergeNode in="blur" />
+                  <feMergeNode in="SourceGraphic" />
+                </feMerge>
+              </filter>
+              <radialGradient id="root-haze" cx="50%" cy="50%" r="50%">
+                <stop offset="0%" stop-color="#60a5fa" stop-opacity="0.5" />
+                <stop offset="100%" stop-color="#60a5fa" stop-opacity="0" />
+              </radialGradient>
+            </defs>
+
+            <!-- Tendrils -->
+            {tendrils.map((t, i) => (
+              <path
+                class="tendril"
+                d={t.path}
+                stroke={t.color}
+                stroke-width="1.5"
+                fill="none"
+                opacity="0.4"
+                data-series={t.seriesId}
+                style={`--tendril-delay: ${i * 0.08}s`}
+              />
+            ))}
+
+            <!-- Root tendrils (organism → center) -->
+            {rootTendrils.map((t, i) => (
+              <g class="root-tendril-group" data-series={t.seriesId}>
+                <path
+                  class="tendril root-tendril"
+                  d={t.path}
+                  stroke={t.color}
+                  stroke-width="1.8"
+                  fill="none"
+                  opacity="0.35"
+                  stroke-dasharray="6 4"
+                  data-series={t.seriesId}
+                  style={`--tendril-delay: ${(tendrils.length + i) * 0.08}s; --tendril-color: ${t.color}`}
+                />
+                <path
+                  class="root-tendril-hit"
+                  d={t.path}
+                  stroke="transparent"
+                  stroke-width="24"
+                  fill="none"
+                  data-series={t.seriesId}
+                  data-no-pan
+                  style="cursor:pointer"
+                />
+              </g>
+            ))}
+
+            <!-- Root hub -->
+            <g class="root-hub-group">
+              <!-- Outer orbital ring -->
+              <circle cx={ROOT_CX} cy={ROOT_CY} r="77"
+                fill="none" stroke="#60a5fa" stroke-width="0.7"
+                stroke-dasharray="5 7" opacity="0.3"
+                class="root-orbit" />
+              <!-- Background haze — adds visual MASS -->
+              <circle cx={ROOT_CX} cy={ROOT_CY} r="62"
+                fill="url(#root-haze)" opacity="0.18" />
+              <!-- Middle ring -->
+              <circle cx={ROOT_CX} cy={ROOT_CY} r="58"
+                fill="none" stroke="#60a5fa" stroke-width="2"
+                opacity="0.55" filter="url(#glow-root)" />
+              <!-- Core server rack icon -->
+              <g transform={`translate(${ROOT_CX - 22}, ${ROOT_CY - 26})`}
+                fill="#60a5fa" opacity="0.75" filter="url(#glow-root)">
+                <!-- Rack frame -->
+                <rect x="0" y="0" width="44" height="52" rx="4" fill="#60a5fa" opacity="0.25" />
+                <!-- Top unit -->
+                <rect x="4" y="4" width="36" height="12" rx="2" fill="#60a5fa" />
+                <circle cx="34" cy="10" r="2.5" fill="#0f172a" opacity="0.8" />
+                <rect x="8" y="8" width="14" height="4" rx="1" fill="#0f172a" opacity="0.35" />
+                <!-- Middle unit -->
+                <rect x="4" y="20" width="36" height="12" rx="2" fill="#60a5fa" />
+                <circle cx="34" cy="26" r="2.5" fill="#0f172a" opacity="0.8" />
+                <rect x="8" y="24" width="14" height="4" rx="1" fill="#0f172a" opacity="0.35" />
+                <!-- Bottom unit -->
+                <rect x="4" y="36" width="36" height="12" rx="2" fill="#60a5fa" />
+                <circle cx="34" cy="42" r="2.5" fill="#0f172a" opacity="0.8" />
+                <rect x="8" y="40" width="14" height="4" rx="1" fill="#0f172a" opacity="0.35" />
+              </g>
+              <!-- Inner glow -->
+              <circle cx={ROOT_CX} cy={ROOT_CY} r="31"
+                fill="#60a5fa" opacity="0.18"
+                class="root-core-pulse" />
+            </g>
+          </svg>
+
+          <!-- Root node label -->
+          <div class="root-graph-node" style={`left:${ROOT_CX}px;top:${ROOT_CY}px`} data-no-pan>
+            <span class="root-graph-label">TESTBED UI</span>
+          </div>
+
+          <!-- Organisms -->
+          {organisms.map((org) => (
+            <div
+              class:list={['organism', `organism-${org.shape}`, { 'organism--empty': org.isEmpty }]}
+              style={`left:${org.cx}px;top:${org.cy}px;--org-color:${org.color}`}
+              data-series={org.id}
+              data-no-pan
+            >
+              <div class="organism-blob" />
+              <span class="organism-label">{org.name}</span>
+              {org.isEmpty && <span class="organism-soon">Coming soon</span>}
+            </div>
+          ))}
+
+          <!-- Spore nodes -->
+          {organisms.flatMap(org =>
+            org.experiments.map(exp => (
+              <a
+                href={exp.href}
+                class={`spore-node spore-${org.shape}`}
+                style={`left:${exp.cx}px;top:${exp.cy}px;width:${exp.size}px;height:${exp.size}px;--spore-color:${org.color}`}
+                data-series={org.id}
+                data-base-name={exp.baseName}
+                data-tooltip-title={exp.title}
+                data-tooltip-body={`${exp.runCount} run${exp.runCount !== 1 ? 's' : ''}`}
+                data-tooltip-meta={exp.tags.join(', ')}
+                data-tooltip-color={org.color}
+              >
+                <span class="spore-inner" />
+                <span class="spore-label">{exp.title}</span>
+              </a>
+            ))
+          )}
+
+          <!-- Series labels (on tendril paths) -->
+          {indicatorPoints.map((ind) => (
+            <div
+              class="series-indicator"
+              data-series={ind.seriesId}
+              data-no-pan
+              role="button"
+              tabindex="0"
+              style={`left:${ind.cx}px;top:${ind.cy}px;--ind-color:${ind.color}`}
+            >
+              <span class="indicator-name">{ind.name}</span>
+              <span class="indicator-count">
+                {ind.expCount > 0 ? `${ind.expCount} experiment${ind.expCount !== 1 ? 's' : ''}` : 'coming soon'}
+              </span>
+            </div>
+          ))}
+
+          <!-- Hub label (shown on tendril when zoomed into a series) -->
+          <div id="hub-waypoint" class="hub-tendril-label" style="display:none" data-no-pan>
+            <span class="hub-tendril-name">HUB</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Floating experiment card -->
+      <div id="experiment-card" class="experiment-card" aria-hidden="true">
+        <div class="card-header">
+          <span class="card-phase"></span>
+          <span class="card-runs"></span>
+          <span class="card-date"></span>
+        </div>
+        <a class="card-title" href="#"></a>
+        <p class="card-series"></p>
+        <p class="card-desc"></p>
+        <div class="card-tags"></div>
+        <div class="card-footer">
+          <span class="card-duration"></span>
+          <span class="card-cost"></span>
+        </div>
+      </div>
+
+      <!-- Zoom controls -->
+      <div class="zoom-controls" id="zoom-controls">
+        <button class="zoom-btn" id="zoom-in-btn" aria-label="Zoom in" title="Zoom in">
+          <span>+</span>
+        </button>
+        <button class="zoom-btn" id="zoom-out-btn" aria-label="Zoom out" title="Zoom out">
+          <span>&minus;</span>
+        </button>
+        <button class="zoom-btn" id="zoom-hub-btn" aria-label="Return to hub view" title="Hub view">
+          <span>&#9670;</span>
+        </button>
+        <button class="zoom-btn" id="zoom-fit-btn" aria-label="Fit all" title="Fit all">
+          <span>&#9635;</span>
+        </button>
+      </div>
+
+      <!-- Back to hub button (legacy, now hidden — replaced by zoom controls) -->
+      <button id="back-to-hub" class="back-to-hub" style="display:none" aria-hidden="true"></button>
+    </div>
+
+    <!-- STATUS BAR -->
+    <div class="hybrid-status" id="hybrid-status">
+      <span class="status-section">
+        <span class="status-label">CATALOG</span>
+      </span>
+      <span class="status-sep">|</span>
+      <span class="status-section">
+        <span class="status-value">{allGroups.length}</span>
+        <span class="status-label">experiments</span>
+      </span>
+      <span class="status-sep">|</span>
+      <span class="status-section">
+        <span class="status-value">{allSeries.length}</span>
+        <span class="status-label">series</span>
+      </span>
+      <span class="status-fill"></span>
+      <span class="status-section status-nav">
+        <span class="status-key">Click</span> select
+        <span class="status-key">&uarr;&darr;</span> navigate
+        <span class="status-key">Enter</span> open
+        <span class="status-key">Esc</span> clear
+      </span>
+    </div>
+  </div>
+
+  <script id="rhizome-layout-data" type="application/json" set:html={layoutData} />
 </Base>
 
 <style>
-  /* --- tech badges --- */
-  /* --- repo link --- */
-  .hero-repo-link {
-    display: inline-flex;
+  /* ========== IMMERSIVE MODE: full-viewport takeover ========== */
+  /* !important needed to beat Tailwind utility classes (.py-8, .max-w-6xl, .mx-auto, .px-3)
+     which have class specificity (0,1,0) vs our type-only selectors (0,0,2) */
+  :global(body) {
+    height: 100dvh !important;
+    min-height: 100dvh !important;
+    overflow: hidden !important;
+  }
+
+  :global(body > header) {
+    display: none !important;
+  }
+
+  :global(body > nav[aria-label="Breadcrumb"]) {
+    display: none !important;
+  }
+
+  :global(body > main) {
+    padding: 0 !important;
+    margin: 0 !important;
+    max-width: none !important;
+    width: 100% !important;
+    flex: 1 !important;
+    min-height: 0 !important;
+    overflow: hidden !important;
+  }
+
+  :global(body > footer) {
+    display: none !important;
+  }
+
+  /* ========== MOBILE: tab-based ========== */
+  .hybrid-mobile {
+    display: block;
+  }
+  .hybrid-container {
+    display: none;
+  }
+
+  .mobile-tabs {
+    display: flex;
+    border: 1px solid var(--border);
+    margin-bottom: 0;
+  }
+
+  .mobile-tab {
+    flex: 1;
+    padding: 0.5rem;
+    background: var(--bg-surface);
+    border: none;
+    border-right: 1px solid var(--border);
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.03em;
+    color: var(--text-muted);
+    cursor: pointer;
+  }
+
+  .mobile-tab:last-child {
+    border-right: none;
+  }
+
+  .mobile-tab.active {
+    background: color-mix(in srgb, var(--accent) 15%, transparent);
+    color: var(--accent);
+  }
+
+  .mobile-pane {
+    border: 1px solid var(--border);
+    border-top: none;
+    min-height: 60vh;
+    overflow-y: auto;
+  }
+
+  .mobile-rhizome-hint {
+    padding: 2rem 1rem;
+    text-align: center;
+    color: var(--text-muted);
+    font-size: 0.8rem;
+    font-family: var(--font-mono);
+  }
+
+  /* ========== DESKTOP: split-pane ========== */
+  @media (min-width: 768px) {
+    .hybrid-mobile {
+      display: none;
+    }
+    .hybrid-container {
+      width: 100%;
+      height: calc(100dvh - var(--toolbar-height, 0px));
+      display: grid;
+      grid-template-columns: var(--catalog-width, clamp(260px, 30%, 400px)) 6px 1fr;
+      grid-template-rows: 1fr auto;
+      grid-template-areas:
+        "catalog divider rhizome"
+        "status  status  status";
+      font-family: var(--font-mono);
+      font-size: 0.8rem;
+      line-height: 1.4;
+    }
+  }
+
+  /* ========== CATALOG PANE ========== */
+  .catalog-pane {
+    grid-area: catalog;
+    position: relative;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    background: rgba(15, 23, 42, 0.82);
+    backdrop-filter: blur(16px) saturate(1.2);
+    -webkit-backdrop-filter: blur(16px) saturate(1.2);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-right: none;
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+  }
+
+  .catalog-pane::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: repeating-linear-gradient(
+      0deg,
+      rgba(255, 255, 255, 0.02) 0px,
+      rgba(255, 255, 255, 0.02) 1px,
+      transparent 1px,
+      transparent 3px
+    );
+    pointer-events: none;
+    z-index: 10;
+  }
+
+  .catalog-scroll {
+    flex: 1;
+    overflow-y: auto;
+    overflow-x: hidden;
+    padding: 0.35rem 0;
+  }
+
+  .catalog-scroll::-webkit-scrollbar {
+    width: 4px;
+  }
+
+  .catalog-scroll::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .catalog-scroll::-webkit-scrollbar-thumb {
+    background: var(--border);
+  }
+
+  /* ========== ARCADE ROOT NODE ========== */
+  .catalog-root {
+    display: flex;
     align-items: center;
     gap: 0.5rem;
-    margin-top: 1rem;
-    font-family: var(--font-mono);
-    font-size: 0.8rem;
-    color: var(--text-muted);
-    text-decoration: none;
-    padding: 0.4rem 0.85rem;
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    background: var(--bg-surface);
-    transition: border-color 0.2s, color 0.2s, box-shadow 0.2s, background 0.2s;
+    padding: 0.6rem 0.6rem 0.15rem;
+    user-select: none;
+    position: relative;
+    z-index: 1;
+    cursor: pointer;
+    transition: background 0.12s;
+    border-radius: 4px;
   }
-  .hero-repo-link:hover {
+
+  .catalog-root:hover {
+    background: color-mix(in srgb, var(--accent) 10%, transparent);
+  }
+
+  .catalog-root:hover .root-title {
+    text-shadow:
+      0 0 10px rgba(96, 165, 250, 0.5),
+      0 0 24px rgba(96, 165, 250, 0.2);
+  }
+
+  .root-icon {
     color: var(--accent);
-    border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
-    background: color-mix(in srgb, var(--accent) 6%, var(--bg-surface));
-    box-shadow: 0 0 12px color-mix(in srgb, var(--accent) 12%, transparent);
+    filter:
+      drop-shadow(0 0 6px var(--accent))
+      drop-shadow(0 0 14px rgba(96, 165, 250, 0.4));
+    animation: arcade-pulse 2.5s ease-in-out infinite;
+  }
+
+  .root-title {
+    font-size: 0.85rem;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--text);
+    text-shadow:
+      0 0 8px rgba(96, 165, 250, 0.35),
+      0 0 20px rgba(96, 165, 250, 0.15);
+  }
+
+  .root-connector {
+    padding: 0 0.85rem;
+    line-height: 1;
+    font-size: 0.8rem;
+    color: var(--accent);
+    opacity: 0.4;
+    user-select: none;
+  }
+
+  @keyframes arcade-pulse {
+    0%, 100% { opacity: 1; text-shadow: 0 0 6px var(--accent), 0 0 14px rgba(96, 165, 250, 0.4); }
+    50% { opacity: 0.85; text-shadow: 0 0 3px var(--accent), 0 0 8px rgba(96, 165, 250, 0.25); }
+  }
+
+  /* ========== ROOT GRAPH NODE ========== */
+  .root-graph-node {
+    position: absolute;
+    transform: translate(-50%, -50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    z-index: 4;
+    pointer-events: auto;
+    cursor: pointer;
+  }
+
+  .root-graph-label {
+    font-size: 0.85rem;
+    font-weight: 800;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: #e2e8f0;
+    text-shadow:
+      0 0 8px rgba(96, 165, 250, 0.5),
+      0 0 20px rgba(96, 165, 250, 0.25);
+    margin-top: 86px;
+    white-space: nowrap;
+    padding: 0.15rem 0.6rem;
+    background: rgba(13, 17, 23, 0.7);
+    border: 1px solid rgba(96, 165, 250, 0.2);
+    border-radius: 4px;
+  }
+
+  /* Hub animations */
+  .root-hub-group {
+    opacity: 0.50;
+    animation: hub-group-breathe 4s ease-in-out infinite;
+  }
+
+  @keyframes hub-group-breathe {
+    0%, 100% { opacity: 0.50; }
+    25%, 60% { opacity: 0.9; }
+  }
+
+  .root-graph-label {
+    opacity: 0.35;
+    animation: hub-label-breathe 4s ease-in-out infinite;
+  }
+
+  @keyframes hub-label-breathe {
+    0%, 100% { opacity: 0.35; text-shadow: 0 0 4px rgba(96, 165, 250, 0.2); }
+    25%, 60% { opacity: 0.75; text-shadow: 0 0 8px rgba(96, 165, 250, 0.5), 0 0 20px rgba(96, 165, 250, 0.25); }
+  }
+
+  .root-graph-node:hover .root-graph-label {
+    animation: none;
+    opacity: 1;
+    text-shadow: 0 0 8px rgba(96, 165, 250, 0.5), 0 0 20px rgba(96, 165, 250, 0.25);
+  }
+
+  .root-hub-group.hovered {
+    animation: none;
+    opacity: 1;
+  }
+
+  .root-orbit {
+    transform-origin: center;
+    animation: root-orbit-spin 30s linear infinite;
+  }
+
+  .root-core-pulse {
+    animation: root-core-breathe 4s ease-in-out infinite;
+  }
+
+  @keyframes root-orbit-spin {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+
+  @keyframes root-core-breathe {
+    0%, 100% { opacity: 0.08; r: 31; }
+    50% { opacity: 0.25; r: 38; }
+  }
+
+  /* ========== TREE STYLES (shared catalog + mobile) ========== */
+  .tree-series {
+    margin-bottom: 0;
+  }
+
+  .tree-header {
+    display: flex;
+    align-items: center;
+    padding: 0.35rem 0.5rem 0.1rem;
+    gap: 0.35rem;
+    user-select: none;
+  }
+
+  .tree-series-name {
+    font-weight: 700;
+    font-size: 0.8rem;
+    letter-spacing: 0.02em;
+    white-space: nowrap;
+    flex-shrink: 0;
+    cursor: pointer;
+    transition: opacity 0.12s, text-decoration 0.12s;
+    text-decoration: underline transparent;
+    text-underline-offset: 2px;
+  }
+
+  #catalog-scroll .tree-series-name:hover {
+    text-decoration-color: currentColor;
+    opacity: 0.85;
+  }
+
+  .tree-series-line {
+    flex: 1;
+    border-bottom: 1px dashed;
+    opacity: 0.3;
+    min-width: 1rem;
+  }
+
+  .tree-branch {
+    flex-shrink: 0;
+    white-space: pre;
+    font-size: 0.8rem;
+    line-height: 1;
+  }
+
+  .tree-row {
+    display: flex;
+    align-items: baseline;
+    padding: 0.12rem 0.5rem 0.12rem 0.75rem;
+    gap: 0.25rem;
+    color: var(--text);
+    text-decoration: none;
+    cursor: pointer;
+    transition: background 0.1s, border-color 0.15s;
+    min-height: 1.4em;
+    border-left: 2px solid transparent;
+  }
+
+  a.tree-row:hover {
+    background: color-mix(in srgb, var(--accent) 10%, transparent);
+    color: var(--text);
     text-decoration: none;
   }
 
-  .hero-tech-badges {
+  /* Keyboard-selected row */
+  .tree-row.active {
+    background: color-mix(in srgb, var(--accent) 18%, transparent);
+    border-left-color: var(--accent);
+  }
+
+  /* Synced from rhizome hover */
+  .tree-row.synced {
+    background: color-mix(in srgb, #3b82f6 14%, transparent);
+    border-left-color: #3b82f6;
+  }
+
+  .tree-exp-name {
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    flex-shrink: 1;
+    min-width: 0;
+  }
+
+  .tree-exp-name.muted {
+    color: var(--text-muted);
+    font-style: italic;
+  }
+
+  .tree-dots {
+    flex: 1;
+    min-width: 0.5rem;
+    border-bottom: 1px dotted var(--border);
+    margin-bottom: 0.2em;
+    opacity: 0.5;
+  }
+
+  .tree-runs {
+    flex-shrink: 0;
+    color: var(--text-muted);
+    font-size: 0.7rem;
+    white-space: nowrap;
+  }
+
+  .tree-empty {
+    cursor: default;
+  }
+
+  .tree-empty:hover {
+    background: none;
+  }
+
+  .tree-spacer {
+    height: 0.35rem;
+  }
+
+  /* ========== DIVIDER ========== */
+  .hybrid-divider {
+    grid-area: divider;
+    width: 6px;
+    background: rgba(255, 255, 255, 0.04);
+    cursor: col-resize;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s;
+  }
+
+  .hybrid-divider:hover {
+    background: color-mix(in srgb, var(--accent) 25%, transparent);
+  }
+
+  .hybrid-divider:active {
+    background: color-mix(in srgb, var(--accent) 40%, transparent);
+  }
+
+  /* ========== RHIZOME PANE ========== */
+  .rhizome-pane {
+    grid-area: rhizome;
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    border: 1px solid var(--border);
+    border-left: none;
+  }
+
+  .rhizome-viewport {
+    position: relative;
+    flex: 1;
+    overflow: hidden;
+    background: radial-gradient(ellipse at 40% 40%, #1a1e3a 0%, #0d1117 60%, #080b12 100%);
+  }
+
+  .rhizome-world {
+    position: relative;
+    transform-origin: 0 0;
+  }
+
+  .rhizome-svg {
+    position: absolute;
+    top: 0;
+    left: 0;
+    pointer-events: none;
+  }
+
+  /* --- Tendrils --- */
+  .tendril {
+    stroke-dasharray: 1000;
+    stroke-dashoffset: 1000;
+    animation: tendril-grow 2s ease-out forwards;
+    animation-delay: var(--tendril-delay, 0s);
+  }
+
+  @keyframes tendril-grow {
+    to {
+      stroke-dashoffset: 0;
+    }
+  }
+
+  /* --- Organisms --- */
+  .organism {
+    position: absolute;
+    transform: translate(-50%, -50%);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    text-decoration: none;
+    z-index: 3;
+    cursor: pointer;
+  }
+
+  .organism-blob {
+    width: 80px;
+    height: 80px;
+    background: var(--org-color);
+    opacity: 0.35;
+    border-radius: 50%;
+    box-shadow: 0 0 15px color-mix(in srgb, var(--org-color) 35%, transparent),
+                0 0 30px color-mix(in srgb, var(--org-color) 15%, transparent);
+    animation: organism-breathe 4s ease-in-out infinite 1.0s;
+    transition: transform 0.3s, opacity 0.3s;
+  }
+
+  /* Organism shape variants */
+  .organism-circle .organism-blob {
+    clip-path: polygon(
+      50% 2%, 72% 8%, 92% 25%, 98% 50%,
+      93% 75%, 73% 93%, 50% 98%, 28% 92%,
+      8% 74%, 2% 50%, 7% 26%, 27% 8%
+    );
+  }
+
+  .organism-diamond .organism-blob {
+    border-radius: 6px;
+    clip-path: polygon(50% 0%, 100% 50%, 50% 100%, 0% 50%);
+  }
+
+  .organism-hexagon .organism-blob {
+    border-radius: 0;
+    clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%);
+  }
+
+  .organism-triangle .organism-blob {
+    border-radius: 0;
+    clip-path: polygon(50% 2%, 98% 92%, 2% 92%);
+  }
+
+  .organism-square .organism-blob {
+    clip-path: polygon(
+      8% 4%, 92% 4%, 96% 8%, 96% 92%,
+      92% 96%, 8% 96%, 4% 92%, 4% 8%
+    );
+  }
+
+  .organism--empty .organism-blob {
+    width: 50px;
+    height: 50px;
+    opacity: 0.35;
+    animation-duration: 5s;
+  }
+
+  .organism:hover .organism-blob,
+  .organism.hovered .organism-blob {
+    transform: scale(1.12);
+    opacity: 1;
+    animation: none;
+    box-shadow: 0 0 30px color-mix(in srgb, var(--org-color) 60%, transparent),
+                0 0 60px color-mix(in srgb, var(--org-color) 30%, transparent);
+  }
+
+  @keyframes organism-breathe {
+    0%, 100% {
+      transform: scale(1);
+      opacity: 0.35;
+      box-shadow: 0 0 15px color-mix(in srgb, var(--org-color) 35%, transparent),
+                  0 0 30px color-mix(in srgb, var(--org-color) 15%, transparent);
+    }
+    50% {
+      transform: scale(1.03);
+      opacity: 0.65;
+      box-shadow: 0 0 30px color-mix(in srgb, var(--org-color) 50%, transparent),
+                  0 0 60px color-mix(in srgb, var(--org-color) 25%, transparent);
+    }
+  }
+
+  .organism-label {
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    font-weight: 600;
+    color: var(--org-color);
+    text-shadow: 0 0 6px color-mix(in srgb, var(--org-color) 30%, transparent);
+    white-space: nowrap;
+    pointer-events: none;
+    padding: 0.1rem 0.45rem;
+    background: rgba(13, 17, 23, 0.5);
+    border: 1px solid color-mix(in srgb, var(--org-color) 20%, transparent);
+    border-radius: 3px;
+    opacity: 0.4;
+    animation: org-label-breathe 4s ease-in-out infinite 1.0s;
+  }
+
+  .organism:hover .organism-label,
+  .organism.hovered .organism-label {
+    animation: none;
+    opacity: 1;
+    text-shadow: 0 0 12px color-mix(in srgb, var(--org-color) 50%, transparent);
+  }
+
+  @keyframes org-label-breathe {
+    0%, 100% { opacity: 0.4; text-shadow: 0 0 6px color-mix(in srgb, var(--org-color) 30%, transparent); }
+    50% { opacity: 0.7; text-shadow: 0 0 12px color-mix(in srgb, var(--org-color) 50%, transparent); }
+  }
+
+  .organism-soon {
+    font-family: var(--font-mono);
+    font-size: 0.6rem;
+    color: var(--text-muted);
+    opacity: 0.5;
+    pointer-events: none;
+  }
+
+  /* --- Spore nodes --- */
+  .spore-node {
+    position: absolute;
+    transform: translate(-50%, -50%);
+    z-index: 2;
+    cursor: pointer;
+    text-decoration: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: transform 0.2s, filter 0.2s, opacity 0.3s;
+  }
+
+  .spore-node:hover {
+    transform: translate(-50%, -50%) scale(1.3);
+    z-index: 4;
+  }
+
+  .spore-inner {
+    display: block;
+    width: 100%;
+    height: 100%;
+    background: radial-gradient(circle at 35% 35%, color-mix(in srgb, var(--spore-color) 90%, white), var(--spore-color));
+    opacity: 0.3;
+    box-shadow: 0 0 5px color-mix(in srgb, var(--spore-color) 30%, transparent);
+    transition: opacity 0.2s, box-shadow 0.2s;
+    animation: spore-breathe 4s ease-in-out infinite 1.3s;
+  }
+
+  @keyframes spore-breathe {
+    0%, 100% { opacity: 0.3; box-shadow: 0 0 5px color-mix(in srgb, var(--spore-color) 30%, transparent); }
+    50% { opacity: 0.6; box-shadow: 0 0 12px color-mix(in srgb, var(--spore-color) 50%, transparent); }
+  }
+
+  /* Shape variants */
+  .spore-circle .spore-inner { border-radius: 50%; }
+  .spore-diamond { transform: translate(-50%, -50%) rotate(45deg); }
+  .spore-diamond .spore-inner { border-radius: 3px; }
+  .spore-diamond:hover { transform: translate(-50%, -50%) rotate(45deg) scale(1.3); }
+  .spore-hexagon .spore-inner { clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%); }
+  .spore-triangle .spore-inner { clip-path: polygon(50% 5%, 100% 95%, 0% 95%); }
+  .spore-square .spore-inner { border-radius: 3px; }
+
+  .spore-node:hover .spore-inner,
+  .spore-node.hovered .spore-inner {
+    animation: none;
+    opacity: 1;
+    box-shadow: 0 0 20px color-mix(in srgb, var(--spore-color) 70%, transparent);
+  }
+
+  /* --- Spore labels --- */
+  .spore-label {
+    position: absolute;
+    top: 100%;
+    left: 50%;
+    transform: translateX(-50%);
+    margin-top: 4px;
+    font-family: var(--font-mono);
+    font-size: 0.4rem;
+    font-weight: 500;
+    color: var(--spore-color);
+    opacity: 0.15;
+    white-space: normal;
+    overflow-wrap: break-word;
+    word-break: keep-all;
+    width: 90px;
+    text-align: center;
+    pointer-events: none;
+    line-height: 1.25;
+    letter-spacing: -0.01em;
+    transition: opacity 0.2s;
+    animation: spore-label-breathe 4s ease-in-out infinite 1.3s;
+  }
+
+  @keyframes spore-label-breathe {
+    0%, 100% { opacity: 0.15; }
+    50% { opacity: 0.3; }
+  }
+
+  /* Counter-rotate label on diamond spores */
+  .spore-diamond .spore-label {
+    transform: translateX(-50%) rotate(-45deg);
+    transform-origin: center top;
+  }
+
+  .spore-node:hover .spore-label,
+  .spore-node.focused .spore-label {
+    animation: none;
+    opacity: 0;
+  }
+
+  .spore-node.hovered .spore-label {
+    animation: none;
+    opacity: 0.5;
+  }
+
+  .spore-node.dimmed .spore-label {
+    animation: none;
+    opacity: 0.1;
+  }
+
+  /* Focused spore (synced from catalog) */
+  .spore-node.focused {
+    transform: translate(-50%, -50%) scale(1.4);
+    z-index: 5;
+  }
+  .spore-diamond.focused {
+    transform: translate(-50%, -50%) rotate(45deg) scale(1.4);
+  }
+
+  .spore-node.focused .spore-inner {
+    animation: none;
+    opacity: 1;
+    box-shadow: 0 0 24px color-mix(in srgb, var(--spore-color) 80%, transparent),
+                0 0 48px color-mix(in srgb, var(--spore-color) 40%, transparent);
+  }
+
+  /* Dimmed spores (non-focused during sync) */
+  .spore-node.dimmed {
+    opacity: 0.2;
+  }
+
+  .spore-node.dimmed .spore-inner {
+    animation: none;
+    opacity: 0.3;
+  }
+
+  /* Dim organisms and tendrils during focus — stop breathing, hold flat */
+  .rhizome-world.has-focus .organism:not(.focused) .organism-blob {
+    animation: none;
+    opacity: 0.15;
+  }
+  .rhizome-world.has-focus .organism:not(.focused) .organism-label {
+    animation: none;
+    opacity: 0.3;
+  }
+  .rhizome-world.has-focus .tendril:not(.focused) {
+    opacity: 0.05;
+  }
+  /* Focused organism holds steady — no breathe cycle */
+  .rhizome-world.has-focus .organism.focused .organism-blob {
+    animation: none;
+    opacity: 0.85;
+    box-shadow: 0 0 30px color-mix(in srgb, var(--org-color) 60%, transparent),
+                0 0 60px color-mix(in srgb, var(--org-color) 30%, transparent);
+  }
+  .rhizome-world.has-focus .organism.focused .organism-label {
+    animation: none;
+    opacity: 1;
+    text-shadow: 0 0 12px color-mix(in srgb, var(--org-color) 50%, transparent);
+  }
+  /* --- Tree shape indicators --- */
+  .tree-shape {
+    width: 8px;
+    height: 8px;
+    display: inline-block;
+    background: var(--shape-color);
+    border-radius: 50%;
+    margin-right: 0.35rem;
+    vertical-align: middle;
+    flex-shrink: 0;
+    box-shadow: 0 0 6px color-mix(in srgb, var(--shape-color) 50%, transparent);
+  }
+
+  .tree-shape[data-shape="diamond"] {
+    transform: rotate(45deg);
+    width: 7px;
+    height: 7px;
+    border-radius: 1px;
+  }
+
+  .tree-shape[data-shape="hexagon"] {
+    clip-path: polygon(25% 0%, 75% 0%, 100% 50%, 75% 100%, 25% 100%, 0% 50%);
+    width: 9px;
+    height: 8px;
+    border-radius: 0;
+  }
+
+  .tree-shape[data-shape="triangle"] {
+    clip-path: polygon(50% 0%, 100% 100%, 0% 100%);
+    width: 8px;
+    height: 8px;
+    border-radius: 0;
+  }
+
+  .tree-shape[data-shape="square"] {
+    border-radius: 2px;
+    width: 7px;
+    height: 7px;
+  }
+
+  /* ========== FLOATING EXPERIMENT CARD ========== */
+  .experiment-card {
+    position: absolute;
+    z-index: 20;
+    display: none;
+    width: 340px;
+    padding: 0.75rem 1rem;
+    overflow: hidden;
+    background: rgba(13, 17, 23, 0.88);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-left: 3px solid var(--accent);
+    border-radius: 6px;
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.5),
+                0 0 40px color-mix(in srgb, var(--card-glow, var(--accent)) 15%, transparent);
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    color: var(--text);
+    opacity: 0;
+    transition: opacity 0.15s ease;
+    pointer-events: auto;
+  }
+
+  .experiment-card.visible {
+    opacity: 1;
+  }
+
+  .card-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+  }
+
+  .card-phase {
+    font-size: 0.6rem;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    padding: 0.1rem 0.4rem;
+    border-radius: 3px;
+  }
+
+  .phase-complete {
+    color: #3fb950;
+    background: rgba(63, 185, 80, 0.1);
+  }
+
+  .phase-failed {
+    color: #f85149;
+    background: rgba(248, 81, 73, 0.1);
+  }
+
+  .phase-running {
+    color: #58a6ff;
+    background: rgba(88, 166, 255, 0.1);
+  }
+
+  .phase-pending {
+    color: #d29922;
+    background: rgba(210, 153, 34, 0.1);
+  }
+
+  .phase-unknown {
+    color: var(--text-muted);
+    background: rgba(139, 148, 158, 0.1);
+  }
+
+  .card-runs {
+    font-size: 0.6rem;
+    font-weight: 600;
+    color: #3fb950;
+    padding: 0.1rem 0.4rem;
+    background: rgba(63, 185, 80, 0.12);
+    border-radius: 3px;
+  }
+
+  .card-date {
+    font-size: 0.65rem;
+    color: var(--text-muted);
+    margin-left: auto;
+  }
+
+  .card-title {
+    display: block;
+    font-size: 0.85rem;
+    font-weight: 700;
+    color: var(--accent);
+    text-decoration: underline;
+    text-underline-offset: 2px;
+    line-height: 1.3;
+    margin-bottom: 0.25rem;
+  }
+
+  .card-title:hover {
+    color: var(--text);
+  }
+
+  .card-series {
+    font-size: 0.65rem;
+    color: var(--text-muted);
+    margin: 0 0 0.4rem;
+  }
+
+  .card-desc {
+    font-size: 0.7rem;
+    color: var(--text-muted);
+    line-height: 1.4;
+    margin: 0 0 0.4rem;
+    max-height: 8em;
+    overflow-y: auto;
+    scroll-behavior: smooth;
+  }
+
+  .card-desc::-webkit-scrollbar {
+    width: 3px;
+  }
+
+  .card-desc::-webkit-scrollbar-track {
+    background: transparent;
+  }
+
+  .card-desc::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.12);
+    border-radius: 3px;
+  }
+
+  .card-tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem;
+    margin-bottom: 0.4rem;
+  }
+
+  .card-tag {
+    font-size: 0.6rem;
+    padding: 0.05rem 0.35rem;
+    border: 1px solid var(--border);
+    border-radius: 3px;
+    color: var(--text-muted);
+  }
+
+  .card-footer {
+    display: flex;
+    gap: 1rem;
+    padding-top: 0.4rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.06);
+    font-size: 0.65rem;
+    color: var(--text-muted);
+  }
+
+  /* ========== STATUS BAR ========== */
+  .hybrid-status {
+    grid-area: status;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.25rem 0.75rem;
+    background: var(--bg-surface);
+    border: 1px solid var(--border);
+    border-top: none;
+    font-family: var(--font-mono);
+    font-size: 0.65rem;
+    color: var(--text-muted);
+    user-select: none;
+  }
+
+  .status-section {
+    display: flex;
+    align-items: center;
+    gap: 0.25rem;
+  }
+
+  .status-label {
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    font-size: 0.6rem;
+  }
+
+  .status-value {
+    color: var(--text);
+  }
+
+  .status-sep {
+    color: var(--border);
+  }
+
+  .status-fill {
+    flex: 1;
+  }
+
+  .status-nav {
+    gap: 0.5rem;
+  }
+
+  .status-key {
+    display: inline-block;
+    padding: 0 0.25rem;
+    border: 1px solid var(--border);
+    font-size: 0.6rem;
+    line-height: 1.4;
+    color: var(--text);
+  }
+
+  /* ========== SERIES INDICATORS ========== */
+  /* Zero-sized anchor at the Bezier point; children positioned absolutely */
+  /* --- Root tendril glow + hover --- */
+  .root-tendril {
+    animation: tendril-grow 2s ease-out forwards, root-tendril-breathe 4s ease-in-out infinite 0.4s;
+    filter: drop-shadow(0 0 1px var(--tendril-color, #60a5fa));
+    transition: opacity 0.3s, filter 0.3s;
+  }
+
+  @keyframes root-tendril-breathe {
+    0%, 100% { opacity: 0.15; filter: drop-shadow(0 0 1px var(--tendril-color, #60a5fa)); }
+    50% { opacity: 0.40; filter: drop-shadow(0 0 5px var(--tendril-color, #60a5fa)); }
+  }
+
+  .root-tendril-group:hover .root-tendril,
+  .root-tendril-group.hovered .root-tendril {
+    opacity: 0.8 !important;
+    filter: drop-shadow(0 0 8px var(--tendril-color, #60a5fa));
+    animation: tendril-grow 2s ease-out forwards;
+  }
+
+  .root-tendril-hit {
+    pointer-events: stroke;
+  }
+
+  /* --- Series labels on tendrils --- */
+  .series-indicator {
+    position: absolute;
+    z-index: 5;
+    width: 0;
+    height: 0;
+    overflow: visible;
+    border: none;
+    background: none;
+    padding: 0;
+    cursor: pointer;
+    font-family: var(--font-mono);
+    transition: opacity 0.3s;
+  }
+
+  .indicator-name {
+    position: absolute;
+    top: -8px;
+    left: 0;
+    transform: translateX(-50%);
+    font-size: 0.6rem;
+    font-weight: 600;
+    color: var(--ind-color);
+    white-space: nowrap;
+    pointer-events: none;
+    padding: 1px 6px;
+    background: rgba(13, 17, 23, 0.85);
+    border-radius: 3px;
+    animation: label-breathe 4s ease-in-out infinite 0.8s;
+    opacity: 0.15;
+  }
+
+  .indicator-count {
+    position: absolute;
+    top: 6px;
+    left: 0;
+    transform: translateX(-50%);
+    font-size: 0.5rem;
+    color: var(--ind-color);
+    white-space: nowrap;
+    pointer-events: none;
+    padding: 0 6px;
+    background: rgba(13, 17, 23, 0.85);
+    border-radius: 3px;
+    animation: label-count-breathe 4s ease-in-out infinite 0.8s;
+    opacity: 0.08;
+  }
+
+  @keyframes label-breathe {
+    0%, 100% { opacity: 0.15; text-shadow: none; }
+    50% { opacity: 0.40; text-shadow: 0 0 6px color-mix(in srgb, var(--ind-color) 30%, transparent); }
+  }
+
+  @keyframes label-count-breathe {
+    0%, 100% { opacity: 0.08; }
+    50% { opacity: 0.25; }
+  }
+
+  .series-indicator:hover .indicator-name,
+  .series-indicator.hovered .indicator-name {
+    animation: none;
+    opacity: 1;
+    text-shadow: 0 0 12px color-mix(in srgb, var(--ind-color) 70%, transparent);
+  }
+
+  .series-indicator:hover .indicator-count,
+  .series-indicator.hovered .indicator-count {
+    animation: none;
+    opacity: 0.7;
+  }
+
+  .rhizome-world.zoomed-out .series-indicator {
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  /* ========== HUB WAYPOINT (on-tendril back button) ========== */
+  /* --- Hub tendril label (shown when zoomed into series) --- */
+  .hub-tendril-label {
+    position: absolute;
+    z-index: 6;
+    width: 0;
+    height: 0;
+    overflow: visible;
+    cursor: pointer;
+    font-family: var(--font-mono);
+  }
+
+  .hub-tendril-name {
+    position: absolute;
+    top: -8px;
+    left: 0;
+    transform: translateX(-50%);
+    font-size: 0.6rem;
+    font-weight: 700;
+    letter-spacing: 0.12em;
+    color: #60a5fa;
+    white-space: nowrap;
+    pointer-events: auto;
+    cursor: pointer;
+    opacity: 0.5;
+    padding: 4px 12px;
+    background: rgba(13, 17, 23, 0.85);
+    border-radius: 3px;
+    transition: opacity 0.3s, text-shadow 0.3s;
+  }
+
+  .hub-tendril-name:hover,
+  .hub-tendril-name.hovered {
+    opacity: 1;
+    text-shadow: 0 0 12px rgba(96, 165, 250, 0.7);
+  }
+
+  /* --- Root tendril turns hub-blue when zoomed into a series --- */
+  .rhizome-world.has-focus .root-tendril.focused {
+    stroke: #60a5fa !important;
+    opacity: 0.35 !important;
+    stroke-dashoffset: 0 !important;
+    filter: drop-shadow(0 0 4px rgba(96, 165, 250, 0.4));
+    animation: none;
+    transition: opacity 0.3s, filter 0.3s;
+  }
+
+  .rhizome-world.has-focus .root-tendril-group:hover .root-tendril.focused {
+    opacity: 0.9 !important;
+    filter: drop-shadow(0 0 10px rgba(96, 165, 250, 0.8));
+  }
+
+  /* Dim hub label when not hovered */
+  .rhizome-world.has-focus .hub-tendril-label .hub-tendril-name {
+    opacity: 0.35;
+  }
+  .rhizome-world.has-focus .hub-tendril-label .hub-tendril-name:hover {
+    opacity: 1;
+    text-shadow: 0 0 14px rgba(96, 165, 250, 0.8);
+  }
+
+  /* Dim non-focused series labels when zoomed into a series */
+  .rhizome-world.has-focus .series-indicator:not([data-focused]) .indicator-name {
+    animation: none;
+    opacity: 0.15;
+  }
+  .rhizome-world.has-focus .series-indicator:not([data-focused]) .indicator-count {
+    animation: none;
+    opacity: 0.1;
+  }
+
+  /* ========== BACK TO HUB BUTTON (legacy hidden) ========== */
+  .back-to-hub {
+    display: none !important;
+  }
+
+  /* ========== ZOOM CONTROLS ========== */
+  .zoom-controls {
+    position: absolute;
+    top: 12px;
+    left: 12px;
+    z-index: 15;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    background: rgba(13, 17, 23, 0.85);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    padding: 3px;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.4);
+  }
+
+  .zoom-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 30px;
+    height: 30px;
+    border: none;
+    border-radius: 5px;
+    background: transparent;
+    color: var(--text-muted);
+    font-family: var(--font-mono);
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.12s, color 0.12s;
+    line-height: 1;
+  }
+
+  .zoom-btn:hover {
+    background: rgba(96, 165, 250, 0.15);
+    color: var(--accent);
+  }
+
+  .zoom-btn:active {
+    background: rgba(96, 165, 250, 0.25);
+  }
+
+  /* Hub button gets accent highlight */
+  #zoom-hub-btn {
+    font-size: 0.7rem;
+  }
+
+  /* Fit button uses a slightly smaller icon */
+  #zoom-fit-btn {
+    font-size: 0.8rem;
+  }
+
+  /* Separator between +/- and hub/fit */
+  #zoom-hub-btn::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 20%;
+    right: 20%;
+    height: 1px;
+    background: rgba(255, 255, 255, 0.08);
+  }
+
+  #zoom-hub-btn {
+    position: relative;
+    margin-top: 2px;
+    padding-top: 1px;
+  }
+
+  /* ========== HERO MODAL ========== */
+  .hero-modal-backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    background: rgba(0, 0, 0, 0.6);
+    backdrop-filter: blur(4px);
+    -webkit-backdrop-filter: blur(4px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    opacity: 0;
+    transition: opacity 0.25s ease;
+  }
+
+  .hero-modal-backdrop.visible {
+    opacity: 1;
+  }
+
+  .hero-modal {
+    width: min(900px, 88vw);
+    max-height: 90vh;
+    overflow-y: auto;
+    background: rgba(15, 23, 42, 0.92);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(96, 165, 250, 0.15);
+    border-radius: 12px;
+    box-shadow:
+      0 8px 32px rgba(0, 0, 0, 0.5),
+      0 0 60px rgba(96, 165, 250, 0.08);
+    padding: 2.5rem;
+    transform: scale(0.95);
+    transition: transform 0.25s ease;
+  }
+
+  .hero-modal-backdrop.visible .hero-modal {
+    transform: scale(1);
+  }
+
+  .hero-modal-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2.5rem;
+    align-items: center;
+  }
+
+  .hero-modal-title {
+    font-family: var(--font-mono);
+    font-size: 2rem;
+    font-weight: 800;
+    color: var(--text);
+    margin: 0 0 0.75rem;
+    letter-spacing: -0.02em;
+  }
+
+  .hero-modal-desc {
+    font-family: var(--font-mono);
+    font-size: 0.85rem;
+    color: var(--text-muted);
+    line-height: 1.6;
+    margin: 0 0 1rem;
+  }
+
+  .hero-modal-badges {
     display: flex;
     flex-wrap: wrap;
     gap: 0.4rem;
+    margin-bottom: 1rem;
   }
-  .hero-tech-badge {
+
+  .hero-badge {
     font-size: 0.7rem;
     font-family: var(--font-mono);
     padding: 0.15rem 0.5rem;
-    background: var(--bg-surface);
-    border: 1px solid var(--border);
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 2px;
     color: var(--text-muted);
     line-height: 1.4;
   }
 
-  /* --- architecture diagram --- */
-  .arch {
+  .hero-modal-repo {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    color: var(--text-muted);
+    text-decoration: none;
+    padding: 0.4rem 0.85rem;
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: var(--radius);
+    background: rgba(255, 255, 255, 0.03);
+    transition: border-color 0.2s, color 0.2s, box-shadow 0.2s, background 0.2s;
+    margin-bottom: 1.25rem;
+  }
+
+  .hero-modal-repo:hover {
+    color: var(--accent);
+    border-color: color-mix(in srgb, var(--accent) 40%, transparent);
+    background: color-mix(in srgb, var(--accent) 6%, transparent);
+    box-shadow: 0 0 12px color-mix(in srgb, var(--accent) 12%, transparent);
+    text-decoration: none;
+  }
+
+  .hero-modal-cta {
+    display: block;
+    width: 100%;
+    padding: 0.7rem 1.5rem;
+    font-family: var(--font-mono);
+    font-size: 0.85rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    color: #0f172a;
+    background: #60a5fa;
+    border: none;
+    border-radius: 6px;
+    cursor: pointer;
+    box-shadow: 0 0 20px rgba(96, 165, 250, 0.3);
+    transition: transform 0.15s, box-shadow 0.15s, background 0.15s;
+  }
+
+  .hero-modal-cta:hover {
+    transform: translateY(-1px);
+    background: #93c5fd;
+    box-shadow: 0 0 28px rgba(96, 165, 250, 0.45);
+  }
+
+  .hero-modal-cta:active {
+    transform: translateY(0);
+  }
+
+  /* --- Architecture diagram in modal --- */
+  .hero-modal-arch {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .hero-modal-arch .arch {
     display: flex;
     flex-direction: column;
     align-items: center;
     justify-content: center;
     padding: 0.5rem 0;
     width: 100%;
-    min-height: 100%;
     --line: color-mix(in srgb, var(--accent) 50%, transparent);
   }
 
-  /* --- nodes --- */
-  .arch-node {
+  .hero-modal-arch .arch-node {
     border: 1px solid var(--line);
     border-radius: 6px;
     padding: 0.6rem 1.25rem;
@@ -214,72 +2213,63 @@ const recentGroups = groups.slice(0, 6);
     background: transparent;
   }
 
-  /* --- node icons --- */
-  .arch-icon-row {
+  .hero-modal-arch .arch-icon-row {
     display: flex;
     align-items: center;
     justify-content: center;
     gap: 0.4rem;
   }
-  .arch-icon {
+
+  .hero-modal-arch .arch-icon {
     width: 14px;
     height: 14px;
     flex-shrink: 0;
     color: var(--text-muted);
   }
 
-  /* --- hub node (blue accent) --- */
-  .arch-hub {
+  .hero-modal-arch .arch-hub {
     width: 80%;
-    background: color-mix(in srgb, var(--accent) 8%, var(--bg-surface));
-    border-color: color-mix(in srgb, var(--accent) 40%, var(--border));
+    background: color-mix(in srgb, var(--accent) 8%, transparent);
+    border-color: color-mix(in srgb, var(--accent) 40%, transparent);
     border-left: 3px solid var(--accent);
   }
-  .arch-hub .arch-icon { color: var(--accent); }
 
-  .arch-name { font-size: 0.9rem; font-weight: 700; color: var(--text); line-height: 1.3; }
-  .arch-detail { font-size: 0.75rem; color: var(--text-muted); margin-top: 0.15rem; line-height: 1.3; }
+  .hero-modal-arch .arch-hub .arch-icon { color: var(--accent); }
 
-  /* --- cloud row (green accent) --- */
-  .arch-row { display: flex; gap: 0.5rem; width: 90%; justify-content: center; }
-  .arch-row .arch-node {
+  .hero-modal-arch .arch-name { font-size: 0.9rem; font-weight: 700; color: var(--text); line-height: 1.3; }
+  .hero-modal-arch .arch-detail { font-size: 0.75rem; color: var(--text-muted); margin-top: 0.15rem; line-height: 1.3; }
+
+  .hero-modal-arch .arch-row { display: flex; gap: 0.5rem; width: 90%; justify-content: center; }
+  .hero-modal-arch .arch-row .arch-node {
     flex: 1;
     min-width: 0;
     padding: 0.5rem 0.4rem;
-    background: color-mix(in srgb, var(--success) 6%, var(--bg-surface));
-    border-color: color-mix(in srgb, var(--success) 30%, var(--border));
+    background: color-mix(in srgb, var(--success) 6%, transparent);
+    border-color: color-mix(in srgb, var(--success) 30%, transparent);
     border-top: 2px solid var(--success);
   }
-  .arch-row .arch-icon { color: var(--success); }
+  .hero-modal-arch .arch-row .arch-icon { color: var(--success); }
 
-  /* --- AI analysis node (purple accent) --- */
-  .arch-ai {
+  .hero-modal-arch .arch-ai {
     width: 55%;
-    background: color-mix(in srgb, #a855f7 8%, var(--bg-surface));
-    border-color: color-mix(in srgb, #a855f7 30%, var(--border));
+    background: color-mix(in srgb, #a855f7 8%, transparent);
+    border-color: color-mix(in srgb, #a855f7 30%, transparent);
     border-left: 3px solid #a855f7;
   }
-  .arch-ai .arch-icon { color: #a855f7; }
+  .hero-modal-arch .arch-ai .arch-icon { color: #a855f7; }
 
-  /* --- shared connector primitives --- */
-  .conn-v { width: 2px; height: 8px; background: var(--line); }
-  .conn-v-short { width: 2px; height: 8px; background: var(--line); }
-  .conn-v-center {
-    width: 2px;
-    height: 8px;
-    margin: 0 auto;
-    background: var(--line);
-  }
-  .conn-h { width: 100%; height: 2px; background: var(--line); }
-  .conn-arrow {
+  .hero-modal-arch .conn-v-short { width: 2px; height: 8px; background: var(--line); }
+  .hero-modal-arch .conn-v-center { width: 2px; height: 8px; margin: 0 auto; background: var(--line); }
+  .hero-modal-arch .conn-h { width: 100%; height: 2px; background: var(--line); }
+  .hero-modal-arch .conn-arrow {
     width: 0; height: 0;
     border-left: 5px solid transparent;
     border-right: 5px solid transparent;
     border-top: 6px solid var(--line);
     margin: 0 auto;
   }
-  .conn-cell { display: flex; flex-direction: column; align-items: center; flex: 1; min-width: 0; }
-  .conn-label {
+  .hero-modal-arch .conn-cell { display: flex; flex-direction: column; align-items: center; flex: 1; min-width: 0; }
+  .hero-modal-arch .conn-label {
     font-family: var(--font-mono);
     font-size: 0.7rem;
     font-weight: 600;
@@ -292,40 +2282,971 @@ const recentGroups = groups.slice(0, 6);
     border-radius: 999px;
   }
 
-  /* --- fan-out: hub -> 3 clouds --- */
-  .conn-fan-out { width: 90%; }
-  .conn-fan-out-stems { display: flex; gap: 0.5rem; }
+  .hero-modal-arch .conn-fan-out { width: 90%; }
+  .hero-modal-arch .conn-fan-out-stems { display: flex; gap: 0.5rem; }
+  .hero-modal-arch .conn-merge { width: 90%; }
+  .hero-modal-arch .conn-merge-stems { display: flex; gap: 0.5rem; }
+  .hero-modal-arch .conn-single { display: flex; flex-direction: column; align-items: center; }
 
-  /* --- merge: 3 clouds -> 1 --- */
-  .conn-merge { width: 90%; }
-  .conn-merge-stems { display: flex; gap: 0.5rem; }
-
-  /* --- single line --- */
-  .conn-single { display: flex; flex-direction: column; align-items: center; }
-
-  /* --- you are here --- */
-  .arch-here {
+  .hero-modal-arch .arch-here {
     position: relative;
     border-color: var(--accent);
     background: transparent;
     box-shadow: 0 0 12px color-mix(in srgb, var(--accent) 20%, transparent);
     padding: 0.5rem 1.25rem;
   }
-  .arch-here .arch-name { color: var(--accent); font-size: 0.8rem; }
-  .arch-here .arch-icon { color: var(--accent); }
-  .arch-here-ping {
-    position: absolute;
-    top: -3px; right: -3px;
-    width: 6px; height: 6px;
-    background: var(--accent);
-    border-radius: 50%;
-  }
+  .hero-modal-arch .arch-here .arch-name { color: var(--accent); font-size: 0.8rem; }
+  .hero-modal-arch .arch-here .arch-icon { color: var(--accent); }
 
-  /* --- mobile adjustments --- */
-  @media (max-width: 1024px) {
-    .arch-hub { width: 100%; }
-    .arch-row { width: 100%; }
-    .arch-ai { width: 70%; }
-    .conn-fan-out, .conn-merge { width: 100%; }
+  /* --- Mobile: single column, hide arch --- */
+  @media (max-width: 767px) {
+    .hero-modal {
+      padding: 1.5rem;
+      width: 92vw;
+    }
+
+    .hero-modal-grid {
+      grid-template-columns: 1fr;
+      gap: 0;
+    }
+
+    .hero-modal-arch {
+      display: none;
+    }
+
+    .hero-modal-title {
+      font-size: 1.5rem;
+    }
   }
 </style>
+
+<script>
+  import { initPanZoom } from '../lib/pan-zoom';
+
+  document.addEventListener('DOMContentLoaded', () => {
+    // --- Mobile tab switching ---
+    const mobileTabs = document.querySelectorAll<HTMLButtonElement>('#mobile-tabs .mobile-tab');
+    const mobileCatalog = document.getElementById('mobile-catalog');
+    const mobileRhizome = document.getElementById('mobile-rhizome');
+
+    mobileTabs.forEach(tab => {
+      tab.addEventListener('click', () => {
+        mobileTabs.forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+        const target = tab.dataset.target;
+        if (mobileCatalog) mobileCatalog.style.display = target === 'catalog' ? '' : 'none';
+        if (mobileRhizome) mobileRhizome.style.display = target === 'rhizome' ? '' : 'none';
+      });
+    });
+
+    // --- Hero modal ---
+    const heroBackdrop = document.getElementById('hero-modal-backdrop');
+    const heroModal = document.getElementById('hero-modal');
+    const heroDismiss = document.getElementById('hero-modal-dismiss');
+    let heroModalOpen = false;
+
+    function showHeroModal() {
+      if (!heroBackdrop) return;
+      heroBackdrop.style.display = 'flex';
+      void heroBackdrop.offsetHeight;
+      heroBackdrop.classList.add('visible');
+      heroModalOpen = true;
+      heroDismiss?.focus();
+    }
+
+    function hideHeroModal() {
+      if (!heroBackdrop) return;
+      heroBackdrop.classList.remove('visible');
+      heroModalOpen = false;
+      sessionStorage.setItem('hero-seen', '1');
+      setTimeout(() => {
+        if (!heroModalOpen) heroBackdrop.style.display = 'none';
+      }, 250);
+    }
+
+    heroDismiss?.addEventListener('click', () => hideHeroModal());
+
+    heroBackdrop?.addEventListener('click', (e) => {
+      if (e.target === heroBackdrop) hideHeroModal();
+    });
+
+    // --- Desktop split-pane ---
+    const viewport = document.getElementById('rhizome-viewport');
+    const world = document.getElementById('rhizome-world');
+    if (!viewport || !world) return;
+
+    // Parse layout data
+    const layoutEl = document.getElementById('rhizome-layout-data');
+    if (!layoutEl) return;
+
+    type SporeShape = 'circle' | 'diamond' | 'hexagon' | 'triangle';
+
+    interface SporeData {
+      baseName: string; title: string; runCount: number; tags: string[];
+      cx: number; cy: number; size: number; href: string; seriesId: string;
+      description: string; phase: string; date: string;
+      duration: string; cost: string; seriesName: string; seriesColor: string;
+      shape: SporeShape;
+    }
+
+    const layout: {
+      organisms: {
+        id: string; cx: number; cy: number; color: string;
+        experiments: {
+          baseName: string; cx: number; cy: number; size: number;
+          title: string; runCount: number; tags: string[]; href: string;
+          description: string; phase: string; date: string;
+          duration: string; cost: string; seriesName: string; seriesColor: string;
+          shape: SporeShape;
+        }[];
+      }[];
+      rootTendrils: { seriesId: string; p0x: number; p0y: number; p1x: number; p1y: number; p2x: number; p2y: number; p3x: number; p3y: number }[];
+    } = JSON.parse(layoutEl.textContent || '{}');
+
+    // Build baseName → full spore data map
+    const sporeDataMap: Record<string, SporeData> = {};
+    for (const org of layout.organisms) {
+      for (const exp of org.experiments) {
+        sporeDataMap[exp.baseName] = { ...exp, seriesId: org.id };
+      }
+    }
+
+    // Init pan-zoom (start zoomed in on hub)
+    const INITIAL_SCALE = 1.6;
+    const HUB_CX = 600;
+    const HUB_CY = 470; // ROOT_CY + 20 to center on visual mass (hub + label below)
+    const pz = initPanZoom(viewport, world, {
+      minScale: 0.3,
+      maxScale: 2.5,
+      scale: INITIAL_SCALE,
+      hint: true,
+    });
+
+    // Center on the hub after init
+    requestAnimationFrame(() => {
+      const vpRect = viewport.getBoundingClientRect();
+      pz.setState({
+        x: vpRect.width / 2 - HUB_CX * INITIAL_SCALE,
+        y: vpRect.height / 2 - HUB_CY * INITIAL_SCALE,
+        scale: INITIAL_SCALE,
+      }, false);
+    });
+
+    // --- Floating card refs ---
+    const card = document.getElementById('experiment-card')!;
+    const cardPhase = card.querySelector<HTMLElement>('.card-phase')!;
+    const cardRuns = card.querySelector<HTMLElement>('.card-runs')!;
+    const cardDate = card.querySelector<HTMLElement>('.card-date')!;
+    const cardTitle = card.querySelector<HTMLAnchorElement>('.card-title')!;
+    const cardSeries = card.querySelector<HTMLElement>('.card-series')!;
+    const cardDesc = card.querySelector<HTMLElement>('.card-desc')!;
+    const cardTags = card.querySelector<HTMLElement>('.card-tags')!;
+    const cardDuration = card.querySelector<HTMLElement>('.card-duration')!;
+    const cardCost = card.querySelector<HTMLElement>('.card-cost')!;
+    const cardFooter = card.querySelector<HTMLElement>('.card-footer')!;
+
+    let cardVisible = false;
+    let selectedBaseName: string | null = null;
+    let hoverBaseName: string | null = null;   // tracks transient hover-preview over sticky selection
+    let hideTimer: ReturnType<typeof setTimeout> | null = null;
+
+    // Keep card alive when mouse moves from spore → card
+    card.addEventListener('mouseenter', () => {
+      if (hideTimer) { clearTimeout(hideTimer); hideTimer = null; }
+    });
+    card.addEventListener('mouseleave', () => {
+      if (hoverBaseName) { restoreSticky(); return; }
+      if (selectedBaseName) return;
+      clearCatalogSync();
+      hideCard();
+    });
+
+    // DOM refs
+    const catalogRows = Array.from(
+      document.querySelectorAll<HTMLAnchorElement>('#catalog-scroll a.tree-row')
+    );
+    const allSpores = world.querySelectorAll<HTMLElement>('.spore-node');
+    const allOrganisms = world.querySelectorAll<HTMLElement>('.organism');
+    const allTendrils = world.querySelectorAll<SVGPathElement>('.tendril');
+    let selectedIndex = -1;
+
+    // --- Card functions ---
+
+    function positionCard(data: SporeData, pzOverride?: { x: number; y: number; scale: number }) {
+      const st = pzOverride || pz.getState();
+      const vpRect = viewport.getBoundingClientRect();
+      const paneRect = card.parentElement!.getBoundingClientRect();
+
+      // Spore position in viewport coords
+      const sporeVpX = data.cx * st.scale + st.x;
+      const sporeVpY = data.cy * st.scale + st.y;
+
+      // Convert to pane-relative coords
+      const offsetX = vpRect.left - paneRect.left;
+      const offsetY = vpRect.top - paneRect.top;
+      const sporeLeft = sporeVpX + offsetX;
+      const sporeTop = sporeVpY + offsetY;
+
+      const cardW = 340;
+      const cardH = card.offsetHeight || 200;
+      const gap = 16;
+      const paneW = paneRect.width;
+
+      // Use viewport height (excludes legend) instead of full pane height
+      const visibleH = vpRect.bottom - paneRect.top;
+
+      // Bounds: keep card inside the visible rhizome area
+      const minLeft = 8;
+      const maxTop = visibleH - cardH - 8;
+
+      // Default: card to the right of spore
+      let left = sporeLeft + data.size * st.scale * 0.5 + gap;
+      let top = sporeTop - cardH / 2;
+
+      // Flip left if near right edge
+      if (left + cardW > paneW - 16) {
+        left = sporeLeft - data.size * st.scale * 0.5 - gap - cardW;
+      }
+
+      // Clamp: keep card within visible bounds
+      left = Math.max(minLeft, Math.min(left, paneW - cardW - 8));
+      top = Math.max(8, Math.min(top, maxTop));
+
+      card.style.left = `${Math.round(left)}px`;
+      card.style.top = `${Math.round(top)}px`;
+    }
+
+    function showCard(baseName: string, pzOverride?: { x: number; y: number; scale: number }) {
+      const data = sporeDataMap[baseName];
+      if (!data) return;
+
+      // Populate content
+      cardPhase.textContent = data.phase || 'Unknown';
+      cardPhase.className = 'card-phase phase-' + (data.phase || 'unknown').toLowerCase().replace(/\s+/g, '-');
+      cardRuns.textContent = `${data.runCount} run${data.runCount !== 1 ? 's' : ''}`;
+      cardDate.textContent = data.date;
+      cardTitle.textContent = data.title;
+      cardTitle.href = data.href;
+      cardSeries.innerHTML = `Part of the <span style="color:${data.seriesColor};font-weight:600">${data.seriesName}</span> Series`;
+      cardDesc.textContent = data.description;
+      cardDesc.style.display = data.description ? '' : 'none';
+      cardTags.innerHTML = data.tags.map(t => `<span class="card-tag">${t}</span>`).join('');
+
+      // Footer
+      cardDuration.textContent = data.duration ? `Duration: ${data.duration}` : '';
+      cardCost.textContent = data.cost ? `Cost: ${data.cost}` : '';
+      cardFooter.style.display = (data.duration || data.cost) ? '' : 'none';
+
+      // Series color border + glow + shape icon
+      card.style.borderLeftColor = data.seriesColor;
+      card.style.setProperty('--card-glow', data.seriesColor);
+      // Position and show
+      card.style.display = 'block';
+      positionCard(data, pzOverride);
+      // Force reflow for opacity transition
+      void card.offsetHeight;
+      card.classList.add('visible');
+      card.setAttribute('aria-hidden', 'false');
+      cardVisible = true;
+    }
+
+    function hideCard() {
+      card.classList.remove('visible');
+      card.setAttribute('aria-hidden', 'true');
+      cardVisible = false;
+      setTimeout(() => {
+        if (!cardVisible) card.style.display = 'none';
+      }, 200);
+    }
+
+    // --- Helpers ---
+
+    function clearCatalogSync() {
+      catalogRows.forEach(r => r.classList.remove('synced', 'active'));
+    }
+
+    function clearRhizomeSync() {
+      world.classList.remove('has-focus');
+      allSpores.forEach(s => s.classList.remove('focused', 'dimmed'));
+      allOrganisms.forEach(el => el.classList.remove('focused'));
+      allTendrils.forEach(el => el.classList.remove('focused'));
+      indicators.forEach(el => el.removeAttribute('data-focused'));
+    }
+
+    function highlightSeries(seriesId: string) {
+      world.classList.add('has-focus');
+      allOrganisms.forEach(el => el.classList.toggle('focused', el.dataset.series === seriesId));
+      allTendrils.forEach(el => el.classList.toggle('focused', el.dataset.series === seriesId));
+      indicators.forEach(el => {
+        if (el.dataset.series === seriesId) el.setAttribute('data-focused', '');
+        else el.removeAttribute('data-focused');
+      });
+    }
+
+    function focusSpore(baseName: string) {
+      allSpores.forEach(s => {
+        if (s.dataset.baseName === baseName) {
+          s.classList.add('focused');
+          s.classList.remove('dimmed');
+        } else {
+          s.classList.remove('focused');
+          s.classList.add('dimmed');
+        }
+      });
+    }
+
+    function clearAllSync() {
+      clearCatalogSync();
+      clearRhizomeSync();
+      selectedBaseName = null;
+      hoverBaseName = null;
+      focusedSeriesId = null;
+      hideCard();
+      hideHubWaypoint();
+    }
+
+    // Restore sticky selection after a hover-preview ends
+    function restoreSticky() {
+      hoverBaseName = null;
+      if (!selectedBaseName) return;
+      clearCatalogSync();
+      clearRhizomeSync();
+      const row = catalogRows.find(r => r.dataset.baseName === selectedBaseName);
+      if (row) {
+        row.classList.add('active');
+        selectedIndex = catalogRows.indexOf(row);
+      }
+      focusSpore(selectedBaseName);
+      const data = sporeDataMap[selectedBaseName];
+      if (data) highlightSeries(data.seriesId);
+      showCard(selectedBaseName);
+    }
+
+    // --- Hub view state ---
+    const backBtn = document.getElementById('back-to-hub');
+    let isHubView = true;
+    let focusedSeriesId: string | null = null;
+
+    function showBackButton() {
+      if (backBtn) backBtn.style.display = '';
+    }
+
+    function hideBackButton() {
+      if (backBtn) backBtn.style.display = 'none';
+    }
+
+    // --- Hub label on tendril (positioned between organism and viewport edge) ---
+    const hubWaypointEl = document.getElementById('hub-waypoint');
+
+    function bezierPoint(td: typeof layout.rootTendrils[0], t: number) {
+      const m = 1 - t;
+      return {
+        x: m*m*m*td.p0x + 3*m*m*t*td.p1x + 3*m*t*t*td.p2x + t*t*t*td.p3x,
+        y: m*m*m*td.p0y + 3*m*m*t*td.p1y + 3*m*t*t*td.p2y + t*t*t*td.p3y,
+      };
+    }
+
+    function showHubWaypoint(seriesId: string) {
+      if (!hubWaypointEl) return;
+      const td = layout.rootTendrils.find(r => r.seriesId === seriesId);
+      if (!td) return;
+
+      const st = pz.getState();
+      const vpRect = viewport.getBoundingClientRect();
+
+      // Walk the Bezier from hub (t=0) toward organism (t=1).
+      // Find where the tendril exits the viewport, then place label
+      // halfway between the organism (t=1) and that exit point.
+      // If the entire tendril is visible, place at t≈0.35 (hub side).
+      let exitT = 0;
+      for (let t = 1; t >= 0; t -= 0.02) {
+        const pt = bezierPoint(td, t);
+        const vx = pt.x * st.scale + st.x;
+        const vy = pt.y * st.scale + st.y;
+        if (vx < -20 || vx > vpRect.width + 20 || vy < -20 || vy > vpRect.height + 20) {
+          exitT = t;
+          break;
+        }
+      }
+
+      // Place label halfway between organism and exit (or t=0.35 if all visible)
+      const labelT = exitT > 0 ? (1 + exitT) / 2 : 0.35;
+      const labelPt = bezierPoint(td, labelT);
+
+      hubWaypointEl.style.left = `${Math.round(labelPt.x)}px`;
+      hubWaypointEl.style.top = `${Math.round(labelPt.y)}px`;
+      hubWaypointEl.style.display = '';
+    }
+
+    function hideHubWaypoint() {
+      if (hubWaypointEl) hubWaypointEl.style.display = 'none';
+    }
+
+    // Hub waypoint click → zoom back to hub
+    if (hubWaypointEl) {
+      hubWaypointEl.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        zoomToHub();
+      });
+    }
+
+    function computeSeriesFit(seriesId: string): { x: number; y: number; scale: number } | undefined {
+      const org = layout.organisms.find(o => o.id === seriesId);
+      if (!org) return;
+
+      let minX = org.cx, maxX = org.cx, minY = org.cy, maxY = org.cy;
+      for (const exp of org.experiments) {
+        minX = Math.min(minX, exp.cx - exp.size);
+        maxX = Math.max(maxX, exp.cx + exp.size);
+        minY = Math.min(minY, exp.cy - exp.size);
+        maxY = Math.max(maxY, exp.cy + exp.size);
+      }
+
+      const pad = 60;
+      minX -= pad; maxX += pad; minY -= pad; maxY += pad;
+
+      const bboxW = maxX - minX;
+      const bboxH = maxY - minY;
+      const vpRect = viewport.getBoundingClientRect();
+
+      const fitScale = Math.min(vpRect.width / bboxW, vpRect.height / bboxH, 2.5);
+      const centerX = (minX + maxX) / 2;
+      const centerY = (minY + maxY) / 2;
+
+      return {
+        x: vpRect.width / 2 - centerX * fitScale,
+        y: vpRect.height / 2 - centerY * fitScale,
+        scale: fitScale,
+      };
+    }
+
+    function zoomToHub() {
+      const vpRect = viewport.getBoundingClientRect();
+      pz.setState({
+        x: vpRect.width / 2 - HUB_CX * INITIAL_SCALE,
+        y: vpRect.height / 2 - HUB_CY * INITIAL_SCALE,
+        scale: INITIAL_SCALE,
+      }, true);
+      isHubView = true;
+      focusedSeriesId = null;
+      world.classList.remove('zoomed-out');
+      hideBackButton();
+      hideHubWaypoint();
+      clearAllSync();
+    }
+
+    // --- Catalog → Rhizome sync ---
+
+    function catalogToRhizome(baseName: string): { x: number; y: number; scale: number } | undefined {
+      const data = sporeDataMap[baseName];
+      if (!data) return;
+
+      // Zoom rhizome to center on the spore
+      const vpRect = viewport.getBoundingClientRect();
+      const targetScale = 1.2;
+      const targetX = vpRect.width / 2 - data.cx * targetScale;
+      const targetY = vpRect.height / 2 - data.cy * targetScale;
+
+      pz.setState({ x: targetX, y: targetY, scale: targetScale }, true);
+
+      focusSpore(baseName);
+      highlightSeries(data.seriesId);
+
+      return { x: targetX, y: targetY, scale: targetScale };
+    }
+
+    // --- Rhizome → Catalog sync ---
+
+    function rhizomeToCatalog(baseName: string) {
+      clearCatalogSync();
+      const row = catalogRows.find(r => r.dataset.baseName === baseName);
+      if (row) {
+        row.classList.add('synced');
+        row.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        selectedIndex = catalogRows.indexOf(row);
+      }
+    }
+
+    // --- Catalog hover/click events ---
+
+    catalogRows.forEach((row, i) => {
+      const baseName = row.dataset.baseName || '';
+
+      row.addEventListener('mouseenter', () => {
+        if (selectedBaseName && selectedBaseName === baseName) return; // already showing this one
+        clearCatalogSync();
+        clearRhizomeSync();
+        row.classList.add('active');
+        selectedIndex = i;
+        focusSpore(baseName);
+        const data = sporeDataMap[baseName];
+        if (data) highlightSeries(data.seriesId);
+        showCard(baseName);
+        if (selectedBaseName) hoverBaseName = baseName; // track hover-preview over sticky
+      });
+
+      row.addEventListener('mouseleave', () => {
+        if (hoverBaseName) { restoreSticky(); return; }
+        if (selectedBaseName) return; // keep sticky
+        clearAllSync();
+      });
+
+      // Click = sticky select; second click or Ctrl+click navigates
+      row.addEventListener('click', (e: MouseEvent) => {
+        if (e.ctrlKey || e.metaKey) return;
+        e.preventDefault();
+
+        if (selectedBaseName === baseName) {
+          window.location.href = row.href;
+          return;
+        }
+
+        hoverBaseName = null;
+        clearCatalogSync();
+        clearRhizomeSync();
+        row.classList.add('active');
+        selectedIndex = i;
+        selectedBaseName = baseName;
+        const pzTarget = catalogToRhizome(baseName);
+        showCard(baseName, pzTarget);
+      });
+    });
+
+    // --- Rhizome spore events ---
+
+    allSpores.forEach(spore => {
+      const baseName = spore.dataset.baseName || '';
+
+      spore.addEventListener('mouseenter', () => {
+        if (hideTimer) { clearTimeout(hideTimer); hideTimer = null; }
+        if (selectedBaseName && selectedBaseName === baseName) return; // already showing this one
+        clearRhizomeSync();
+        rhizomeToCatalog(baseName);
+        focusSpore(baseName);
+        const data = sporeDataMap[baseName];
+        if (data) highlightSeries(data.seriesId);
+        showCard(baseName);
+        if (selectedBaseName) hoverBaseName = baseName; // track hover-preview over sticky
+      });
+
+      spore.addEventListener('mouseleave', () => {
+        if (hoverBaseName) { restoreSticky(); return; }
+        if (selectedBaseName) return;
+        hideTimer = setTimeout(() => {
+          hideTimer = null;
+          clearCatalogSync();
+          clearRhizomeSync();
+          hideCard();
+        }, 150);
+      });
+
+      // Click on spore = sticky select; second click navigates
+      spore.addEventListener('click', (e: MouseEvent) => {
+        if (e.ctrlKey || e.metaKey) return;
+        e.preventDefault();
+        e.stopPropagation();
+
+        if (selectedBaseName === baseName) {
+          const data = sporeDataMap[baseName];
+          if (data) window.location.href = data.href;
+          return;
+        }
+
+        hoverBaseName = null;
+        clearCatalogSync();
+        clearRhizomeSync();
+        selectedBaseName = baseName;
+        rhizomeToCatalog(baseName);
+        const pzTarget = catalogToRhizome(baseName);
+        showCard(baseName, pzTarget);
+      });
+    });
+
+    // --- Zoom to series (shared by indicators + catalog headers) ---
+    function zoomToSeries(seriesId: string) {
+      const fit = computeSeriesFit(seriesId);
+      if (!fit) return;
+      clearAllSync();
+      pz.setState(fit, true);
+      highlightSeries(seriesId);
+      focusedSeriesId = seriesId;
+      isHubView = false;
+      world.classList.add('zoomed-out');
+      showBackButton();
+      showHubWaypoint(seriesId);
+    }
+
+    // --- Series indicator click handlers (click zooms to series) ---
+    const indicators = world.querySelectorAll<HTMLElement>('.series-indicator');
+    indicators.forEach(ind => {
+      ind.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const seriesId = ind.dataset.series;
+        if (!seriesId) return;
+
+        // Already focused on this series — no-op
+        if (focusedSeriesId === seriesId) return;
+
+        zoomToSeries(seriesId);
+      });
+    });
+
+    // --- Organism click → zoom to series ---
+    allOrganisms.forEach(org => {
+      org.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const seriesId = org.dataset.series;
+        if (!seriesId) return;
+        zoomToSeries(seriesId);
+      });
+    });
+
+    // --- Root tendril hit area click → zoom to series ---
+    const tendrilHits = world.querySelectorAll<SVGPathElement>('.root-tendril-hit');
+    tendrilHits.forEach(hit => {
+      hit.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const seriesId = (hit.closest('.root-tendril-group') as SVGGElement)?.dataset.series
+                      ?? hit.dataset.series;
+        if (!seriesId) return;
+        // If already zoomed into this series, clicking the line goes to hub
+        if (focusedSeriesId === seriesId) {
+          zoomToHub();
+        } else {
+          zoomToSeries(seriesId);
+        }
+      });
+    });
+
+    // --- Cross-highlight: hovering any series element lights up the whole series ---
+    function highlightSeries(seriesId: string | undefined) {
+      if (!seriesId) return;
+      world.querySelector<HTMLElement>(`.series-indicator[data-series="${seriesId}"]`)?.classList.add('hovered');
+      world.querySelector<HTMLElement>(`.organism[data-series="${seriesId}"]`)?.classList.add('hovered');
+      world.querySelector<SVGGElement>(`.root-tendril-group[data-series="${seriesId}"]`)?.classList.add('hovered');
+      world.querySelectorAll<HTMLElement>(`.spore-node[data-series="${seriesId}"]`).forEach(s => s.classList.add('hovered'));
+    }
+    function unhighlightSeries(seriesId: string | undefined) {
+      if (!seriesId) return;
+      world.querySelector<HTMLElement>(`.series-indicator[data-series="${seriesId}"]`)?.classList.remove('hovered');
+      world.querySelector<HTMLElement>(`.organism[data-series="${seriesId}"]`)?.classList.remove('hovered');
+      world.querySelector<SVGGElement>(`.root-tendril-group[data-series="${seriesId}"]`)?.classList.remove('hovered');
+      world.querySelectorAll<HTMLElement>(`.spore-node[data-series="${seriesId}"]`).forEach(s => s.classList.remove('hovered'));
+    }
+
+    // Tendril hit areas
+    tendrilHits.forEach(hit => {
+      const seriesId = (hit.closest('.root-tendril-group') as SVGGElement)?.dataset.series
+                    ?? hit.dataset.series;
+      const hubLabel = hubWaypointEl?.querySelector<HTMLElement>('.hub-tendril-name');
+      hit.addEventListener('mouseenter', () => {
+        highlightSeries(seriesId);
+        if (focusedSeriesId === seriesId && hubLabel) hubLabel.classList.add('hovered');
+      });
+      hit.addEventListener('mouseleave', () => {
+        unhighlightSeries(seriesId);
+        if (hubLabel) hubLabel.classList.remove('hovered');
+      });
+    });
+
+    // Organisms
+    allOrganisms.forEach(org => {
+      org.addEventListener('mouseenter', () => highlightSeries(org.dataset.series));
+      org.addEventListener('mouseleave', () => unhighlightSeries(org.dataset.series));
+    });
+
+    // Series indicators (labels on tendrils)
+    indicators.forEach(ind => {
+      ind.addEventListener('mouseenter', () => highlightSeries(ind.dataset.series));
+      ind.addEventListener('mouseleave', () => unhighlightSeries(ind.dataset.series));
+    });
+
+    // Spore nodes
+    allSpores.forEach(spore => {
+      spore.addEventListener('mouseenter', () => highlightSeries(spore.dataset.series));
+      spore.addEventListener('mouseleave', () => unhighlightSeries(spore.dataset.series));
+    });
+
+    // --- Catalog series name click → zoom to series ---
+    const catalogSeriesNames = document.querySelectorAll<HTMLElement>('#catalog-scroll .tree-series-name');
+    catalogSeriesNames.forEach(nameEl => {
+      nameEl.addEventListener('click', (e) => {
+        e.stopPropagation();
+        const seriesEl = nameEl.closest<HTMLElement>('.tree-series');
+        const seriesId = seriesEl?.dataset.seriesId;
+        if (!seriesId || seriesId === '_unsorted') return;
+        zoomToSeries(seriesId);
+      });
+    });
+
+    // --- Catalog root click → zoom to hub ---
+    const catalogRoot = document.getElementById('catalog-root');
+    if (catalogRoot) {
+      catalogRoot.addEventListener('click', () => zoomToHub());
+    }
+
+    // --- Zoom controls ---
+    function zoomToFit() {
+      // Compute bounding box of all organisms + their experiments
+      let minX = Infinity, maxX = -Infinity, minY = Infinity, maxY = -Infinity;
+      for (const org of layout.organisms) {
+        minX = Math.min(minX, org.cx - 50);
+        maxX = Math.max(maxX, org.cx + 50);
+        minY = Math.min(minY, org.cy - 50);
+        maxY = Math.max(maxY, org.cy + 50);
+        for (const exp of org.experiments) {
+          minX = Math.min(minX, exp.cx - exp.size);
+          maxX = Math.max(maxX, exp.cx + exp.size);
+          minY = Math.min(minY, exp.cy - exp.size);
+          maxY = Math.max(maxY, exp.cy + exp.size);
+        }
+      }
+      // Include hub
+      minX = Math.min(minX, HUB_CX - 80);
+      maxX = Math.max(maxX, HUB_CX + 80);
+      minY = Math.min(minY, HUB_CY - 80);
+      maxY = Math.max(maxY, HUB_CY + 80);
+
+      const pad = 40;
+      minX -= pad; maxX += pad; minY -= pad; maxY += pad;
+
+      const vpRect = viewport.getBoundingClientRect();
+      const fitScale = Math.min(vpRect.width / (maxX - minX), vpRect.height / (maxY - minY), 2.5);
+      const centerX = (minX + maxX) / 2;
+      const centerY = (minY + maxY) / 2;
+
+      pz.setState({
+        x: vpRect.width / 2 - centerX * fitScale,
+        y: vpRect.height / 2 - centerY * fitScale,
+        scale: fitScale,
+      }, true);
+
+      isHubView = false;
+      focusedSeriesId = null;
+      world.classList.add('zoomed-out');
+      hideHubWaypoint();
+      clearAllSync();
+    }
+
+    const zoomInBtn = document.getElementById('zoom-in-btn');
+    const zoomOutBtn = document.getElementById('zoom-out-btn');
+    const zoomHubBtn = document.getElementById('zoom-hub-btn');
+    const zoomFitBtn = document.getElementById('zoom-fit-btn');
+
+    zoomInBtn?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const st = pz.getState();
+      const vpRect = viewport.getBoundingClientRect();
+      const cx = vpRect.width / 2;
+      const cy = vpRect.height / 2;
+      const newScale = Math.min(st.scale * 1.4, 2.5);
+      const ratio = newScale / st.scale;
+      pz.setState({
+        x: cx - ratio * (cx - st.x),
+        y: cy - ratio * (cy - st.y),
+        scale: newScale,
+      }, true);
+    });
+
+    zoomOutBtn?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const st = pz.getState();
+      const vpRect = viewport.getBoundingClientRect();
+      const cx = vpRect.width / 2;
+      const cy = vpRect.height / 2;
+      const newScale = Math.max(st.scale / 1.4, 0.3);
+      const ratio = newScale / st.scale;
+      pz.setState({
+        x: cx - ratio * (cx - st.x),
+        y: cy - ratio * (cy - st.y),
+        scale: newScale,
+      }, true);
+      // Transition to zoomed-out if below threshold
+      if (newScale < 1.2 && isHubView) {
+        isHubView = false;
+        world.classList.add('zoomed-out');
+      }
+    });
+
+    zoomHubBtn?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      zoomToHub();
+    });
+
+    zoomFitBtn?.addEventListener('click', (e) => {
+      e.stopPropagation();
+      zoomToFit();
+    });
+
+    // --- Back to hub button (legacy) ---
+    if (backBtn) {
+      backBtn.addEventListener('click', (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        zoomToHub();
+      });
+    }
+
+    // --- Dismiss on wheel (zoom) ---
+    viewport.addEventListener('wheel', () => {
+      if (cardVisible || selectedBaseName) {
+        clearAllSync();
+        selectedIndex = -1;
+      }
+      // If user manually zooms below 1.2x from hub view, transition to zoomed-out
+      if (isHubView) {
+        const currentScale = pz.getState().scale;
+        if (currentScale < 1.2) {
+          isHubView = false;
+          world.classList.add('zoomed-out');
+          showBackButton();
+        }
+      }
+    }, { passive: true });
+
+    // --- Dismiss on background click ---
+    viewport.addEventListener('pointerdown', (e: PointerEvent) => {
+      const target = e.target as HTMLElement;
+      if (target.closest('.spore-node') || target.closest('.organism') || target.closest('.series-indicator') || target.closest('.root-tendril-hit')) return;
+      if (cardVisible || selectedBaseName) {
+        clearAllSync();
+        selectedIndex = -1;
+      }
+    });
+
+    // --- Keyboard navigation ---
+
+    document.addEventListener('keydown', (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      if (target?.tagName === 'INPUT' || target?.tagName === 'TEXTAREA') return;
+
+      // Hero modal open: only Escape dismisses, block all other nav keys
+      if (heroModalOpen) {
+        if (e.key === 'Escape') {
+          e.preventDefault();
+          hideHeroModal();
+        }
+        return;
+      }
+
+      // Only handle if desktop layout is visible
+      const container = document.getElementById('hybrid-container');
+      if (!container || getComputedStyle(container).display === 'none') return;
+
+      if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        const next = selectedIndex < 0 ? 0 : Math.min(selectedIndex + 1, catalogRows.length - 1);
+        selectRow(next);
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        const prev = selectedIndex <= 0 ? 0 : selectedIndex - 1;
+        selectRow(prev);
+      } else if (e.key === 'Enter' && selectedIndex >= 0) {
+        e.preventDefault();
+        window.location.href = catalogRows[selectedIndex].href;
+      } else if (e.key === 'Escape') {
+        if (!isHubView) {
+          e.preventDefault();
+          zoomToHub();
+        } else {
+          clearAllSync();
+          selectedIndex = -1;
+        }
+      }
+    });
+
+    function selectRow(index: number) {
+      if (index < 0 || index >= catalogRows.length) return;
+      clearCatalogSync();
+      clearRhizomeSync();
+      selectedIndex = index;
+      selectedBaseName = null; // arrow keys are transient
+      const row = catalogRows[index];
+      row.classList.add('active');
+      row.scrollIntoView({ block: 'nearest' });
+      const baseName = row.dataset.baseName || '';
+      const pzTarget = catalogToRhizome(baseName);
+      showCard(baseName, pzTarget);
+    }
+
+    // --- Divider drag-to-resize ---
+    const divider = document.querySelector<HTMLElement>('.hybrid-divider');
+    const hybridContainer = document.getElementById('hybrid-container');
+    let divDragging = false;
+
+    if (divider && hybridContainer) {
+      function startDivDrag(e: MouseEvent | TouchEvent) {
+        divDragging = true;
+        document.body.style.cursor = 'col-resize';
+        document.body.style.userSelect = 'none';
+        e.preventDefault();
+      }
+
+      function onDivDrag(e: MouseEvent | TouchEvent) {
+        if (!divDragging) return;
+        const clientX = (e as TouchEvent).touches
+          ? (e as TouchEvent).touches[0].clientX
+          : (e as MouseEvent).clientX;
+        const containerRect = hybridContainer!.getBoundingClientRect();
+        const width = clientX - containerRect.left;
+        const clamped = Math.max(200, Math.min(width, containerRect.width * 0.5));
+        hybridContainer!.style.setProperty('--catalog-width', `${clamped}px`);
+      }
+
+      function endDivDrag() {
+        if (!divDragging) return;
+        divDragging = false;
+        document.body.style.cursor = '';
+        document.body.style.userSelect = '';
+      }
+
+      divider.addEventListener('mousedown', startDivDrag);
+      divider.addEventListener('touchstart', startDivDrag, { passive: false });
+      document.addEventListener('mousemove', onDivDrag);
+      document.addEventListener('touchmove', onDivDrag, { passive: false });
+      document.addEventListener('mouseup', endDivDrag);
+      document.addEventListener('touchend', endDivDrag);
+    }
+
+    // --- Root graph node hover → brighten SVG hub group ---
+    const rootGraphNode = world.querySelector('.root-graph-node');
+    const rootHubGroup = world.querySelector('.root-hub-group');
+    if (rootGraphNode && rootHubGroup) {
+      rootGraphNode.addEventListener('mouseenter', () => rootHubGroup.classList.add('hovered'));
+      rootGraphNode.addEventListener('mouseleave', () => rootHubGroup.classList.remove('hovered'));
+    }
+
+    // --- Root graph node click → zoom to hub first, modal on second click ---
+    if (rootGraphNode) {
+      rootGraphNode.addEventListener('click', (e: Event) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (!isHubView) {
+          zoomToHub();
+        } else {
+          showHeroModal();
+        }
+      });
+    }
+
+    // --- Auto-show hero modal on first visit ---
+    if (!sessionStorage.getItem('hero-seen')) {
+      showHeroModal();
+    }
+
+    // --- Sync with AI toolbar height ---
+    const convPanel = document.querySelector<HTMLElement>('.conv-panel');
+    const hybridEl = document.getElementById('hybrid-container');
+    if (convPanel && hybridEl) {
+      const observer = new ResizeObserver(() => {
+        const toolbarH = convPanel.getBoundingClientRect().height;
+        hybridEl.style.setProperty('--toolbar-height', `${toolbarH}px`);
+      });
+      observer.observe(convPanel);
+    }
+  });
+</script>

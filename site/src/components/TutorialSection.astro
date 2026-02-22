@@ -1,0 +1,255 @@
+---
+import { marked } from 'marked';
+import TutorialStep from './TutorialStep.astro';
+import ServiceLinksPanel from './ServiceLinksPanel.astro';
+import WebTerminal from './WebTerminal.astro';
+import type { TutorialFlow } from '../types';
+
+interface Props {
+  tutorial: TutorialFlow;
+}
+
+const { tutorial } = Astro.props;
+
+const difficultyColors: Record<string, string> = {
+  beginner: '#22c55e',
+  intermediate: '#f59e0b',
+  advanced: '#ef4444',
+};
+
+const totalSteps = tutorial.modules.reduce((sum, m) => sum + m.steps.length, 0);
+let stepCounter = 0;
+
+const hasTerminal = tutorial.services?.some((s) => s.name === 'terminal');
+const terminalService = tutorial.services?.find((s) => s.name === 'terminal');
+const nonTerminalServices = tutorial.services?.filter((s) => s.name !== 'terminal') ?? [];
+
+const completionHtml = tutorial.completion?.message
+  ? marked.parse(tutorial.completion.message, { async: false }) as string
+  : null;
+---
+
+<details class="section section-tutorial" open>
+  <summary class="section-title">Tutorial</summary>
+
+  <div class="tutorial-meta">
+    {tutorial.duration && (
+      <span class="tutorial-meta-item">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+             stroke-linecap="round" stroke-linejoin="round" width="14" height="14">
+          <circle cx="12" cy="12" r="10"/>
+          <polyline points="12 6 12 12 16 14"/>
+        </svg>
+        {tutorial.duration} min
+      </span>
+    )}
+    {tutorial.difficulty && (
+      <span class="tutorial-meta-item" style={`color: ${difficultyColors[tutorial.difficulty] || 'var(--text-muted)'}`}>
+        {tutorial.difficulty}
+      </span>
+    )}
+    <span class="tutorial-meta-item">
+      {totalSteps} {totalSteps === 1 ? 'step' : 'steps'}
+    </span>
+    {tutorial.prerequisites && tutorial.prerequisites.length > 0 && (
+      <span class="tutorial-meta-item tutorial-prereqs">
+        Prereqs: {tutorial.prerequisites.join(', ')}
+      </span>
+    )}
+  </div>
+
+  {nonTerminalServices.length > 0 && (
+    <ServiceLinksPanel services={nonTerminalServices} />
+  )}
+
+  {hasTerminal && (
+    <WebTerminal terminalUrl={terminalService?.url} />
+  )}
+
+  <div class="tutorial-modules">
+    {tutorial.modules.map((mod) => (
+      <div class="tutorial-module">
+        <h3 class="module-title">{mod.title}</h3>
+        <div class="module-steps">
+          {mod.steps.map((step) => {
+            stepCounter++;
+            return <TutorialStep step={step} stepNumber={stepCounter} />;
+          })}
+        </div>
+      </div>
+    ))}
+  </div>
+
+  {tutorial.completion && (
+    <div class="tutorial-completion">
+      <div class="completion-header">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+             stroke-linecap="round" stroke-linejoin="round" width="20" height="20">
+          <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+          <polyline points="22 4 12 14.01 9 11.01"/>
+        </svg>
+        <span>Tutorial Complete</span>
+      </div>
+      {completionHtml && (
+        <div class="completion-message" set:html={completionHtml} />
+      )}
+      {tutorial.completion.capability_delta && (
+        <div class="completion-capabilities">
+          {Object.entries(tutorial.completion.capability_delta).map(([cap, enabled]) => (
+            <span class={`completion-cap ${enabled ? 'cap-gained' : 'cap-missing'}`}>
+              {enabled ? '\u2713' : '\u2717'} {cap.replace(/_/g, ' ')}
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  )}
+</details>
+
+<script is:inline>
+  // Copy button handler for all command blocks
+  document.querySelectorAll('.command-copy').forEach(function(btn) {
+    btn.addEventListener('click', function() {
+      var cmd = btn.getAttribute('data-command');
+      if (!cmd) return;
+      navigator.clipboard.writeText(cmd).then(function() {
+        var svg = btn.innerHTML;
+        btn.innerHTML = '<span style="font-size:12px;color:#22c55e">OK</span>';
+        setTimeout(function() { btn.innerHTML = svg; }, 1000);
+      });
+    });
+  });
+</script>
+
+<style>
+  .tutorial-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .tutorial-meta-item {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--text-muted);
+  }
+
+  .tutorial-prereqs {
+    margin-left: auto;
+    font-weight: 500;
+  }
+
+  .tutorial-modules {
+    padding: 1rem;
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+  }
+
+  .tutorial-module {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .module-title {
+    font-size: 1.05rem;
+    font-weight: 700;
+    color: var(--text);
+    margin: 0;
+    padding-bottom: 0.35rem;
+    border-bottom: 1px solid color-mix(in srgb, #e879f9 20%, var(--border));
+  }
+
+  .module-steps {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .tutorial-completion {
+    margin: 0 1rem 1rem;
+    border: 1px solid color-mix(in srgb, #22c55e 30%, var(--border));
+    border-radius: var(--radius);
+    background: color-mix(in srgb, #22c55e 6%, var(--bg-card));
+    overflow: hidden;
+  }
+
+  .completion-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.75rem 1rem;
+    font-weight: 700;
+    font-size: 1rem;
+    color: #22c55e;
+    border-bottom: 1px solid color-mix(in srgb, #22c55e 15%, var(--border));
+  }
+
+  .completion-message {
+    padding: 0.75rem 1rem;
+    font-size: 0.9rem;
+    line-height: 1.65;
+    color: var(--text);
+  }
+
+  .completion-message :global(p) {
+    margin: 0 0 0.5rem;
+  }
+
+  .completion-message :global(p:last-child) {
+    margin-bottom: 0;
+  }
+
+  .completion-capabilities {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    padding: 0.5rem 1rem 0.75rem;
+  }
+
+  .completion-cap {
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 0.2rem 0.6rem;
+    border-radius: 2px;
+  }
+
+  .cap-gained {
+    background: color-mix(in srgb, #22c55e 15%, transparent);
+    color: #22c55e;
+  }
+
+  .cap-missing {
+    background: color-mix(in srgb, #ef4444 10%, transparent);
+    color: #ef4444;
+    opacity: 0.7;
+  }
+
+  @media (max-width: 640px) {
+    .tutorial-meta {
+      padding: 0.5rem 0.75rem;
+      gap: 0.5rem;
+    }
+
+    .tutorial-modules {
+      padding: 0.75rem 0.5rem;
+      gap: 1rem;
+    }
+
+    .tutorial-completion {
+      margin: 0 0.5rem 0.75rem;
+    }
+
+    .tutorial-prereqs {
+      margin-left: 0;
+    }
+  }
+</style>

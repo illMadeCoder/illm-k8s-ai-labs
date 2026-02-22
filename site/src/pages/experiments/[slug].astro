@@ -4,6 +4,7 @@ import Breadcrumb from '../../components/Breadcrumb.astro';
 import ExperimentDetail from '../../components/ExperimentDetail.astro';
 import { loadAllExperiments, groupExperiments, getDisplayTitle, getSeriesSiblings, getHypothesisClaim } from '../../lib/experiments';
 import { getSeriesMeta } from '../../lib/series';
+import { loadTutorial } from '../../lib/tutorial';
 import type { ExperimentGroup } from '../../lib/experiments';
 
 export function getStaticPaths() {
@@ -35,6 +36,7 @@ if (seriesId) {
 }
 
 const experiment = group.latest;
+const tutorial = loadTutorial(group.baseName);
 const hypothesis = getHypothesisClaim(experiment);
 const verdict = experiment.analysis?.hypothesisVerdict;
 const abstract = experiment.analysis?.abstract;
@@ -61,7 +63,7 @@ if (abstract) {
     crumbs={[
       { label: 'Home', href: base },
       ...(seriesSiblings
-        ? [{ label: 'Series', href: `${base}series/` }, { label: seriesSiblings.seriesName, href: `${base}series/${seriesSiblings.seriesId}/`, color: seriesSiblings.seriesColor }]
+        ? [{ label: 'Series', href: `${base}series/` }, { label: seriesSiblings.seriesName, href: `${base}series/`, color: seriesSiblings.seriesColor }]
         : [{ label: 'Experiments', href: base }]),
       { label: displayName },
     ]}
@@ -71,6 +73,7 @@ if (abstract) {
     experiment={group.latest}
     displayName={displayName}
     tags={group.tags}
+    tutorial={tutorial}
     runHistory={{ baseName: group.baseName, runs: group.runs }}
     seriesSiblings={seriesSiblings}
   />
