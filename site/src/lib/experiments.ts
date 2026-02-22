@@ -17,7 +17,7 @@ export function loadAllExperiments(): ExperimentSummary[] {
 
   return fs
     .readdirSync(dataDir)
-    .filter((f) => f.endsWith('.json') && !f.startsWith('_'))
+    .filter((f) => f.endsWith('.json') && !f.startsWith('_') && !f.endsWith('.tutorial.json'))
     .map((f) => {
       const raw = fs.readFileSync(path.join(dataDir, f), 'utf-8');
       return JSON.parse(raw) as ExperimentSummary;

@@ -187,3 +187,50 @@ export interface GlossaryEntry {
   term: string;
   definition: string;
 }
+
+// Tutorial instruction flow types
+
+export interface TutorialFlow {
+  title: string;
+  description: string;
+  duration?: number;
+  difficulty?: 'beginner' | 'intermediate' | 'advanced';
+  prerequisites?: string[];
+  services?: TutorialServiceDef[];
+  modules: TutorialModule[];
+  completion?: TutorialCompletion;
+}
+
+export interface TutorialServiceDef {
+  name: string;
+  label: string;
+  icon?: string;
+  url?: string;
+}
+
+export interface TutorialModule {
+  id: string;
+  title: string;
+  steps: TutorialStepDef[];
+}
+
+export interface TutorialStepDef {
+  title: string;
+  content: string;
+  commands?: TutorialCommand[];
+  observe?: string[];
+  checkpoint?: {
+    description: string;
+  };
+}
+
+export interface TutorialCommand {
+  run: string;
+  description?: string;
+  expect?: string;
+}
+
+export interface TutorialCompletion {
+  message: string;
+  capability_delta?: Record<string, boolean>;
+}

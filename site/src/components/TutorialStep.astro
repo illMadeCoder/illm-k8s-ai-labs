@@ -1,0 +1,204 @@
+---
+import { marked } from 'marked';
+import CommandBlock from './CommandBlock.astro';
+import type { TutorialStepDef } from '../types';
+
+interface Props {
+  step: TutorialStepDef;
+  stepNumber: number;
+}
+
+const { step, stepNumber } = Astro.props;
+
+const contentHtml = marked.parse(step.content, { async: false }) as string;
+---
+
+<div class="tutorial-step">
+  <div class="step-header">
+    <span class="step-number">{stepNumber}</span>
+    <h4 class="step-title">{step.title}</h4>
+  </div>
+  <div class="step-content" set:html={contentHtml} />
+  {step.commands && step.commands.length > 0 && (
+    <div class="step-commands">
+      {step.commands.map((cmd) => (
+        <CommandBlock command={cmd} />
+      ))}
+    </div>
+  )}
+  {step.observe && step.observe.length > 0 && (
+    <div class="step-observe">
+      <span class="step-observe-label">Observe</span>
+      <ul class="step-observe-list">
+        {step.observe.map((item) => (
+          <li>{item}</li>
+        ))}
+      </ul>
+    </div>
+  )}
+  {step.checkpoint && (
+    <div class="step-checkpoint">
+      <span class="step-checkpoint-label">Checkpoint</span>
+      <p class="step-checkpoint-text">{step.checkpoint.description}</p>
+    </div>
+  )}
+</div>
+
+<style>
+  .tutorial-step {
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    overflow: hidden;
+    background: var(--bg-card);
+  }
+
+  .step-header {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.75rem 1rem;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .step-number {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.75rem;
+    height: 1.75rem;
+    font-family: var(--font-mono);
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: #e879f9;
+    background: color-mix(in srgb, #e879f9 12%, transparent);
+    border: 1px solid color-mix(in srgb, #e879f9 25%, transparent);
+    border-radius: 4px;
+    flex-shrink: 0;
+  }
+
+  .step-title {
+    font-size: 1rem;
+    font-weight: 600;
+    margin: 0;
+    color: var(--text);
+  }
+
+  .step-content {
+    padding: 0.75rem 1rem;
+    font-size: 0.9rem;
+    line-height: 1.7;
+    color: var(--text);
+  }
+
+  .step-content :global(p) {
+    margin: 0 0 0.75rem;
+  }
+
+  .step-content :global(p:last-child) {
+    margin-bottom: 0;
+  }
+
+  .step-content :global(strong) {
+    font-weight: 600;
+    color: var(--text);
+  }
+
+  .step-content :global(code) {
+    font-family: var(--font-mono);
+    font-size: 0.85em;
+    background: var(--bg-surface);
+    padding: 0.15em 0.4em;
+    border-radius: 4px;
+  }
+
+  .step-content :global(ul),
+  .step-content :global(ol) {
+    margin: 0.5rem 0;
+    padding-left: 1.5rem;
+  }
+
+  .step-content :global(li) {
+    margin: 0.25rem 0;
+  }
+
+  .step-commands {
+    padding: 0 1rem 0.75rem;
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+
+  .step-observe {
+    margin: 0 1rem 0.75rem;
+    border-left: 3px solid #3b82f6;
+    background: color-mix(in srgb, #3b82f6 8%, var(--bg-card));
+    border-radius: 0 var(--radius) var(--radius) 0;
+    padding: 0.6rem 0.75rem;
+  }
+
+  .step-observe-label {
+    display: block;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #3b82f6;
+    margin-bottom: 0.35rem;
+  }
+
+  .step-observe-list {
+    margin: 0;
+    padding-left: 1.25rem;
+    font-size: 0.85rem;
+    color: var(--text);
+    line-height: 1.6;
+  }
+
+  .step-observe-list li {
+    margin: 0.2rem 0;
+  }
+
+  .step-checkpoint {
+    margin: 0 1rem 0.75rem;
+    border-left: 3px solid #22c55e;
+    background: color-mix(in srgb, #22c55e 8%, var(--bg-card));
+    border-radius: 0 var(--radius) var(--radius) 0;
+    padding: 0.6rem 0.75rem;
+  }
+
+  .step-checkpoint-label {
+    display: block;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: #22c55e;
+    margin-bottom: 0.25rem;
+  }
+
+  .step-checkpoint-text {
+    margin: 0;
+    font-size: 0.85rem;
+    color: var(--text);
+    line-height: 1.6;
+  }
+
+  @media (max-width: 640px) {
+    .step-header {
+      padding: 0.5rem 0.75rem;
+    }
+
+    .step-content {
+      padding: 0.5rem 0.75rem;
+    }
+
+    .step-commands {
+      padding: 0 0.75rem 0.5rem;
+    }
+
+    .step-observe,
+    .step-checkpoint {
+      margin: 0 0.75rem 0.5rem;
+    }
+  }
+</style>

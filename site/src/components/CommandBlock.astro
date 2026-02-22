@@ -1,0 +1,129 @@
+---
+import type { TutorialCommand } from '../types';
+
+interface Props {
+  command: TutorialCommand;
+}
+
+const { command } = Astro.props;
+---
+
+<div class="command-block">
+  {command.description && (
+    <div class="command-description">{command.description}</div>
+  )}
+  <div class="command-line">
+    <span class="command-prompt">$</span>
+    <code class="command-text">{command.run}</code>
+    <button class="command-copy" data-command={command.run} aria-label="Copy command">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+           stroke-linecap="round" stroke-linejoin="round" width="14" height="14">
+        <rect x="9" y="9" width="13" height="13" rx="2" ry="2"/>
+        <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>
+      </svg>
+    </button>
+  </div>
+  {command.expect && (
+    <details class="command-expected">
+      <summary>Expected output</summary>
+      <pre class="command-expected-output">{command.expect}</pre>
+    </details>
+  )}
+</div>
+
+<style>
+  .command-block {
+    background: #1a1a2e;
+    border: 1px solid #2d2d4a;
+    border-radius: var(--radius);
+    overflow: hidden;
+    margin: 0.5rem 0;
+  }
+
+  .command-description {
+    padding: 0.5rem 0.75rem;
+    font-size: 0.8rem;
+    color: #94a3b8;
+    border-bottom: 1px solid #2d2d4a;
+  }
+
+  .command-line {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.6rem 0.75rem;
+    font-family: var(--font-mono);
+    font-size: 0.85rem;
+  }
+
+  .command-prompt {
+    color: #22c55e;
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+
+  .command-text {
+    color: #e2e8f0;
+    background: none;
+    padding: 0;
+    font-size: inherit;
+    word-break: break-all;
+    flex: 1;
+  }
+
+  .command-copy {
+    flex-shrink: 0;
+    background: none;
+    border: 1px solid transparent;
+    border-radius: 4px;
+    color: #64748b;
+    cursor: pointer;
+    padding: 0.25rem;
+    display: flex;
+    align-items: center;
+    transition: color 0.15s, border-color 0.15s;
+  }
+
+  .command-copy:hover {
+    color: #e2e8f0;
+    border-color: #475569;
+  }
+
+  .command-expected {
+    border-top: 1px solid #2d2d4a;
+  }
+
+  .command-expected > summary {
+    padding: 0.4rem 0.75rem;
+    font-size: 0.75rem;
+    color: #64748b;
+    cursor: pointer;
+    user-select: none;
+    list-style: none;
+  }
+
+  .command-expected > summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .command-expected > summary::before {
+    content: '\25B6 ';
+    font-size: 0.55em;
+    margin-right: 0.3rem;
+  }
+
+  .command-expected[open] > summary::before {
+    content: '\25BC ';
+  }
+
+  .command-expected-output {
+    margin: 0;
+    padding: 0.5rem 0.75rem;
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    color: #94a3b8;
+    white-space: pre-wrap;
+    word-break: break-all;
+    border-top: 1px solid #2d2d4a;
+  }
+</style>

@@ -1,0 +1,198 @@
+{
+  "title": "One Directory, Still No SSO: LDAP Authentication",
+  "description": "Deploy OpenLDAP and experience centralization without SSO",
+  "duration": 30,
+  "difficulty": "beginner",
+  "prerequisites": ["id-101"],
+
+  "services": [
+    {
+      "name": "openldap-admin",
+      "label": "LDAP Admin",
+      "icon": "database"
+    },
+    {
+      "name": "app-portal",
+      "label": "App Portal",
+      "icon": "globe"
+    },
+    {
+      "name": "app-wiki",
+      "label": "Wiki App",
+      "icon": "globe"
+    },
+    {
+      "name": "app-chat",
+      "label": "Chat App",
+      "icon": "globe"
+    },
+    {
+      "name": "terminal",
+      "label": "Web Terminal",
+      "icon": "terminal"
+    }
+  ],
+
+  "modules": [
+    {
+      "id": "the-problem",
+      "title": "The Problem So Far",
+      "steps": [
+        {
+          "title": "Why Separate Databases Are Painful",
+          "content": "In **id-101**, you experienced the multi-app password problem firsthand. Each application maintained its own user database:\n\n- The **Portal** had its own users table\n- The **Wiki** had its own users table\n- The **Chat** app had its own users table\n\nWhen Alice joined the team, an admin had to create her account in *each* application separately. When she changed her password, she had to change it in *each* application separately. When she left the company... you get the picture."
+        },
+        {
+          "title": "What LDAP Promises to Solve",
+          "content": "**LDAP** (Lightweight Directory Access Protocol) gives us a single, centralized directory for user identity. Instead of each app maintaining its own user database, they all query the same LDAP server.\n\nThis means:\n- One place to create users\n- One place to change passwords\n- One place to disable accounts\n\nBut does it give us **single sign-on**? Let's find out."
+        }
+      ]
+    },
+    {
+      "id": "explore-ldap",
+      "title": "Explore the LDAP Directory",
+      "steps": [
+        {
+          "title": "Check the Deployment",
+          "content": "First, verify that OpenLDAP and the three applications are running in the experiment namespace.",
+          "commands": [
+            {
+              "run": "kubectl get pods -n id-102 -o wide",
+              "description": "Check all pods are running"
+            }
+          ],
+          "checkpoint": {
+            "description": "You should see openldap-0, app-portal, app-wiki, and app-chat pods all in Running state."
+          }
+        },
+        {
+          "title": "Browse the Directory Tree",
+          "content": "LDAP organizes data in a tree structure called a **DIT** (Directory Information Tree). Our directory uses the base DN `dc=lab,dc=local` with organizational units for users and groups.",
+          "commands": [
+            {
+              "run": "kubectl exec -n id-102 openldap-0 -- ldapsearch -x -b 'dc=lab,dc=local' -LLL '(objectClass=organizationalUnit)' dn",
+              "description": "List organizational units",
+              "expect": "dn: ou=users,dc=lab,dc=local\ndn: ou=groups,dc=lab,dc=local"
+            }
+          ]
+        },
+        {
+          "title": "List All Users",
+          "content": "The directory has been pre-populated with three users: **alice**, **bob**, and **admin**. Each user has a `uid`, `cn` (common name), `mail`, and `userPassword` attribute.",
+          "commands": [
+            {
+              "run": "kubectl exec -n id-102 openldap-0 -- ldapsearch -x -b 'ou=users,dc=lab,dc=local' -LLL '(objectClass=inetOrgPerson)' uid cn mail",
+              "description": "Search for all user entries",
+              "expect": "dn: uid=alice,ou=users,dc=lab,dc=local\nuid: alice\ncn: Alice Smith\nmail: alice@lab.local"
+            }
+          ],
+          "checkpoint": {
+            "description": "You should see alice, bob, and admin users with their common names and email addresses."
+          }
+        },
+        {
+          "title": "Test an LDAP Bind",
+          "content": "When an application authenticates a user against LDAP, it performs a **bind** operation — essentially logging in as that user. If the password is correct, the bind succeeds.\n\nThis is the fundamental authentication mechanism. Every time a user logs in to *any* app, that app performs an LDAP bind with the user's credentials.",
+          "commands": [
+            {
+              "run": "kubectl exec -n id-102 openldap-0 -- ldapwhoami -x -D 'uid=alice,ou=users,dc=lab,dc=local' -w 'alice-password'",
+              "description": "Bind as alice to verify her password works",
+              "expect": "dn:uid=alice,ou=users,dc=lab,dc=local"
+            },
+            {
+              "run": "kubectl exec -n id-102 openldap-0 -- ldapwhoami -x -D 'uid=alice,ou=users,dc=lab,dc=local' -w 'wrong-password'",
+              "description": "Try a wrong password (should fail)",
+              "expect": "ldap_bind: Invalid credentials (49)"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "id": "experience-ldap",
+      "title": "Experience LDAP Authentication",
+      "steps": [
+        {
+          "title": "Log In to the Portal",
+          "content": "Open the **App Portal** using the service link above (or port-forward if running locally). Log in with Alice's credentials:\n\n- Username: `alice`\n- Password: `alice-password`\n\nNotice that the portal doesn't store Alice's password — it sends an LDAP bind request to OpenLDAP to verify the credentials.",
+          "commands": [
+            {
+              "run": "kubectl port-forward -n id-102 svc/app-portal 8080:80",
+              "description": "Port-forward to the portal (if not using service links)"
+            }
+          ]
+        },
+        {
+          "title": "Log In to the Wiki",
+          "content": "Now open the **Wiki App** and log in with the *same* credentials:\n\n- Username: `alice`\n- Password: `alice-password`\n\nThe same password works! Both apps authenticate against the same LDAP directory. But notice: **you had to type the password again**.",
+          "commands": [
+            {
+              "run": "kubectl port-forward -n id-102 svc/app-wiki 8081:80",
+              "description": "Port-forward to the wiki (if not using service links)"
+            }
+          ]
+        },
+        {
+          "title": "Log In to the Chat App",
+          "content": "Finally, open the **Chat App** and log in one more time:\n\n- Username: `alice`\n- Password: `alice-password`",
+          "observe": [
+            "One password works for all three apps — that's centralized identity",
+            "But you typed it three times — that's NOT single sign-on",
+            "Each app independently sends the raw password to LDAP for verification",
+            "There's no session sharing between apps"
+          ]
+        },
+        {
+          "title": "Change Alice's Password",
+          "content": "Now let's see the advantage of centralization. Change Alice's password in LDAP — it immediately takes effect across all three apps.",
+          "commands": [
+            {
+              "run": "kubectl exec -n id-102 openldap-0 -- ldappasswd -x -D 'cn=admin,dc=lab,dc=local' -w 'admin-password' -s 'new-alice-pw' 'uid=alice,ou=users,dc=lab,dc=local'",
+              "description": "Change Alice's password via LDAP admin"
+            },
+            {
+              "run": "kubectl exec -n id-102 openldap-0 -- ldapwhoami -x -D 'uid=alice,ou=users,dc=lab,dc=local' -w 'new-alice-pw'",
+              "description": "Verify the new password works",
+              "expect": "dn:uid=alice,ou=users,dc=lab,dc=local"
+            }
+          ],
+          "checkpoint": {
+            "description": "Log out and back into any app — the new password works everywhere. One change, all apps updated. That's the power of centralized identity."
+          }
+        }
+      ]
+    },
+    {
+      "id": "the-gap",
+      "title": "Understanding the Gap",
+      "steps": [
+        {
+          "title": "What LDAP Gave Us",
+          "content": "LDAP solved the **identity fragmentation** problem:\n\n- **One user directory** instead of three separate databases\n- **One password** per user across all apps\n- **Centralized account management** — create, modify, disable in one place\n- **Group membership** for authorization decisions\n\nThis is a huge improvement over id-101's per-app databases."
+        },
+        {
+          "title": "What LDAP Did NOT Give Us",
+          "content": "Despite centralizing identity, LDAP **does not provide single sign-on** (SSO). Here's why:\n\n- Each app **independently collects the user's password** — the user types it once per app\n- Each app **sends the raw password** to LDAP for verification — there's no token or session sharing\n- There's **no concept of a session** that spans multiple apps\n- **Password exposure** is multiplied — the raw password traverses the network for each app login\n\nLDAP is a *directory service*, not an *authentication protocol*. It stores and verifies credentials but has no mechanism for delegated authentication.",
+          "observe": [
+            "LDAP centralizes WHERE credentials live, not HOW authentication works",
+            "Each app still needs to handle the raw password",
+            "There's no way for App A to tell App B that a user is already authenticated",
+            "This is the fundamental gap that SSO protocols (SAML, OIDC) were invented to fill"
+          ]
+        }
+      ]
+    }
+  ],
+
+  "completion": {
+    "message": "You've experienced LDAP centralization firsthand — one directory, one password, but still no single sign-on. Each app independently collected and verified credentials, exposing the password multiple times.\n\n**Next:** In **id-103**, we'll add SAML SSO with Keycloak. You'll log in *once* and see all three apps recognize you without re-entering your password. That's the difference between centralized identity and true single sign-on.",
+    "capability_delta": {
+      "centralized_user_directory": true,
+      "single_password": true,
+      "centralized_account_mgmt": true,
+      "single_sign_on": false,
+      "token_based_auth": false,
+      "password_never_leaves_idp": false
+    }
+  }
+}

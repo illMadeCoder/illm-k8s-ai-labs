@@ -4,6 +4,7 @@ import Breadcrumb from '../../../components/Breadcrumb.astro';
 import ExperimentDetail from '../../../components/ExperimentDetail.astro';
 import { loadAllExperiments, getBaseName, getRunDisplayTitle, groupExperiments, getSeriesSiblings, getHypothesisClaim } from '../../../lib/experiments';
 import { getSeriesMeta } from '../../../lib/series';
+import { loadTutorial } from '../../../lib/tutorial';
 import type { ExperimentSummary } from '../../../types';
 import type { ExperimentGroup } from '../../../lib/experiments';
 
@@ -38,6 +39,7 @@ if (seriesId) {
   }
 }
 
+const tutorial = loadTutorial(baseName);
 const hypothesis = getHypothesisClaim(experiment);
 const verdict = experiment.analysis?.hypothesisVerdict;
 const abstract = experiment.analysis?.abstract;
@@ -64,7 +66,7 @@ if (abstract) {
     crumbs={[
       { label: 'Home', href: base },
       ...(seriesSiblings
-        ? [{ label: 'Series', href: `${base}series/` }, { label: seriesSiblings.seriesName, href: `${base}series/${seriesSiblings.seriesId}/`, color: seriesSiblings.seriesColor }]
+        ? [{ label: 'Series', href: `${base}series/` }, { label: seriesSiblings.seriesName, href: `${base}series/`, color: seriesSiblings.seriesColor }]
         : [{ label: 'Experiments', href: base }]),
       { label: displayName, href: `${base}experiments/${baseName}/` },
       { label: experiment.name },
@@ -75,6 +77,7 @@ if (abstract) {
     experiment={experiment}
     displayName={experiment.name}
     tags={experiment.tags ?? []}
+    tutorial={tutorial}
     runHistory={siblingRuns.length > 1 ? {
       baseName,
       runs: siblingRuns,

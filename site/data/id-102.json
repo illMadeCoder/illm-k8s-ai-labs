@@ -1,0 +1,33 @@
+{
+  "name": "id-102",
+  "title": "One Directory, Still No SSO: LDAP Authentication",
+  "namespace": "experiments",
+  "description": "Deploy OpenLDAP and experience centralized identity without single sign-on. Users share one directory but still type passwords for every app.",
+  "createdAt": "2026-02-21T00:00:00Z",
+  "completedAt": "2026-02-21T00:30:00Z",
+  "durationSeconds": 1800,
+  "phase": "Complete",
+  "tags": ["identity", "ldap", "authentication", "tutorial"],
+  "series": "identity",
+  "hypothesis": {
+    "claim": "Centralizing user credentials in LDAP eliminates per-app password management but does not provide single sign-on.",
+    "questions": [
+      "How does LDAP centralize user identity compared to per-app databases?",
+      "What authentication friction remains even with a central directory?",
+      "Why doesn't LDAP alone constitute single sign-on?"
+    ],
+    "focus": ["identity-centralization", "authentication-flow", "ldap-bind"]
+  },
+  "targets": [
+    {
+      "name": "hub",
+      "clusterType": "talos",
+      "components": ["openldap", "id-app-portal", "id-app-wiki", "id-app-chat"]
+    }
+  ],
+  "workflow": {
+    "name": "id-102-tutorial",
+    "template": "tutorial",
+    "phase": "Succeeded"
+  }
+}
