@@ -4749,6 +4749,129 @@ const layoutData = JSON.stringify({ organisms, rootTendrils: rootTendrilData, da
 
       // Fire mermaid:ready in case mermaid diagrams are waiting for it
       window.dispatchEvent(new CustomEvent('mermaid:ready'));
+
+      // Directly render mermaid diagrams in the overlay.
+      // The re-executed MermaidDiagram scripts are unreliable (duplicate render IDs,
+      // race conditions with mermaid:ready stacking). Render them ourselves using
+      // the data-mermaid-source attribute already on each .mermaid-wrapper.
+      const mermaidLib = (window as any).mermaidLib;
+      if (mermaidLib) {
+        if (!(window as any).__mermaidInitialized) {
+          const cs = getComputedStyle(document.documentElement);
+          mermaidLib.initialize({
+            startOnLoad: false,
+            theme: 'base',
+            themeVariables: {
+              darkMode: true,
+              background: cs.getPropertyValue('--bg').trim(),
+              primaryColor: cs.getPropertyValue('--bg').trim(),
+              primaryTextColor: cs.getPropertyValue('--text').trim(),
+              primaryBorderColor: cs.getPropertyValue('--accent').trim(),
+              secondaryColor: cs.getPropertyValue('--bg-card').trim(),
+              secondaryBorderColor: cs.getPropertyValue('--accent').trim(),
+              secondaryTextColor: cs.getPropertyValue('--text').trim(),
+              tertiaryColor: cs.getPropertyValue('--bg').trim(),
+              tertiaryBorderColor: cs.getPropertyValue('--text-muted').trim(),
+              tertiaryTextColor: cs.getPropertyValue('--text').trim(),
+              lineColor: cs.getPropertyValue('--text-muted').trim(),
+              nodeTextColor: cs.getPropertyValue('--text').trim(),
+              clusterBkg: cs.getPropertyValue('--bg-card').trim(),
+              clusterBorder: cs.getPropertyValue('--accent').trim(),
+              edgeLabelBackground: cs.getPropertyValue('--bg').trim(),
+              noteBkgColor: cs.getPropertyValue('--bg-card').trim(),
+              noteTextColor: cs.getPropertyValue('--text').trim(),
+              noteBorderColor: cs.getPropertyValue('--text-muted').trim(),
+              fontFamily: cs.getPropertyValue('--font-mono').trim(),
+              fontSize: '14px',
+            },
+            flowchart: { htmlLabels: true, curve: 'monotoneY', padding: 15 },
+          });
+          (window as any).__mermaidInitialized = true;
+        }
+
+        const ZOOM_STEPS = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 3];
+        const wrappers = overlayContent.querySelectorAll<HTMLElement>('.mermaid-wrapper[data-mermaid-source]');
+        for (const wrapper of wrappers) {
+          const source = wrapper.dataset.mermaidSource || '';
+          const chartId = wrapper.dataset.chartId || '';
+          const renderEl = chartId ? document.getElementById(chartId) : wrapper.querySelector('.mermaid-render');
+          if (!renderEl || !source) continue;
+
+          // Unique render ID to avoid mermaid ID collisions across overlay reopens
+          const renderId = 'overlay-mmd-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6);
+          try {
+            const result = await mermaidLib.render(renderId, source);
+            renderEl.innerHTML = result.svg;
+
+            // Wire up zoom controls (mirrors MermaidDiagram.astro logic)
+            const svg = renderEl.querySelector('svg');
+            if (!svg) continue;
+
+            const container = wrapper.querySelector('.mermaid-container') as HTMLElement;
+            const scrollArea = wrapper.querySelector('.mermaid-scroll-area') as HTMLElement;
+            const label = wrapper.querySelector('.mermaid-zoom-label') as HTMLElement;
+            if (!container || !scrollArea || !label) continue;
+
+            let naturalW: number, naturalH: number;
+            const vb = svg.getAttribute('viewBox');
+            if (vb) {
+              const parts = vb.split(/[\s,]+/);
+              naturalW = parseFloat(parts[2]);
+              naturalH = parseFloat(parts[3]);
+            }
+            if (!naturalW! || !naturalH!) {
+              naturalW = parseFloat(svg.getAttribute('width') || '') || svg.getBoundingClientRect().width;
+              naturalH = parseFloat(svg.getAttribute('height') || '') || svg.getBoundingClientRect().height;
+            }
+            if (!naturalW || !naturalH) continue;
+
+            svg.style.width = naturalW + 'px';
+            svg.style.height = naturalH + 'px';
+            svg.style.maxWidth = 'none';
+            svg.style.display = 'block';
+
+            let currentScale = 1;
+            const fitScale = () => Math.min(1, container.clientWidth / naturalW);
+            const applyZoom = (scale: number) => {
+              currentScale = scale;
+              renderEl.style.transform = 'scale(' + scale + ')';
+              renderEl.style.transformOrigin = '0 0';
+              scrollArea.style.width = Math.ceil(naturalW * scale) + 'px';
+              scrollArea.style.height = Math.ceil(naturalH * scale) + 'px';
+              label.textContent = Math.round(scale * 100) + '%';
+            };
+            const findStepIndex = (scale: number) => {
+              let closest = 0, minDiff = Math.abs(ZOOM_STEPS[0] - scale);
+              for (let i = 1; i < ZOOM_STEPS.length; i++) {
+                const diff = Math.abs(ZOOM_STEPS[i] - scale);
+                if (diff < minDiff) { minDiff = diff; closest = i; }
+              }
+              return closest;
+            };
+
+            wrapper.querySelectorAll<HTMLElement>('.mermaid-btn').forEach(btn => {
+              btn.addEventListener('click', (e) => {
+                e.preventDefault();
+                const action = btn.dataset.action;
+                if (action === 'zoom-fit') {
+                  applyZoom(fitScale());
+                } else if (action === 'zoom-in') {
+                  const idx = findStepIndex(currentScale);
+                  if (idx < ZOOM_STEPS.length - 1) applyZoom(ZOOM_STEPS[idx + 1]);
+                } else if (action === 'zoom-out') {
+                  const idx = findStepIndex(currentScale);
+                  if (idx > 0) applyZoom(ZOOM_STEPS[idx - 1]);
+                }
+              });
+            });
+
+            applyZoom(fitScale());
+          } catch (err) {
+            renderEl.innerHTML = '<pre style="color:var(--text-muted);font-size:0.75rem;white-space:pre;overflow-x:auto">' +
+              source.replace(/</g, '&lt;') + '</pre>';
+          }
+        }
+      }
     }
 
     // --- Sync with AI toolbar height ---
