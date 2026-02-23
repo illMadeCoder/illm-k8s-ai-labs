@@ -3146,7 +3146,7 @@ const layoutData = JSON.stringify({ organisms, rootTendrils: rootTendrilData, da
           <span class="card-runs">${data.runCount} run${data.runCount !== 1 ? 's' : ''}</span>
           <span class="card-date">${data.date}</span>
         </div>
-        <a class="card-title" href="${data.href}">${data.title}</a>
+        <a class="card-title" href="${data.href}" data-overlay-base="${data.baseName}" data-overlay-href="${data.href}">${data.title}</a>
         <p class="card-series"><span style="color:${data.seriesColor};font-weight:600">${data.seriesName}</span> Series</p>
         <p class="card-desc">${data.description}</p>
         <div class="card-tags">${data.tags.map((t: string) => `<span class="card-tag">${t}</span>`).join('')}</div>
@@ -3218,7 +3218,10 @@ const layoutData = JSON.stringify({ organisms, rootTendrils: rootTendrilData, da
         if (!baseName) return;
 
         if (mobileSelectedBaseName === baseName) {
-          // Second tap on same experiment → navigate
+          // Second tap on same experiment → open overlay (SPA-feel)
+          e.preventDefault();
+          collapseActive();
+          openExperimentOverlay(baseName, row.href);
           return;
         }
 
@@ -3282,6 +3285,15 @@ const layoutData = JSON.stringify({ organisms, rootTendrils: rootTendrilData, da
           header.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         });
       });
+    });
+
+    // --- Mobile expand-card title → open overlay instead of navigating ---
+    document.getElementById('mobile-catalog')?.addEventListener('click', (e) => {
+      const link = (e.target as HTMLElement).closest<HTMLAnchorElement>('a[data-overlay-base]');
+      if (!link) return;
+      e.preventDefault();
+      collapseActive();
+      openExperimentOverlay(link.dataset.overlayBase || '', link.dataset.overlayHref || '');
     });
 
     // --- Hero modal ---
