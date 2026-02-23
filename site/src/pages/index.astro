@@ -3491,6 +3491,14 @@ const layoutData = JSON.stringify({ organisms, rootTendrils: rootTendrilData, da
       hideCard();
     });
 
+    // Floating card title → open overlay instead of navigating
+    cardTitle.addEventListener('click', (e: MouseEvent) => {
+      if (e.ctrlKey || e.metaKey) return; // allow open-in-new-tab
+      e.preventDefault();
+      const baseName = selectedBaseName || hoverBaseName;
+      if (baseName) openExperimentOverlay(baseName, cardTitle.href);
+    });
+
     // Keep series card alive when mouse moves from organism → card
     scard.addEventListener('mouseenter', () => {
       if (seriesHideTimer) { clearTimeout(seriesHideTimer); seriesHideTimer = null; }
