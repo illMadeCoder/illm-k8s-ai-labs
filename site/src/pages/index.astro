@@ -4550,6 +4550,7 @@ const layoutData = JSON.stringify({ organisms, rootTendrils: rootTendrilData, da
     const basePath = import.meta.env.BASE_URL;
     let overlayOpen = false;
     let overlayPushedState = false;
+    let overlayStyles: HTMLElement[] = [];
 
     function isOverlayOpen(): boolean {
       return overlayOpen;
@@ -4587,6 +4588,29 @@ const layoutData = JSON.stringify({ organisms, rootTendrils: rootTendrilData, da
           const doc = new DOMParser().parseFromString(html, 'text/html');
           const main = doc.querySelector('main');
           if (!main) throw new Error('No <main> found');
+
+          // Inject CSS from the fetched page that the index page doesn't have
+          const existingLinks = new Set(
+            Array.from(document.querySelectorAll('link[rel="stylesheet"]'))
+              .map(l => l.getAttribute('href'))
+          );
+          doc.querySelectorAll('link[rel="stylesheet"]').forEach(link => {
+            const href = link.getAttribute('href');
+            if (href && !existingLinks.has(href)) {
+              const el = document.createElement('link');
+              el.rel = 'stylesheet';
+              el.href = href;
+              document.head.appendChild(el);
+              overlayStyles.push(el);
+            }
+          });
+          doc.head.querySelectorAll('style').forEach(style => {
+            const el = document.createElement('style');
+            el.textContent = style.textContent;
+            document.head.appendChild(el);
+            overlayStyles.push(el);
+          });
+
           overlayContent.innerHTML = main.innerHTML;
           initOverlayContent();
         })
@@ -4611,9 +4635,13 @@ const layoutData = JSON.stringify({ organisms, rootTendrils: rootTendrilData, da
         history.pushState({}, '', basePath);
       }
 
-      // Clean up after transition
+      // Clean up injected stylesheets and content after transition
       setTimeout(() => {
-        if (!overlayOpen) overlayContent.innerHTML = '';
+        if (!overlayOpen) {
+          overlayContent.innerHTML = '';
+          overlayStyles.forEach(el => el.remove());
+          overlayStyles.length = 0;
+        }
       }, 300);
     }
 
