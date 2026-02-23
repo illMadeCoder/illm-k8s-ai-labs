@@ -963,7 +963,6 @@ const layoutData = JSON.stringify({ organisms, rootTendrils: rootTendrilData, da
         <div class="scard-body"></div>
         <div class="scard-covers"></div>
         <div class="scard-sources"></div>
-        <button class="scard-story-btn" style="display:none">Read Story &rarr;</button>
       </div>
 
       <!-- Story panel (narrative chain reading mode) -->
@@ -3256,23 +3255,6 @@ const layoutData = JSON.stringify({ organisms, rootTendrils: rootTendrilData, da
     background: rgba(255,255,255,0.1);
   }
 
-  /* Story button in series card */
-  .scard-story-btn {
-    width: 100%;
-    padding: 0.5rem;
-    margin-top: 0.75rem;
-    background: rgba(255,255,255,0.04);
-    border: 1px solid var(--scard-color, rgba(255,255,255,0.1));
-    color: var(--scard-color, var(--fg));
-    font-family: var(--font-mono, 'JetBrains Mono', monospace);
-    font-size: 0.7rem;
-    border-radius: 4px;
-    cursor: pointer;
-    transition: background 0.2s;
-  }
-  .scard-story-btn:hover {
-    background: rgba(255,255,255,0.08);
-  }
 
 </style>
 
@@ -3700,7 +3682,6 @@ const layoutData = JSON.stringify({ organisms, rootTendrils: rootTendrilData, da
     const scardBody = scard.querySelector<HTMLElement>('.scard-body')!;
     const scardCovers = scard.querySelector<HTMLElement>('.scard-covers')!;
     const scardSources = scard.querySelector<HTMLElement>('.scard-sources')!;
-    const scardStoryBtn = scard.querySelector<HTMLElement>('.scard-story-btn')!;
 
     // --- Story panel refs ---
     const storyBackdrop = document.getElementById('story-backdrop')!;
@@ -3750,11 +3731,24 @@ const layoutData = JSON.stringify({ organisms, rootTendrils: rootTendrilData, da
     });
 
     // Floating card title → open overlay instead of navigating
-    cardTitle.addEventListener('click', (e: MouseEvent) => {
-      if (e.ctrlKey || e.metaKey) return; // allow open-in-new-tab
-      e.preventDefault();
+    // Use pointerdown/pointerup instead of click because touch-action:none
+    // on the card suppresses synthesized click events on mobile.
+    let titlePointerDown = false;
+    cardTitle.addEventListener('pointerdown', (e: PointerEvent) => {
+      titlePointerDown = true;
+      e.preventDefault(); // prevent text selection + unreliable click synthesis
+    });
+    cardTitle.addEventListener('pointerup', () => {
+      if (!titlePointerDown) return;
+      titlePointerDown = false;
       const baseName = selectedBaseName || hoverBaseName;
       if (baseName) openExperimentOverlay(baseName, cardTitle.href);
+    });
+    cardTitle.addEventListener('pointercancel', () => { titlePointerDown = false; });
+    // Keep Ctrl/Meta+click for open-in-new-tab (falls through to native <a> behavior)
+    cardTitle.addEventListener('click', (e: MouseEvent) => {
+      if (e.ctrlKey || e.metaKey) return;
+      e.preventDefault();
     });
 
     // Keep series card alive when mouse moves from organism → card
@@ -3979,13 +3973,6 @@ const layoutData = JSON.stringify({ organisms, rootTendrils: rootTendrilData, da
       // Color accent
       scard.style.setProperty('--scard-color', data.color);
       scard.style.borderLeftColor = data.color;
-
-      // Show/hide story button based on dagMeta availability
-      const hasDag = !!layout.dagMeta?.[seriesId];
-      scardStoryBtn.style.display = hasDag ? '' : 'none';
-      if (hasDag) {
-        scardStoryBtn.onclick = () => showStoryPanel(seriesId);
-      }
 
       // Position and show
       scard.style.display = 'block';
@@ -4487,8 +4474,17 @@ const layoutData = JSON.stringify({ organisms, rootTendrils: rootTendrilData, da
         e.preventDefault();
         e.stopPropagation();
 
+        // DAG tendril click → open story panel
+        const data = sporeDataMap[baseName];
+        if (data) {
+          const seriesId = data.seriesId;
+          if (seriesId && layout.dagMeta?.[seriesId]) {
+            showStoryPanel(seriesId);
+            return;
+          }
+        }
+
         if (selectedBaseName === baseName) {
-          const data = sporeDataMap[baseName];
           if (data) openExperimentOverlay(baseName, data.href);
           return;
         }
@@ -4584,7 +4580,7 @@ const layoutData = JSON.stringify({ organisms, rootTendrils: rootTendrilData, da
       });
     });
 
-    // --- Root tendril hit area click → zoom to series ---
+    // --- Root tendril hit area click → zoom to series (or open story panel if DAG) ---
     const tendrilHits = world.querySelectorAll<SVGPathElement>('.root-tendril-hit');
     tendrilHits.forEach(hit => {
       hit.addEventListener('click', (e) => {
@@ -4597,7 +4593,13 @@ const layoutData = JSON.stringify({ organisms, rootTendrils: rootTendrilData, da
         if (focusedSeriesId === seriesId) {
           zoomToHub();
         } else {
-          zoomToSeries(seriesId);
+          // Open story panel for series with a DAG, otherwise just zoom
+          if (layout.dagMeta?.[seriesId]) {
+            zoomToSeries(seriesId);
+            showStoryPanel(seriesId);
+          } else {
+            zoomToSeries(seriesId);
+          }
         }
       });
     });
