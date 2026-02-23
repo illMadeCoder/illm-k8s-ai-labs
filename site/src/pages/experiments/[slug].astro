@@ -59,20 +59,20 @@ if (abstract) {
 ---
 
 <Base title={`${displayName} — K8s AI Lab Benchmarks`} description={group.latest.description} pageTopic={displayName} openingMessage={openingMessage}>
-  <script is:inline define:vars={{ base, slug: group.baseName }}>
-    if (!document.querySelector('.overlay-panel'))
+  <Fragment slot="breadcrumb">
+    <script is:inline define:vars={{ base, slug: group.baseName }}>
       window.location.replace(base + '?experiment=' + slug);
-  </script>
-  <Breadcrumb
-    crumbs={[
-      { label: 'Home', href: base },
-      ...(seriesSiblings
-        ? [{ label: 'Series', href: `${base}series/` }, { label: seriesSiblings.seriesName, href: `${base}series/`, color: seriesSiblings.seriesColor }]
-        : [{ label: 'Experiments', href: base }]),
-      { label: displayName },
-    ]}
-    slot="breadcrumb"
-  />
+    </script>
+    <Breadcrumb
+      crumbs={[
+        { label: 'Home', href: base },
+        ...(seriesSiblings
+          ? [{ label: 'Series', href: `${base}series/` }, { label: seriesSiblings.seriesName, href: `${base}series/`, color: seriesSiblings.seriesColor }]
+          : [{ label: 'Experiments', href: base }]),
+        { label: displayName },
+      ]}
+    />
+  </Fragment>
   <ExperimentDetail
     experiment={group.latest}
     displayName={displayName}

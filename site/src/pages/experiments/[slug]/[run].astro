@@ -62,21 +62,21 @@ if (abstract) {
 ---
 
 <Base title={`${experiment.name} — K8s AI Lab Benchmarks`} description={experiment.description} pageTopic={displayName} openingMessage={openingMessage}>
-  <script is:inline define:vars={{ base, slug: baseName }}>
-    if (!document.querySelector('.overlay-panel'))
+  <Fragment slot="breadcrumb">
+    <script is:inline define:vars={{ base, slug: baseName }}>
       window.location.replace(base + '?experiment=' + slug);
-  </script>
-  <Breadcrumb
-    crumbs={[
-      { label: 'Home', href: base },
-      ...(seriesSiblings
-        ? [{ label: 'Series', href: `${base}series/` }, { label: seriesSiblings.seriesName, href: `${base}series/`, color: seriesSiblings.seriesColor }]
-        : [{ label: 'Experiments', href: base }]),
-      { label: displayName, href: `${base}experiments/${baseName}/` },
-      { label: experiment.name },
-    ]}
-    slot="breadcrumb"
-  />
+    </script>
+    <Breadcrumb
+      crumbs={[
+        { label: 'Home', href: base },
+        ...(seriesSiblings
+          ? [{ label: 'Series', href: `${base}series/` }, { label: seriesSiblings.seriesName, href: `${base}series/`, color: seriesSiblings.seriesColor }]
+          : [{ label: 'Experiments', href: base }]),
+        { label: displayName, href: `${base}experiments/${baseName}/` },
+        { label: experiment.name },
+      ]}
+    />
+  </Fragment>
   <ExperimentDetail
     experiment={experiment}
     displayName={experiment.name}
