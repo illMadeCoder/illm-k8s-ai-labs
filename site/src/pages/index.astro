@@ -1003,6 +1003,42 @@ const layoutData = JSON.stringify({ organisms, rootTendrils: rootTendrilData, da
   </div>
 
   <script id="rhizome-layout-data" type="application/json" set:html={layoutData} />
+
+  <!-- Experiment overlay (SPA-feel navigation from rhizome) -->
+  <div id="experiment-overlay" class="experiment-overlay" aria-hidden="true">
+    <div class="overlay-backdrop"></div>
+    <div class="overlay-panel">
+      <div class="overlay-header">
+        <button id="overlay-close" aria-label="Back to lab">&larr;</button>
+        <div class="overlay-brand">
+          <svg class="root-icon" viewBox="0 0 16 20" width="14" height="17" fill="currentColor">
+            <rect x="0" y="0" width="16" height="20" rx="2" opacity="0.3" />
+            <rect x="2" y="1.5" width="12" height="4.5" rx="1" />
+            <circle cx="12" cy="3.75" r="1" opacity="0.4" />
+            <rect x="2" y="7.75" width="12" height="4.5" rx="1" />
+            <circle cx="12" cy="10" r="1" opacity="0.4" />
+            <rect x="2" y="14" width="12" height="4.5" rx="1" />
+            <circle cx="12" cy="16.25" r="1" opacity="0.4" />
+          </svg>
+          <span class="overlay-brand-label">TESTBED UI</span>
+        </div>
+      </div>
+      <div class="overlay-scroll">
+        <div id="overlay-content" class="overlay-content">
+          <div class="overlay-skeleton" aria-hidden="true">
+            <div class="skel-bar skel-title"></div>
+            <div class="skel-bar skel-tags"></div>
+            <div class="skel-bar skel-text"></div>
+            <div class="skel-bar skel-text short"></div>
+            <div class="skel-block"></div>
+            <div class="skel-bar skel-text"></div>
+            <div class="skel-bar skel-text short"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
 </Base>
 
 <style>
@@ -2846,6 +2882,154 @@ const layoutData = JSON.stringify({ organisms, rootTendrils: rootTendrilData, da
     .hero-modal-arch .arch-ai { width: 65%; }
     .hero-modal-arch .conn-label { font-size: 0.6rem; }
   }
+
+  /* ========== EXPERIMENT OVERLAY ========== */
+  .experiment-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 80;
+    display: flex;
+    align-items: stretch;
+    justify-content: center;
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.25s ease, visibility 0.25s ease;
+    pointer-events: none;
+  }
+
+  .experiment-overlay.visible {
+    opacity: 1;
+    visibility: visible;
+    pointer-events: auto;
+  }
+
+  .overlay-backdrop {
+    position: absolute;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.55);
+    backdrop-filter: blur(6px);
+    -webkit-backdrop-filter: blur(6px);
+  }
+
+  .overlay-panel {
+    position: relative;
+    z-index: 1;
+    width: min(920px, 100vw);
+    display: flex;
+    flex-direction: column;
+    background: var(--bg);
+    border-left: 1px solid var(--border);
+    border-right: 1px solid var(--border);
+    transform: translateY(2rem);
+    transition: transform 0.25s ease;
+  }
+
+  .experiment-overlay.visible .overlay-panel {
+    transform: translateY(0);
+  }
+
+  .overlay-header {
+    flex: 0 0 auto;
+    display: flex;
+    align-items: center;
+    padding: 0.5rem 1rem;
+    background: var(--bg-surface);
+    border-bottom: 1px solid var(--border);
+    z-index: 2;
+  }
+
+  .overlay-header button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 1.75rem;
+    height: 1.75rem;
+    background: none;
+    border: 1px solid var(--border);
+    border-radius: 4px;
+    color: var(--text);
+    font-size: 0.85rem;
+    padding: 0;
+    cursor: pointer;
+    transition: background 0.15s, border-color 0.15s;
+  }
+
+  .overlay-header button:hover {
+    background: var(--bg-card);
+    border-color: var(--text-muted);
+  }
+
+  .overlay-brand {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.4rem;
+    margin-left: auto;
+  }
+
+  .overlay-brand .root-icon {
+    opacity: 0.7;
+  }
+
+  .overlay-brand-label {
+    font-family: var(--font-mono);
+    font-size: 0.7rem;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    color: var(--text);
+  }
+
+  .overlay-scroll {
+    flex: 1 1 auto;
+    overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .overlay-content {
+    max-width: 52rem;
+    margin: 0 auto;
+    padding: 2rem 1.5rem 4rem;
+  }
+
+  /* Loading skeleton */
+  .overlay-skeleton {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+    padding: 1rem 0;
+    animation: skeleton-pulse 1.5s ease-in-out infinite;
+  }
+
+  .skel-bar {
+    height: 1rem;
+    background: var(--bg-card);
+    border-radius: 4px;
+  }
+
+  .skel-title { width: 60%; height: 1.5rem; }
+  .skel-tags { width: 40%; height: 0.8rem; }
+  .skel-text { width: 90%; }
+  .skel-text.short { width: 55%; }
+
+  .skel-block {
+    width: 100%;
+    height: 12rem;
+    background: var(--bg-card);
+    border-radius: 8px;
+  }
+
+  /* --- Mobile: overlay takes full viewport --- */
+  @media (max-width: 640px) {
+    .overlay-panel {
+      width: 100vw;
+      border-left: none;
+      border-right: none;
+    }
+
+    .overlay-content {
+      padding: 1rem 0.75rem 3rem;
+    }
+  }
+
 </style>
 
 <script>
@@ -2999,7 +3183,7 @@ const layoutData = JSON.stringify({ organisms, rootTendrils: rootTendrilData, da
           <span class="card-runs">${data.runCount} run${data.runCount !== 1 ? 's' : ''}</span>
           <span class="card-date">${data.date}</span>
         </div>
-        <a class="card-title" href="${data.href}">${data.title}</a>
+        <a class="card-title" href="${data.href}" data-overlay-base="${data.baseName}" data-overlay-href="${data.href}">${data.title}</a>
         <p class="card-series"><span style="color:${data.seriesColor};font-weight:600">${data.seriesName}</span> Series</p>
         <p class="card-desc">${data.description}</p>
         <div class="card-tags">${data.tags.map((t: string) => `<span class="card-tag">${t}</span>`).join('')}</div>
@@ -3071,7 +3255,10 @@ const layoutData = JSON.stringify({ organisms, rootTendrils: rootTendrilData, da
         if (!baseName) return;
 
         if (mobileSelectedBaseName === baseName) {
-          // Second tap on same experiment → navigate
+          // Second tap on same experiment → open overlay (SPA-feel)
+          e.preventDefault();
+          collapseActive();
+          openExperimentOverlay(baseName, row.href);
           return;
         }
 
@@ -3135,6 +3322,15 @@ const layoutData = JSON.stringify({ organisms, rootTendrils: rootTendrilData, da
           header.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         });
       });
+    });
+
+    // --- Mobile expand-card title → open overlay instead of navigating ---
+    document.getElementById('mobile-catalog')?.addEventListener('click', (e) => {
+      const link = (e.target as HTMLElement).closest<HTMLAnchorElement>('a[data-overlay-base]');
+      if (!link) return;
+      e.preventDefault();
+      collapseActive();
+      openExperimentOverlay(link.dataset.overlayBase || '', link.dataset.overlayHref || '');
     });
 
     // --- Hero modal ---
@@ -3298,6 +3494,14 @@ const layoutData = JSON.stringify({ organisms, rootTendrils: rootTendrilData, da
       clearCatalogSync();
       clearRhizomeSync();
       hideCard();
+    });
+
+    // Floating card title → open overlay instead of navigating
+    cardTitle.addEventListener('click', (e: MouseEvent) => {
+      if (e.ctrlKey || e.metaKey) return; // allow open-in-new-tab
+      e.preventDefault();
+      const baseName = selectedBaseName || hoverBaseName;
+      if (baseName) openExperimentOverlay(baseName, cardTitle.href);
     });
 
     // Keep series card alive when mouse moves from organism → card
@@ -3822,7 +4026,7 @@ const layoutData = JSON.stringify({ organisms, rootTendrils: rootTendrilData, da
         e.preventDefault();
 
         if (selectedBaseName === baseName) {
-          window.location.href = row.href;
+          openExperimentOverlay(baseName, row.href);
           return;
         }
 
@@ -3873,7 +4077,7 @@ const layoutData = JSON.stringify({ organisms, rootTendrils: rootTendrilData, da
 
         if (selectedBaseName === baseName) {
           const data = sporeDataMap[baseName];
-          if (data) window.location.href = data.href;
+          if (data) openExperimentOverlay(baseName, data.href);
           return;
         }
 
@@ -3914,7 +4118,7 @@ const layoutData = JSON.stringify({ organisms, rootTendrils: rootTendrilData, da
 
         if (selectedBaseName === baseName) {
           const data = sporeDataMap[baseName];
-          if (data) window.location.href = data.href;
+          if (data) openExperimentOverlay(baseName, data.href);
           return;
         }
 
@@ -4125,19 +4329,28 @@ const layoutData = JSON.stringify({ organisms, rootTendrils: rootTendrilData, da
       });
     });
 
-    // --- Catalog root click → zoom to hub + show modal ---
+    // --- Catalog root click → zoom to hub first, modal on second click ---
     const catalogRoot = document.getElementById('catalog-root');
     if (catalogRoot) {
       catalogRoot.addEventListener('click', () => {
-        zoomToHub();
-        showHeroModal();
+        if (!isHubView) {
+          zoomToHub();
+        } else {
+          showHeroModal();
+        }
       });
     }
 
-    // --- Mobile catalog root click → show modal ---
+    // --- Mobile catalog root click → zoom to hub first, modal on second click ---
     document.querySelectorAll<HTMLElement>('.mobile-catalog .catalog-root').forEach(el => {
       el.style.cursor = 'pointer';
-      el.addEventListener('click', () => showHeroModal());
+      el.addEventListener('click', () => {
+        if (!isHubView) {
+          zoomToHub();
+        } else {
+          showHeroModal();
+        }
+      });
     });
 
     // --- Zoom controls ---
@@ -4298,9 +4511,13 @@ const layoutData = JSON.stringify({ organisms, rootTendrils: rootTendrilData, da
         selectRow(prev);
       } else if (e.key === 'Enter' && selectedIndex >= 0) {
         e.preventDefault();
-        window.location.href = catalogRows[selectedIndex].href;
+        const row = catalogRows[selectedIndex];
+        openExperimentOverlay(row.dataset.baseName || '', row.href);
       } else if (e.key === 'Escape') {
-        if (!isHubView) {
+        if (isOverlayOpen()) {
+          e.preventDefault();
+          closeExperimentOverlay();
+        } else if (!isHubView) {
           e.preventDefault();
           zoomToHub();
         } else {
@@ -4387,6 +4604,286 @@ const layoutData = JSON.stringify({ organisms, rootTendrils: rootTendrilData, da
     // --- Auto-show hero modal on first visit ---
     if (!sessionStorage.getItem('hero-seen')) {
       showHeroModal();
+    }
+
+    // --- Experiment overlay (SPA-feel navigation) ---
+    const overlayEl = document.getElementById('experiment-overlay')!;
+    const overlayContent = document.getElementById('overlay-content')!;
+    const overlayClose = document.getElementById('overlay-close')!;
+    const overlayBackdrop = overlayEl.querySelector('.overlay-backdrop')!;
+    const overlayScroll = overlayEl.querySelector('.overlay-scroll') as HTMLElement;
+    const savedTitle = document.title;
+    const basePath = import.meta.env.BASE_URL;
+    let overlayOpen = false;
+    let overlayPushedState = false;
+    let overlayStyles: HTMLElement[] = [];
+
+    function isOverlayOpen(): boolean {
+      return overlayOpen;
+    }
+
+    function openExperimentOverlay(baseName: string, href: string) {
+      if (overlayOpen) return;
+      overlayOpen = true;
+
+      // Show with skeleton
+      overlayContent.innerHTML = `
+        <div class="overlay-skeleton" aria-hidden="true">
+          <div class="skel-bar skel-title"></div>
+          <div class="skel-bar skel-tags"></div>
+          <div class="skel-bar skel-text"></div>
+          <div class="skel-bar skel-text short"></div>
+          <div class="skel-block"></div>
+          <div class="skel-bar skel-text"></div>
+          <div class="skel-bar skel-text short"></div>
+        </div>`;
+      overlayEl.setAttribute('aria-hidden', 'false');
+      overlayEl.classList.add('visible');
+      overlayScroll.scrollTop = 0;
+
+      // Update URL + title
+      const title = (sporeDataMap[baseName]?.title || baseName) + ' — K8s AI Lab Benchmarks';
+      history.pushState({ overlay: true, slug: baseName, href }, '', href);
+      overlayPushedState = true;
+      document.title = title;
+
+      // Fetch experiment page and extract <main> content
+      fetch(href)
+        .then(r => { if (!r.ok) throw new Error(`${r.status}`); return r.text(); })
+        .then(html => {
+          const doc = new DOMParser().parseFromString(html, 'text/html');
+          const main = doc.querySelector('main');
+          if (!main) throw new Error('No <main> found');
+
+          // Inject CSS from the fetched page that the index page doesn't have
+          const existingLinks = new Set(
+            Array.from(document.querySelectorAll('link[rel="stylesheet"]'))
+              .map(l => l.getAttribute('href'))
+          );
+          doc.querySelectorAll('link[rel="stylesheet"]').forEach(link => {
+            const href = link.getAttribute('href');
+            if (href && !existingLinks.has(href)) {
+              const el = document.createElement('link');
+              el.rel = 'stylesheet';
+              el.href = href;
+              document.head.appendChild(el);
+              overlayStyles.push(el);
+            }
+          });
+          doc.head.querySelectorAll('style').forEach(style => {
+            const el = document.createElement('style');
+            el.textContent = style.textContent;
+            document.head.appendChild(el);
+            overlayStyles.push(el);
+          });
+
+          overlayContent.innerHTML = main.innerHTML;
+          initOverlayContent();
+        })
+        .catch(err => {
+          overlayContent.innerHTML = `
+            <div style="text-align:center;padding:3rem 1rem;color:var(--text-muted)">
+              <p>Could not load experiment.</p>
+              <a href="${href}" style="color:var(--accent)">Open in full page &rarr;</a>
+            </div>`;
+        });
+    }
+
+    function closeExperimentOverlay() {
+      if (!overlayOpen) return;
+      overlayOpen = false;
+      overlayEl.classList.remove('visible');
+      overlayEl.setAttribute('aria-hidden', 'true');
+      document.title = savedTitle;
+
+      if (overlayPushedState) {
+        overlayPushedState = false;
+        history.pushState({}, '', basePath);
+      }
+
+      // Clean up injected stylesheets and content after transition
+      setTimeout(() => {
+        if (!overlayOpen) {
+          overlayContent.innerHTML = '';
+          overlayStyles.forEach(el => el.remove());
+          overlayStyles.length = 0;
+        }
+      }, 300);
+    }
+
+    overlayClose.addEventListener('click', closeExperimentOverlay);
+    overlayBackdrop.addEventListener('click', closeExperimentOverlay);
+
+    // Browser back/forward button support
+    window.addEventListener('popstate', (e) => {
+      if (e.state?.overlay) {
+        openExperimentOverlay(e.state.slug, e.state.href);
+        overlayPushedState = false; // was navigation, not our push
+      } else if (overlayOpen) {
+        overlayPushedState = false; // browser already went back
+        closeExperimentOverlay();
+      }
+    });
+
+    // Re-initialize interactive content inside the overlay.
+    // Fetched HTML has inline <script> blocks (Vega charts, Mermaid, clipboard)
+    // that don't auto-execute when injected via innerHTML. Strategy:
+    //   1. Ensure vega-embed + mermaid are loaded on window (dynamic import)
+    //   2. Re-execute all inline scripts by replacing them with fresh <script> nodes
+    async function initOverlayContent() {
+      // Load vega-embed + mermaid on window if not already present
+      const loads: Promise<void>[] = [];
+      if (typeof (window as any).vegaEmbed === 'undefined') {
+        loads.push(
+          import('vega-embed').then(mod => { (window as any).vegaEmbed = mod.default; })
+        );
+      }
+      if (typeof (window as any).mermaidLib === 'undefined') {
+        loads.push(
+          import('mermaid').then(mod => {
+            (window as any).mermaidLib = mod.default;
+            (window as any).__mermaidInitialized = false;
+          })
+        );
+      }
+      await Promise.all(loads);
+
+      // Re-run all inline scripts from the fetched content.
+      // Replacing <script> elements with fresh copies forces the browser to execute them.
+      // Skip module/src scripts — those are library imports already handled above.
+      const scripts = overlayContent.querySelectorAll('script');
+      scripts.forEach(oldScript => {
+        if (oldScript.type === 'module' || oldScript.src) return;
+        // Skip MermaidDiagram scripts — we render those ourselves below
+        // to avoid race conditions (their applyZoom(1) overwrites our fitScale)
+        if (oldScript.textContent && oldScript.textContent.includes('mermaidLib')) return;
+        const newScript = document.createElement('script');
+        newScript.textContent = oldScript.textContent;
+        oldScript.replaceWith(newScript);
+      });
+
+      // Directly render mermaid diagrams in the overlay.
+      // The re-executed MermaidDiagram scripts are unreliable (duplicate render IDs,
+      // race conditions with mermaid:ready stacking). Render them ourselves using
+      // the data-mermaid-source attribute already on each .mermaid-wrapper.
+      const mermaidLib = (window as any).mermaidLib;
+      if (mermaidLib) {
+        if (!(window as any).__mermaidInitialized) {
+          const cs = getComputedStyle(document.documentElement);
+          mermaidLib.initialize({
+            startOnLoad: false,
+            theme: 'base',
+            themeVariables: {
+              darkMode: true,
+              background: cs.getPropertyValue('--bg').trim(),
+              primaryColor: cs.getPropertyValue('--bg').trim(),
+              primaryTextColor: cs.getPropertyValue('--text').trim(),
+              primaryBorderColor: cs.getPropertyValue('--accent').trim(),
+              secondaryColor: cs.getPropertyValue('--bg-card').trim(),
+              secondaryBorderColor: cs.getPropertyValue('--accent').trim(),
+              secondaryTextColor: cs.getPropertyValue('--text').trim(),
+              tertiaryColor: cs.getPropertyValue('--bg').trim(),
+              tertiaryBorderColor: cs.getPropertyValue('--text-muted').trim(),
+              tertiaryTextColor: cs.getPropertyValue('--text').trim(),
+              lineColor: cs.getPropertyValue('--text-muted').trim(),
+              nodeTextColor: cs.getPropertyValue('--text').trim(),
+              clusterBkg: cs.getPropertyValue('--bg-card').trim(),
+              clusterBorder: cs.getPropertyValue('--accent').trim(),
+              edgeLabelBackground: cs.getPropertyValue('--bg').trim(),
+              noteBkgColor: cs.getPropertyValue('--bg-card').trim(),
+              noteTextColor: cs.getPropertyValue('--text').trim(),
+              noteBorderColor: cs.getPropertyValue('--text-muted').trim(),
+              fontFamily: cs.getPropertyValue('--font-mono').trim(),
+              fontSize: '14px',
+            },
+            flowchart: { htmlLabels: true, curve: 'monotoneY', padding: 15 },
+          });
+          (window as any).__mermaidInitialized = true;
+        }
+
+        const ZOOM_STEPS = [0.25, 0.5, 0.75, 1, 1.25, 1.5, 2, 3];
+        const wrappers = overlayContent.querySelectorAll<HTMLElement>('.mermaid-wrapper[data-mermaid-source]');
+        for (const wrapper of wrappers) {
+          const source = wrapper.dataset.mermaidSource || '';
+          const chartId = wrapper.dataset.chartId || '';
+          const renderEl = chartId ? document.getElementById(chartId) : wrapper.querySelector('.mermaid-render');
+          if (!renderEl || !source) continue;
+
+          // Unique render ID to avoid mermaid ID collisions across overlay reopens
+          const renderId = 'overlay-mmd-' + Date.now() + '-' + Math.random().toString(36).slice(2, 6);
+          try {
+            const result = await mermaidLib.render(renderId, source);
+            renderEl.innerHTML = result.svg;
+
+            // Wire up zoom controls (mirrors MermaidDiagram.astro logic)
+            const svg = renderEl.querySelector('svg');
+            if (!svg) continue;
+
+            const container = wrapper.querySelector('.mermaid-container') as HTMLElement;
+            const scrollArea = wrapper.querySelector('.mermaid-scroll-area') as HTMLElement;
+            const label = wrapper.querySelector('.mermaid-zoom-label') as HTMLElement;
+            if (!container || !scrollArea || !label) continue;
+
+            let naturalW: number, naturalH: number;
+            const vb = svg.getAttribute('viewBox');
+            if (vb) {
+              const parts = vb.split(/[\s,]+/);
+              naturalW = parseFloat(parts[2]);
+              naturalH = parseFloat(parts[3]);
+            }
+            if (!naturalW! || !naturalH!) {
+              naturalW = parseFloat(svg.getAttribute('width') || '') || svg.getBoundingClientRect().width;
+              naturalH = parseFloat(svg.getAttribute('height') || '') || svg.getBoundingClientRect().height;
+            }
+            if (!naturalW || !naturalH) continue;
+
+            svg.style.width = naturalW + 'px';
+            svg.style.height = naturalH + 'px';
+            svg.style.maxWidth = 'none';
+            svg.style.display = 'block';
+
+            let currentScale = 1;
+            const fitScale = () => Math.min(1, container.clientWidth / naturalW);
+            const applyZoom = (scale: number) => {
+              currentScale = scale;
+              renderEl.style.transform = 'scale(' + scale + ')';
+              renderEl.style.transformOrigin = '0 0';
+              scrollArea.style.width = Math.ceil(naturalW * scale) + 'px';
+              scrollArea.style.height = Math.ceil(naturalH * scale) + 'px';
+              label.textContent = Math.round(scale * 100) + '%';
+            };
+            const findStepIndex = (scale: number) => {
+              let closest = 0, minDiff = Math.abs(ZOOM_STEPS[0] - scale);
+              for (let i = 1; i < ZOOM_STEPS.length; i++) {
+                const diff = Math.abs(ZOOM_STEPS[i] - scale);
+                if (diff < minDiff) { minDiff = diff; closest = i; }
+              }
+              return closest;
+            };
+
+            wrapper.querySelectorAll<HTMLElement>('.mermaid-btn').forEach(btn => {
+              btn.addEventListener('click', (e) => {
+                e.preventDefault();
+                const action = btn.dataset.action;
+                if (action === 'zoom-fit') {
+                  applyZoom(fitScale());
+                } else if (action === 'zoom-in') {
+                  const idx = findStepIndex(currentScale);
+                  if (idx < ZOOM_STEPS.length - 1) applyZoom(ZOOM_STEPS[idx + 1]);
+                } else if (action === 'zoom-out') {
+                  const idx = findStepIndex(currentScale);
+                  if (idx > 0) applyZoom(ZOOM_STEPS[idx - 1]);
+                }
+              });
+            });
+
+            applyZoom(fitScale());
+          } catch (err) {
+            renderEl.innerHTML = '<pre style="color:var(--text-muted);font-size:0.75rem;white-space:pre;overflow-x:auto">' +
+              source.replace(/</g, '&lt;') + '</pre>';
+          }
+        }
+      }
     }
 
     // --- Sync with AI toolbar height ---
