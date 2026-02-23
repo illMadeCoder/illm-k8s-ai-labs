@@ -3795,10 +3795,6 @@ const layoutData = JSON.stringify({ organisms, rootTendrils: rootTendrilData, da
       indicators.forEach(el => el.classList.remove('hovered'));
     }
 
-    function highlightSeries(seriesId: string) {
-      // no-op kept for call sites (zoom-to-series, catalog sync, etc.)
-    }
-
     function focusSpore(baseName: string) {
       allSpores.forEach(s => {
         s.classList.toggle('focused', s.dataset.baseName === baseName);
@@ -3830,7 +3826,7 @@ const layoutData = JSON.stringify({ organisms, rootTendrils: rootTendrilData, da
       }
       focusSpore(selectedBaseName);
       const data = sporeDataMap[selectedBaseName];
-      if (data) highlightSeries(data.seriesId);
+      if (data) highlightSeries(data.seriesId, selectedBaseName);
       showCard(selectedBaseName);
     }
 
@@ -3963,7 +3959,7 @@ const layoutData = JSON.stringify({ organisms, rootTendrils: rootTendrilData, da
       pz.setState({ x: targetX, y: targetY, scale: targetScale }, true);
 
       focusSpore(baseName);
-      highlightSeries(data.seriesId);
+      highlightSeries(data.seriesId, baseName);
 
       return { x: targetX, y: targetY, scale: targetScale };
     }
@@ -3985,7 +3981,7 @@ const layoutData = JSON.stringify({ organisms, rootTendrils: rootTendrilData, da
       focusSpore(baseName);
       selectedBaseName = baseName;
       const data = sporeDataMap[baseName];
-      if (data) highlightSeries(data.seriesId);
+      if (data) highlightSeries(data.seriesId, baseName);
       showCard(baseName);
     };
 
@@ -4009,7 +4005,7 @@ const layoutData = JSON.stringify({ organisms, rootTendrils: rootTendrilData, da
         selectedIndex = i;
         focusSpore(baseName);
         const data = sporeDataMap[baseName];
-        if (data) highlightSeries(data.seriesId);
+        if (data) highlightSeries(data.seriesId, baseName);
         showCard(baseName);
         if (selectedBaseName) hoverBaseName = baseName; // track hover-preview over sticky
       });
