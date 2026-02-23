@@ -59,6 +59,10 @@ if (abstract) {
 ---
 
 <Base title={`${displayName} — K8s AI Lab Benchmarks`} description={group.latest.description} pageTopic={displayName} openingMessage={openingMessage}>
+  <script is:inline define:vars={{ base, slug: group.baseName }}>
+    if (!document.querySelector('.overlay-panel'))
+      window.location.replace(base + '?experiment=' + slug);
+  </script>
   <Breadcrumb
     crumbs={[
       { label: 'Home', href: base },

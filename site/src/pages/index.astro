@@ -4601,10 +4601,8 @@ const layoutData = JSON.stringify({ organisms, rootTendrils: rootTendrilData, da
       });
     }
 
-    // --- Auto-show hero modal on first visit ---
-    if (!sessionStorage.getItem('hero-seen')) {
-      showHeroModal();
-    }
+    // --- Auto-open overlay from query param (experiment deep links) ---
+    // Deferred: runs after overlay setup is complete (see block below popstate listener)
 
     // --- Experiment overlay (SPA-feel navigation) ---
     const overlayEl = document.getElementById('experiment-overlay')!;
@@ -4725,6 +4723,18 @@ const layoutData = JSON.stringify({ organisms, rootTendrils: rootTendrilData, da
       }
     });
 
+    // --- Auto-open overlay from ?experiment= query param or show hero ---
+    {
+      const urlParams = new URLSearchParams(window.location.search);
+      const experimentParam = urlParams.get('experiment');
+      if (experimentParam && sporeDataMap[experimentParam]) {
+        history.replaceState({}, '', basePath);
+        openExperimentOverlay(experimentParam, sporeDataMap[experimentParam].href);
+      } else if (!sessionStorage.getItem('hero-seen')) {
+        showHeroModal();
+      }
+    }
+
     // Re-initialize interactive content inside the overlay.
     // Fetched HTML has inline <script> blocks (Vega charts, Mermaid, clipboard)
     // that don't auto-execute when injected via innerHTML. Strategy:
@@ -4757,6 +4767,7 @@ const layoutData = JSON.stringify({ organisms, rootTendrils: rootTendrilData, da
         // Skip MermaidDiagram scripts — we render those ourselves below
         // to avoid race conditions (their applyZoom(1) overwrites our fitScale)
         if (oldScript.textContent && oldScript.textContent.includes('mermaidLib')) return;
+        if (oldScript.textContent && oldScript.textContent.includes('location.replace')) return;
         const newScript = document.createElement('script');
         newScript.textContent = oldScript.textContent;
         oldScript.replaceWith(newScript);
